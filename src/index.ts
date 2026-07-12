@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { createAuth, type AuthEnv } from "./auth";
 import { normalizeLocale, t, type Locale } from "./i18n";
+import QRCode from "qrcode";
 
 type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
 type EventRow = { id: string; code: string; couple: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null };
@@ -221,7 +222,8 @@ app.get("/dashboard/:code", async (c) => {
   if (!allowed) return c.text("Δεν έχεις πρόσβαση σε αυτή τη διαχείριση.", 403);
   const items = await getMedia(c.env.DB, event.id);
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
-  return c.html(page(`${event.couple} – Διαχείριση`, `<main class="mx-auto max-w-6xl p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-7 shadow-lg"><p class="text-sm font-semibold text-rose-500">ΙΔΙΩΤΙΚΗ ΔΙΑΧΕΙΡΙΣΗ</p><h1 class="mt-2 text-4xl font-bold">${esc(event.couple)}</h1><p class="mt-3">Κωδικός: <strong class="font-mono text-2xl text-violet-600">${esc(event.code)}</strong></p><p class="mt-5 text-sm text-slate-500">Φύλαξε το URL αυτής της σελίδας. Είναι το ιδιωτικό admin link σου.</p><div class="mt-5 flex gap-2"><input id="link" readonly value="${esc(guestUrl)}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="rounded-xl bg-slate-800 px-5 text-white">Αντιγραφή</button></div></section><section class="rounded-3xl bg-white p-7 shadow-lg"><h2 class="mb-5 text-2xl font-bold">Gallery (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-slate-500">Δεν υπάρχουν uploads ακόμη.</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
+  const qrSvg = await QRCode.toString(guestUrl, { type: "svg", width: 256, margin: 1, errorCorrectionLevel: "M" });
+  return c.html(page(`${event.couple} – Διαχείριση`, `<main class="mx-auto max-w-6xl p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-7 shadow-lg"><p class="text-sm font-semibold text-rose-500">ΙΔΙΩΤΙΚΗ ΔΙΑΧΕΙΡΙΣΗ</p><h1 class="mt-2 text-4xl font-bold">${esc(event.couple)}</h1><p class="mt-3">Κωδικός: <strong class="font-mono text-2xl text-violet-600">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[220px_1fr]"><div class="rounded-2xl border bg-white p-3">${qrSvg}</div><div><h2 class="text-xl font-bold">QR Code καλεσμένων</h2><p class="mt-2 text-sm text-slate-500">Οι καλεσμένοι σκανάρουν το QR και ανοίγουν απευθείας το gallery του event.</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block break-all text-sm font-semibold text-violet-600">${esc(guestUrl)}</a><div class="mt-4 flex gap-2"><input id="link" readonly value="${esc(guestUrl)}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="rounded-xl bg-slate-800 px-5 text-white">Αντιγραφή</button></div></div></div></section><section class="rounded-3xl bg-white p-7 shadow-lg"><h2 class="mb-5 text-2xl font-bold">Gallery (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-slate-500">Δεν υπάρχουν uploads ακόμη.</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
 });
 
 app.get("/gallery/:code", async (c) => {
