@@ -8,6 +8,9 @@
   },
   "compatibility_date": "2026-07-12",
   "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "routes": [
     {
       "pattern": "memboux.com",

@@ -4,8 +4,8 @@ import { normalizeLocale, t, type Locale } from "./i18n";
 import QRCode from "qrcode";
 
 type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
-type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null; default_locale: Locale; event_start_date: string | null; event_end_date: string | null };
-type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number };
+type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null; default_locale: Locale; event_start_date: string | null; event_end_date: string | null; deleted_at: number | null; purge_at: number | null };
+type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number; title: string | null; deleted_at: number | null; purge_at: number | null };
 type EventMemberRow = { user_id: string; name: string; email: string; role: "owner" | "editor" | "viewer"; created_at: number };
 type EventInvitationRow = { id: string; email: string; role: "editor" | "viewer"; created_at: number; expires_at: number };
 
@@ -13,6 +13,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"]);
 const ADMIN_COOKIE = "memboux_admin";
+const TRASH_RETENTION_MS = 30 * 86400000;
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   const auth = createAuth(c.env, (promise) => c.executionCtx.waitUntil(promise));
@@ -24,6 +25,7 @@ const randomCode = () => crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpp
 const sha256 = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))).map((b) => b.toString(16).padStart(2, "0")).join("");
 const dateInput = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium" }).format(new Date(timestamp));
+const formatDateTime = (timestamp: number, locale: Locale) => new Intl.DateTimeFormat(locale === "el" ? "el-GR" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp));
 const validEventDate = (value: unknown) => {
   const date = String(value ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
@@ -55,6 +57,12 @@ function brandMark(href: string, compact = false, light = false) {
   return `<a href="${href}" class="inline-flex items-center gap-3 ${light ? "text-white" : "text-[#624938]"}"><img src="/brand/memboux-icon.png" alt="" width="48" height="48" class="${compact ? "h-9 w-9" : "h-11 w-11"} object-contain ${light ? "brightness-0 invert" : ""}"><span class="leading-none"><strong class="block font-serif ${compact ? "text-xl" : "text-2xl"} tracking-wide">Memboux</strong><span class="mt-1 block text-[9px] font-semibold uppercase tracking-[.22em] opacity-75">Collect All Moments</span></span></a>`;
 }
 
+function accountMenu(locale: Locale, user: { name: string; email: string }) {
+  return `<div class="group relative"><button class="flex items-center gap-2 rounded-xl border px-3 py-2"><span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#eadfd6] font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span><span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span><span class="text-xs">⌄</span></button><div class="invisible absolute right-0 z-30 mt-2 w-60 translate-y-1 rounded-2xl border bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"><p class="truncate px-3 py-2 text-xs text-[#776a63]">${esc(user.email)}</p><a href="/${locale}/account" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f7f3ed]">${locale === "el" ? "Τα events μου" : "My events"}</a><a href="/${locale}/trash" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f7f3ed]">${locale === "el" ? "Κάδος" : "Trash"}</a><button data-logout class="w-full rounded-xl px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50">${locale === "el" ? "Αποσύνδεση" : "Sign out"}</button></div></div>`;
+}
+
+const logoutScript = (locale: Locale) => `<script>document.querySelectorAll('[data-logout]').forEach(button=>button.onclick=async()=>{button.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(response.ok)location.replace('/${locale}');else button.disabled=false})<\/script>`;
+
 function googleIcon() {
   return `<svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 shrink-0"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.32 2.98-7.41Z"/><path fill="#34A853" d="M12 22c2.7 0 4.98-.9 6.64-2.42l-3.24-2.53c-.9.6-2.05.96-3.4.96-2.61 0-4.82-1.77-5.61-4.14H3.04v2.62A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.87A6 6 0 0 1 6.08 12c0-.65.11-1.28.31-1.87V7.51H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.49l3.35-2.62Z"/><path fill="#EA4335" d="M12 5.99c1.47 0 2.79.5 3.83 1.5l2.88-2.88A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.96 5.51l3.35 2.62C7.18 7.76 9.39 5.99 12 5.99Z"/></svg>`;
 }
@@ -82,17 +90,36 @@ function page(title: string, body: string) {
   return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f7f3ed"><meta name="description" content="Memboux – Collect All Moments"><link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"><title>${esc(title)}</title><script src="https://cdn.tailwindcss.com"><\/script><style>:root{--ivory:#f7f3ed;--champagne:#d8c3b3;--taupe:#a98770;--espresso:#3b2a23;--muted:#776a63}html{background:var(--ivory)}body{font-family:'Montserrat',sans-serif;font-weight:300;letter-spacing:.01em;color:var(--espresso)}h1,h2,h3,.font-serif{font-family:'Cormorant Garamond',serif;font-weight:400;letter-spacing:-.015em}strong{font-weight:500}button,input,select,textarea{font:inherit}button{letter-spacing:.025em}</style></head><body class="min-h-screen bg-gradient-to-br from-[#f7f3ed] via-[#fffdf9] to-[#eadfd6] text-[#3b2a23]">${body}</body></html>`;
 }
 
-async function getEvent(db: D1Database, code: string) {
-  return db.prepare("SELECT * FROM events WHERE code = ?").bind(code.toUpperCase()).first<EventRow>();
+async function getEvent(db: D1Database, code: string, includeDeleted = false) {
+  return db.prepare(`SELECT * FROM events WHERE code = ?${includeDeleted ? "" : " AND deleted_at IS NULL"}`).bind(code.toUpperCase()).first<EventRow>();
 }
 
-async function getMedia(db: D1Database, eventId: string) {
-  const result = await db.prepare("SELECT * FROM media WHERE event_id = ? ORDER BY uploaded_at DESC").bind(eventId).all<MediaRow>();
+async function getMedia(db: D1Database, eventId: string, includeDeleted = false) {
+  const result = await db.prepare(`SELECT * FROM media WHERE event_id = ?${includeDeleted ? "" : " AND deleted_at IS NULL"} ORDER BY uploaded_at DESC`).bind(eventId).all<MediaRow>();
   return result.results;
 }
 
-function cards(items: MediaRow[]) {
-  return items.map((m) => `<article class="overflow-hidden rounded-2xl bg-slate-100 shadow-sm"><div class="aspect-square">${m.media_type === "image" ? `<img src="/media/${encodeURIComponent(m.id)}" alt="Ανέβηκε από ${esc(m.uploaded_by)}" loading="lazy" class="h-full w-full object-cover">` : `<video src="/media/${encodeURIComponent(m.id)}" controls preload="metadata" class="h-full w-full object-cover"></video>`}</div><p class="px-4 py-3 text-sm text-[#665a54]">Από ${esc(m.uploaded_by)}</p></article>`).join("");
+async function purgeExpiredTrash(env: Bindings) {
+  const now = Date.now();
+  const expiredMedia = await env.DB.prepare("SELECT id,object_key FROM media WHERE purge_at IS NOT NULL AND purge_at<=? LIMIT 100").bind(now).all<{ id: string; object_key: string }>();
+  if (expiredMedia.results.length) {
+    await env.MEDIA.delete(expiredMedia.results.map((item) => item.object_key));
+    await env.DB.batch(expiredMedia.results.map((item) => env.DB.prepare("DELETE FROM media WHERE id=?").bind(item.id)));
+  }
+  const expiredEvents = await env.DB.prepare("SELECT id FROM events WHERE purge_at IS NOT NULL AND purge_at<=? LIMIT 25").bind(now).all<{ id: string }>();
+  for (const event of expiredEvents.results) {
+    const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?").bind(event.id).all<{ object_key: string }>();
+    if (objects.results.length) await env.MEDIA.delete(objects.results.map((item) => item.object_key));
+    await env.DB.prepare("DELETE FROM events WHERE id=?").bind(event.id).run();
+  }
+}
+
+function cards(items: MediaRow[], options?: { code?: string; locale?: Locale; selectable?: boolean; manage?: boolean }) {
+  return items.map((m) => {
+    const media = m.media_type === "image" ? `<img src="/media/${encodeURIComponent(m.id)}" alt="${esc(m.title || m.uploaded_by)}" loading="lazy" class="h-full w-full object-cover">` : `<video src="/media/${encodeURIComponent(m.id)}" controls preload="metadata" class="h-full w-full object-cover"></video>`;
+    const content = options?.manage && options.code ? `<a href="/dashboard/${encodeURIComponent(options.code)}/media/${encodeURIComponent(m.id)}?lang=${options.locale ?? "en"}" class="block aspect-square">${media}</a>` : `<a href="/media/${encodeURIComponent(m.id)}" target="_blank" class="block aspect-square">${media}</a>`;
+    return `<article class="relative overflow-hidden rounded-2xl bg-[#f7f3ed] shadow-sm">${options?.selectable ? `<label class="absolute left-3 top-3 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white/95 shadow"><input type="checkbox" class="media-select h-4 w-4" value="${esc(m.id)}" data-download="/media/${encodeURIComponent(m.id)}?download=1"></label>` : ""}${content}<div class="px-4 py-3"><p class="truncate text-sm font-medium">${esc(m.title || m.uploaded_by)}</p><p class="mt-1 text-xs text-[#776a63]">${esc(m.uploaded_by)}</p></div></article>`;
+  }).join("");
 }
 
 app.get("/", (c) => c.redirect("/en"));
@@ -139,6 +166,33 @@ app.get("/:locale{el|en}/account", async (c) => {
   const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
+  await purgeExpiredTrash(c.env);
+  const now = Date.now();
+  await c.env.DB.batch([
+    c.env.DB.prepare(`INSERT OR IGNORE INTO event_members (event_id,user_id,role,created_at) SELECT event_id,?,role,? FROM event_invitations WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(user.id,now,user.email,now),
+    c.env.DB.prepare(`UPDATE event_invitations SET accepted_at=? WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(now,user.email,now),
+  ]);
+  const query = (c.req.query("q") ?? "").trim().slice(0,100);
+  const filter = ["all","owner","shared","upcoming","past"].includes(c.req.query("filter") ?? "") ? c.req.query("filter")! : "all";
+  const sort = ["date_asc","date_desc","name_asc","name_desc","created_desc"].includes(c.req.query("sort") ?? "") ? c.req.query("sort")! : "date_desc";
+  let where = "em.user_id=? AND e.deleted_at IS NULL"; const bindings: unknown[] = [user.id];
+  if(query){where += " AND (e.eventName LIKE ? OR e.code LIKE ?)";bindings.push(`%${query}%`,`%${query}%`)}
+  if(filter==="owner") where += " AND em.role='owner'";
+  if(filter==="shared") where += " AND em.role!='owner'";
+  const today = new Date().toISOString().slice(0,10);
+  if(filter==="upcoming"){where += " AND COALESCE(e.event_end_date,e.event_start_date)>=?";bindings.push(today)}
+  if(filter==="past"){where += " AND COALESCE(e.event_end_date,e.event_start_date)<?";bindings.push(today)}
+  const order = sort==="date_asc" ? "COALESCE(e.event_start_date,'9999') ASC" : sort==="name_asc" ? "e.eventName COLLATE NOCASE ASC" : sort==="name_desc" ? "e.eventName COLLATE NOCASE DESC" : sort==="created_desc" ? "e.created_at DESC" : "COALESCE(e.event_start_date,'0000') DESC";
+  const events = await c.env.DB.prepare(`SELECT e.*,em.role,COUNT(md.id) media_count FROM event_members em JOIN events e ON e.id=em.event_id LEFT JOIN media md ON md.event_id=e.id AND md.deleted_at IS NULL WHERE ${where} GROUP BY e.id,em.role ORDER BY ${order}`).bind(...bindings).all<EventRow & {role:string;media_count:number}>();
+  const eventCards = events.results.map(event=>`<article class="rounded-2xl border bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><div><p class="font-mono text-sm text-[#8a654f]">${esc(event.code)}</p><h2 class="mt-1 text-2xl">${esc(event.eventName)}</h2></div><span class="rounded-full bg-[#f1e8e1] px-2.5 py-1 text-xs">${event.role==="owner"?(locale==="el"?"Ιδιοκτήτης":"Owner"):(locale==="el"?"Συνεργάτης":"Collaborator")}</span></div><p class="mt-2 text-sm font-medium text-[#76533d]">${esc(formatEventDates(event,locale))}</p><p class="mt-2 text-sm text-[#776a63]">${event.media_count} uploads</p><div class="mt-4 flex flex-wrap gap-2"><a href="/dashboard/${event.code}?lang=${locale}" class="rounded-lg bg-[#76533d] px-4 py-2 text-sm text-white">${locale==="el"?"Άνοιγμα":"Open"}</a>${event.role==="owner"?`<a href="/dashboard/${event.code}?lang=${locale}#event-details" class="rounded-lg border px-4 py-2 text-sm">Edit</a><form action="/api/account/events/${event.code}/trash" method="post" onsubmit="return confirm('${locale==="el"?"Μεταφορά του event στον κάδο;":"Move this event to trash?"}')"><input type="hidden" name="locale" value="${locale}"><button class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-700">${locale==="el"?"Διαγραφή":"Delete"}</button></form>`:""}</div></article>`).join("");
+  const filterLabel = locale==="el"?{all:"Όλα",owner:"Δικά μου",shared:"Κοινόχρηστα",upcoming:"Επερχόμενα",past:"Παλαιότερα"}:{all:"All",owner:"Owned",shared:"Shared",upcoming:"Upcoming",past:"Past"};
+  return c.html(page(m.dashboard,`<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex flex-wrap items-end justify-between gap-3"><div><p class="text-sm uppercase tracking-[.2em] text-[#8a654f]">Dashboard</p><h1 class="text-4xl">${m.dashboard}</h1></div><a href="/${locale}/trash" class="rounded-xl border px-4 py-2">🗑 ${locale==="el"?"Κάδος":"Trash"}</a></div><form method="get" class="mt-6 grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-[1fr_auto_auto_auto]"><input name="q" value="${esc(query)}" placeholder="${locale==="el"?"Αναζήτηση event":"Search events"}" class="rounded-xl border px-4 py-3"><select name="filter" class="rounded-xl border px-4 py-3">${Object.entries(filterLabel).map(([v,l])=>`<option value="${v}"${filter===v?" selected":""}>${l}</option>`).join("")}</select><select name="sort" class="rounded-xl border px-4 py-3"><option value="date_desc"${sort==="date_desc"?" selected":""}>${locale==="el"?"Νεότερη ημερομηνία":"Newest date"}</option><option value="date_asc"${sort==="date_asc"?" selected":""}>${locale==="el"?"Παλαιότερη ημερομηνία":"Oldest date"}</option><option value="name_asc"${sort==="name_asc"?" selected":""}>A → Z</option><option value="name_desc"${sort==="name_desc"?" selected":""}>Z → A</option><option value="created_desc"${sort==="created_desc"?" selected":""}>${locale==="el"?"Πρόσφατα albums":"Recently created"}</option></select><button class="rounded-xl bg-[#2f241f] px-5 text-white">${locale==="el"?"Εφαρμογή":"Apply"}</button></form><details class="mt-6 rounded-2xl bg-white p-4 shadow-sm"><summary class="cursor-pointer font-medium">＋ ${m.createEvent}</summary><form action="/api/account/events" method="post" class="mt-4 grid gap-3 md:grid-cols-2"><input type="hidden" name="locale" value="${locale}"><input name="eventName" required maxlength="100" placeholder="${m.eventName}" class="rounded-xl border px-4 py-3 md:col-span-2"><label class="text-sm">${locale==="el"?"Έναρξη":"Start"}<input name="eventStartDate" type="date" required class="mt-1 w-full rounded-xl border px-4 py-3"></label><label class="text-sm">${locale==="el"?"Λήξη (προαιρετικά)":"End (optional)"}<input name="eventEndDate" type="date" class="mt-1 w-full rounded-xl border px-4 py-3"></label><button class="rounded-xl bg-[#8a654f] py-3 text-white md:col-span-2">${m.createEvent}</button></form></details><div class="mt-6 grid gap-4 md:grid-cols-2">${eventCards||`<div class="rounded-2xl bg-white p-10 text-center text-[#776a63]">${locale==="el"?"Δεν βρέθηκαν events.":"No events found."}</div>`}</div></main>${logoutScript(locale)}`));
+});
+
+app.get("/:locale{el|en}/account-legacy", async (c) => {
+  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
   const now = Date.now();
   await c.env.DB.batch([
     c.env.DB.prepare(`INSERT OR IGNORE INTO event_members (event_id,user_id,role,created_at)
@@ -162,6 +216,34 @@ app.post("/api/account/events", async (c) => {
   const id = crypto.randomUUID(); const token = crypto.randomUUID() + crypto.randomUUID(); const tokenHash = await sha256(token); const now = Date.now();
   for (let attempt=0; attempt<5; attempt++) { const code=randomCode(); try { await c.env.DB.batch([c.env.DB.prepare("INSERT INTO events (id,code,eventName,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale,event_start_date,event_end_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,code,eventName,tokenHash,now,now+365*86400000,"active","",now,locale,eventStartDate,eventEndDate),c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(id,user.id,"owner",now)]); return c.redirect(`/${locale}/account`,303); } catch(error) { if(attempt===4) throw error; } }
   return c.text("Could not create event",500);
+});
+
+app.post("/api/account/events/:code/trash", async (c) => {
+  const user=await currentUser(c); if(!user) return c.text("Unauthorized",401);
+  const event=await getEvent(c.env.DB,c.req.param("code")); if(!event) return c.text("Event not found",404);
+  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first(); if(!owner) return c.text("Forbidden",403);
+  const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale)); const now=Date.now();
+  await c.env.DB.prepare("UPDATE events SET deleted_at=?,purge_at=?,updated_at=? WHERE id=?").bind(now,now+TRASH_RETENTION_MS,now,event.id).run();
+  return c.redirect(`/${locale}/account`,303);
+});
+
+app.post("/api/account/events/:code/restore", async (c) => {
+  const user=await currentUser(c); if(!user) return c.text("Unauthorized",401);
+  const event=await getEvent(c.env.DB,c.req.param("code"),true); if(!event) return c.text("Event not found",404);
+  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first(); if(!owner) return c.text("Forbidden",403);
+  const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale));
+  await c.env.DB.prepare("UPDATE events SET deleted_at=NULL,purge_at=NULL,updated_at=? WHERE id=?").bind(Date.now(),event.id).run();
+  return c.redirect(`/${locale}/trash`,303);
+});
+
+app.get("/:locale{el|en}/trash", async(c)=>{
+  const locale=normalizeLocale(c.req.param("locale")); const user=await currentUser(c); if(!user) return c.redirect(`/${locale}/login`);
+  await purgeExpiredTrash(c.env);
+  const events=await c.env.DB.prepare(`SELECT e.* FROM events e JOIN event_members em ON em.event_id=e.id WHERE em.user_id=? AND em.role='owner' AND e.deleted_at IS NOT NULL ORDER BY e.purge_at`).bind(user.id).all<EventRow>();
+  const media=await c.env.DB.prepare(`SELECT md.*,e.eventName,e.code FROM media md JOIN events e ON e.id=md.event_id JOIN event_members em ON em.event_id=e.id WHERE em.user_id=? AND em.role IN ('owner','editor') AND md.deleted_at IS NOT NULL AND e.deleted_at IS NULL ORDER BY md.purge_at`).bind(user.id).all<MediaRow & {eventName:string;code:string}>();
+  const eventRows=events.results.map(e=>`<div class="flex flex-col gap-3 rounded-2xl border bg-white p-5 sm:flex-row sm:items-center sm:justify-between"><div><span class="text-xs uppercase text-[#8a654f]">Event</span><h2 class="text-2xl">${esc(e.eventName)}</h2><p class="text-sm text-red-700">${locale==="el"?"Οριστική διαγραφή":"Permanent deletion"}: ${formatDateTime(e.purge_at!,locale)}</p></div><form action="/api/account/events/${e.code}/restore" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border px-4 py-2">${locale==="el"?"Επαναφορά":"Restore"}</button></form></div>`).join("");
+  const mediaRows=media.results.map(m=>`<div class="flex items-center gap-4 rounded-2xl border bg-white p-4"><div class="flex h-20 w-20 items-center justify-center rounded-xl bg-[#eadfd6] text-2xl">${m.media_type==="image"?"▧":"▶"}</div><div class="min-w-0 flex-1"><p class="truncate font-medium">${esc(m.title||m.uploaded_by)}</p><p class="truncate text-xs text-[#776a63]">${esc(m.eventName)}</p><p class="text-xs text-red-700">${locale==="el"?"Οριστική διαγραφή":"Permanent deletion"}: ${formatDateTime(m.purge_at!,locale)}</p></div><form action="/api/account/events/${m.code}/media/${m.id}/restore" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border px-3 py-2 text-sm">${locale==="el"?"Επαναφορά":"Restore"}</button></form></div>`).join("");
+  return c.html(page(locale==="el"?"Κάδος":"Trash",`<header class="border-b bg-white"><div class="mx-auto flex max-w-5xl items-center justify-between p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-5xl p-5 md:p-10"><a href="/${locale}/account" class="text-sm text-[#76533d]">← ${locale==="el"?"Τα events μου":"My events"}</a><h1 class="mt-4 text-4xl">${locale==="el"?"Κάδος":"Trash"}</h1><p class="mt-2 text-[#776a63]">${locale==="el"?"Τα στοιχεία διαγράφονται οριστικά 30 ημέρες μετά τη μεταφορά τους εδώ.":"Items are permanently deleted 30 days after being moved here."}</p><h2 class="mt-8 text-2xl">Events</h2><div class="mt-3 space-y-3">${eventRows||`<p class="rounded-2xl bg-white p-6 text-[#776a63]">${locale==="el"?"Δεν υπάρχουν διαγραμμένα events.":"No deleted events."}</p>`}</div><h2 class="mt-8 text-2xl">Media</h2><div class="mt-3 grid gap-3 md:grid-cols-2">${mediaRows||`<p class="rounded-2xl bg-white p-6 text-[#776a63]">${locale==="el"?"Δεν υπάρχουν διαγραμμένες φωτογραφίες.":"No deleted media."}</p>`}</div></main>${logoutScript(locale)}`));
 });
 
 app.get("/admin/login", async (c) => {
@@ -276,9 +358,9 @@ app.get("/dashboard/:code", async (c) => {
   };
   const otherLocale = locale === "el" ? "en" : "el";
   const toggleUrl = `/dashboard/${event.code}?lang=${otherLocale}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
-  const detailsPanel = canManageMembers ? `<section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="text-2xl">${labels.eventDates}</h2><form action="/api/account/events/${encodeURIComponent(event.code)}/details" method="post" class="mt-4 grid gap-3 md:grid-cols-2"><input type="hidden" name="locale" value="${locale}"><label class="md:col-span-2"><span class="mb-1 block text-sm font-medium">${locale === "el" ? "Όνομα event" : "Event name"}</span><input name="eventName" required maxlength="100" value="${esc(event.eventName)}" class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${labels.startDate}</span><input name="eventStartDate" type="date" required value="${esc(event.event_start_date ?? "")}" class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${labels.endDate}</span><input name="eventEndDate" type="date" value="${esc(event.event_end_date ?? "")}" class="w-full rounded-xl border px-4 py-3"></label><button class="rounded-xl bg-[#76533d] px-5 py-3 font-medium text-white md:col-span-2">${labels.saveDates}</button></form></section>` : "";
+  const detailsPanel = canManageMembers ? `<section id="event-details" class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="text-2xl">${labels.eventDates}</h2><form action="/api/account/events/${encodeURIComponent(event.code)}/details" method="post" class="mt-4 grid gap-3 md:grid-cols-2"><input type="hidden" name="locale" value="${locale}"><label class="md:col-span-2"><span class="mb-1 block text-sm font-medium">${locale === "el" ? "Όνομα event" : "Event name"}</span><input name="eventName" required maxlength="100" value="${esc(event.eventName)}" class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${labels.startDate}</span><input name="eventStartDate" type="date" required value="${esc(event.event_start_date ?? "")}" class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${labels.endDate}</span><input name="eventEndDate" type="date" value="${esc(event.event_end_date ?? "")}" class="w-full rounded-xl border px-4 py-3"></label><button class="rounded-xl bg-[#76533d] px-5 py-3 font-medium text-white md:col-span-2">${labels.saveDates}</button></form></section>` : "";
   const teamPanel = canManageMembers ? `${detailsPanel}<section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="grid gap-7 lg:grid-cols-[1fr_1fr]"><div><h2 class="text-2xl">${labels.team}</h2><div class="mt-4 space-y-3">${members.map((member) => `<div class="flex items-center justify-between gap-3 rounded-2xl border p-4"><div class="min-w-0"><p class="truncate font-medium">${esc(member.name)}</p><p class="truncate text-sm text-[#776a63]">${esc(member.email)}</p></div>${member.role === "owner" ? `<span class="rounded-full bg-[#f1e8e1] px-3 py-1 text-xs">Owner</span>` : `<form action="/api/account/events/${encodeURIComponent(event.code)}/members/remove" method="post"><input type="hidden" name="userId" value="${esc(member.user_id)}"><input type="hidden" name="locale" value="${locale}"><button class="text-sm font-medium text-red-700">${labels.remove}</button></form>`}</div>`).join("")}${invitations.map((invite) => `<div class="flex items-center justify-between gap-3 rounded-2xl border border-dashed p-4"><div class="min-w-0"><p class="truncate">${esc(invite.email)}</p><p class="text-xs text-[#776a63]">${labels.pending}</p></div><form action="/api/account/events/${encodeURIComponent(event.code)}/members/remove" method="post"><input type="hidden" name="invitationId" value="${esc(invite.id)}"><input type="hidden" name="locale" value="${locale}"><button class="text-sm font-medium text-red-700">${labels.remove}</button></form></div>`).join("")}</div></div><div class="rounded-2xl bg-[#faf6f1] p-5"><h2 class="text-2xl">${labels.invite}</h2><p class="mt-1 text-sm text-[#776a63]">${labels.inviteHelp}</p><form action="/api/account/events/${encodeURIComponent(event.code)}/invite" method="post" class="mt-5 space-y-3"><input type="hidden" name="locale" value="${locale}"><input name="email" type="email" required maxlength="254" placeholder="name@example.com" class="w-full rounded-xl border bg-white px-4 py-3"><button class="w-full rounded-xl bg-[#76533d] px-5 py-3 font-medium text-white">${labels.sendInvite}</button></form></div></div></section>` : "";
-  return c.html(page(`${event.eventName} – ${labels.title}`, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale}/account" class="rounded-lg bg-[#76533d] px-3 py-2 text-sm font-semibold text-white sm:px-4">← ${labels.events}</a><a href="${toggleUrl}" class="rounded-lg border px-3 py-2 text-sm font-semibold">${otherLocale.toUpperCase()}</a></div></div></header><main class="mx-auto max-w-6xl p-4 sm:p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><p class="text-sm font-semibold uppercase tracking-[.18em] text-[#9b725c]">${labels.title}</p><h1 class="mt-2 break-words text-3xl font-bold sm:text-4xl">${esc(event.eventName)}</h1><p class="mt-2 text-lg font-medium text-[#76533d]">${esc(formatEventDates(event, locale))}</p><p class="mt-3">${labels.code}: <strong class="font-mono text-2xl text-[#76533d]">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><h2 class="text-xl font-bold">${labels.qr}</h2><p class="mt-2 text-sm text-[#776a63]">${labels.qrHelp}</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block max-w-full break-all text-sm font-semibold text-[#76533d]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="link" readonly value="${esc(guestUrl)}" class="w-full min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="shrink-0 rounded-xl bg-[#4b382e] px-5 py-3 text-white">${labels.copy}</button></div></div></div></section>${teamPanel}<section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="mb-5 text-2xl font-bold">${labels.gallery} (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-[#776a63]">${labels.empty}</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
+  return c.html(page(`${event.eventName} – ${labels.title}`, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale}/account" class="rounded-lg bg-[#76533d] px-3 py-2 text-sm font-semibold text-white sm:px-4">← ${labels.events}</a><a href="${toggleUrl}" class="rounded-lg border px-3 py-2 text-sm font-semibold">${otherLocale.toUpperCase()}</a></div></div></header><main class="mx-auto max-w-6xl p-4 sm:p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><p class="text-sm font-semibold uppercase tracking-[.18em] text-[#9b725c]">${labels.title}</p><h1 class="mt-2 break-words text-3xl font-bold sm:text-4xl">${esc(event.eventName)}</h1><p class="mt-2 text-lg font-medium text-[#76533d]">${esc(formatEventDates(event, locale))}</p><p class="mt-3">${labels.code}: <strong class="font-mono text-2xl text-[#76533d]">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><h2 class="text-xl font-bold">${labels.qr}</h2><p class="mt-2 text-sm text-[#776a63]">${labels.qrHelp}</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block max-w-full break-all text-sm font-semibold text-[#76533d]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="link" readonly value="${esc(guestUrl)}" class="w-full min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="shrink-0 rounded-xl bg-[#4b382e] px-5 py-3 text-white">${labels.copy}</button></div></div></div></section>${teamPanel}<section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 class="text-2xl font-bold">${labels.gallery} (${items.length})</h2><div class="flex gap-2"><button id="download-selected" class="rounded-lg border px-3 py-2 text-sm">${locale==="el"?"Λήψη επιλεγμένων":"Download selected"}</button><button id="delete-selected" class="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700">${locale==="el"?"Διαγραφή επιλεγμένων":"Delete selected"}</button></div></div><form id="bulk-media" action="/api/account/events/${event.code}/media/bulk-trash" method="post"><input type="hidden" name="locale" value="${locale}"><input type="hidden" id="media-ids" name="ids">${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items,{code:event.code,locale,selectable:true,manage:true})}</div>` : `<p class="py-12 text-center text-[#776a63]">${labels.empty}</p>`}</form></section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value);const selected=()=>[...document.querySelectorAll('.media-select:checked')];document.getElementById('download-selected').onclick=()=>selected().forEach((box,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=box.dataset.download;a.download='';a.click()},i*250));document.getElementById('delete-selected').onclick=()=>{const ids=selected().map(x=>x.value);if(!ids.length)return;if(confirm('Move selected media to trash?')){document.getElementById('media-ids').value=ids.join(',');document.getElementById('bulk-media').submit()}}<\/script>`));
 });
 
 app.post("/api/account/events/:code/details", async (c) => {
@@ -351,6 +433,40 @@ app.post("/api/account/events/:code/members/remove", async (c) => {
   return c.redirect(`/dashboard/${event.code}?lang=${locale}`, 303);
 });
 
+app.get("/dashboard/:code/media/:id", async(c)=>{
+  const locale=normalizeLocale(c.req.query("lang")??"en"); const user=await currentUser(c); if(!user) return c.redirect(`/${locale}/login`);
+  const event=await getEvent(c.env.DB,c.req.param("code")); if(!event) return c.text("Event not found",404);
+  const member=await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=?").bind(event.id,user.id).first<{role:string}>(); if(!member) return c.text("Forbidden",403);
+  const media=await c.env.DB.prepare("SELECT * FROM media WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(c.req.param("id"),event.id).first<MediaRow>(); if(!media) return c.text("Media not found",404);
+  const preview=media.media_type==="image"?`<img src="/media/${media.id}" class="max-h-[70vh] w-full rounded-2xl object-contain bg-black">`:`<video src="/media/${media.id}" controls class="max-h-[70vh] w-full rounded-2xl bg-black"></video>`;
+  return c.html(page(media.title||event.eventName,`<header class="border-b bg-white"><div class="mx-auto flex max-w-5xl items-center justify-between p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-5xl p-5 md:p-10"><a href="/dashboard/${event.code}?lang=${locale}" class="text-sm text-[#76533d]">← ${locale==="el"?"Πίσω στο event":"Back to event"}</a><div class="mt-5 grid gap-6 lg:grid-cols-[1fr_320px]"><div>${preview}</div><aside class="rounded-2xl bg-white p-5 shadow"><h1 class="break-words text-3xl">${esc(media.title||media.uploaded_by)}</h1><p class="mt-2 text-sm text-[#776a63]">${esc(media.uploaded_by)} · ${formatDateTime(media.uploaded_at,locale)}</p><a href="/media/${media.id}?download=1" class="mt-5 block rounded-xl bg-[#76533d] px-4 py-3 text-center text-white">↓ ${locale==="el"?"Λήψη":"Download"}</a><form action="/api/account/events/${event.code}/media/${media.id}/rename" method="post" class="mt-4 space-y-2"><input type="hidden" name="locale" value="${locale}"><label class="text-sm">${locale==="el"?"Όνομα φωτογραφίας":"Media title"}<input name="title" required maxlength="120" value="${esc(media.title||"")}" class="mt-1 w-full rounded-xl border px-4 py-3"></label><button class="w-full rounded-xl border px-4 py-3">${locale==="el"?"Μετονομασία":"Rename"}</button></form><form action="/api/account/events/${event.code}/media/${media.id}/trash" method="post" class="mt-3" onsubmit="return confirm('Move this media to trash?')"><input type="hidden" name="locale" value="${locale}"><button class="w-full rounded-xl border border-red-200 px-4 py-3 text-red-700">${locale==="el"?"Μεταφορά στον κάδο":"Move to trash"}</button></form></aside></div></main>${logoutScript(locale)}`));
+});
+
+app.post("/api/account/events/:code/media/:id/rename", async(c)=>{
+  const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
+  const member=await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const title=String(body.title??"").trim().slice(0,120);if(!title)return c.text("Missing title",400);
+  await c.env.DB.prepare("UPDATE media SET title=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(title,c.req.param("id"),event.id).run();return c.redirect(`/dashboard/${event.code}/media/${c.req.param("id")}?lang=${locale}`,303);
+});
+
+app.post("/api/account/events/:code/media/:id/trash", async(c)=>{
+  const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
+  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const now=Date.now();await c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=?").bind(now,now+TRASH_RETENTION_MS,c.req.param("id"),event.id).run();return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
+});
+
+app.post("/api/account/events/:code/media/bulk-trash", async(c)=>{
+  const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
+  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const ids=String(body.ids??"").split(",").filter(id=>/^[a-f0-9-]{36}$/i.test(id)).slice(0,100);const now=Date.now();if(ids.length)await c.env.DB.batch(ids.map(id=>c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(now,now+TRASH_RETENTION_MS,id,event.id)));return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
+});
+
+app.post("/api/account/events/:code/media/:id/restore", async(c)=>{
+  const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"),true);if(!event)return c.text("Event not found",404);
+  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL WHERE id=? AND event_id=?").bind(c.req.param("id"),event.id).run();return c.redirect(`/${locale}/trash`,303);
+});
+
 app.get("/dashboard-legacy/:code", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
@@ -373,7 +489,7 @@ app.get("/gallery/:code", async (c) => {
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
   if (Date.now() > event.expires_at) return c.text("Η εκδήλωση έχει λήξει.", 410);
   const items = await getMedia(c.env.DB, event.id);
-  return c.html(page(`${event.eventName} – Gallery`, `<main class="mx-auto max-w-6xl p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-7 text-center shadow-lg"><div class="mb-4 flex justify-center">${brandMark("/", true)}</div><h1 class="mt-2 text-4xl font-bold">${esc(event.eventName)}</h1><p class="mt-2 font-medium text-[#76533d]">${esc(formatEventDates(event, event.default_locale))}</p><p class="mt-2 text-[#776a63]">Μοιράσου τις αγαπημένες σου στιγμές</p><form action="/api/upload/${event.code}" method="post" enctype="multipart/form-data" class="mx-auto mt-7 max-w-xl space-y-3 text-left"><input name="name" maxlength="60" placeholder="Το όνομά σου" class="w-full rounded-xl border px-4 py-3"><input name="file" required type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="w-full rounded-xl border p-3"><p class="text-xs text-[#776a63]">Μέχρι 20 MB ανά αρχείο. Επίλεξε ένα αρχείο κάθε φορά.</p><button class="w-full rounded-xl bg-gradient-to-r from-[#caa58f] to-[#76533d] py-3 font-semibold text-white">Ανέβασμα</button></form></section><section class="rounded-3xl bg-white p-7 shadow-lg"><h2 class="mb-5 text-2xl font-bold">Gallery (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-[#776a63]">Γίνε ο πρώτος που θα ανεβάσει μια στιγμή!</p>`}</section></main>`));
+  return c.html(page(`${event.eventName} – Gallery`, `<main class="mx-auto max-w-6xl p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-7 text-center shadow-lg"><div class="mb-4 flex justify-center">${brandMark("/", true)}</div><h1 class="mt-2 text-4xl font-bold">${esc(event.eventName)}</h1><p class="mt-2 font-medium text-[#76533d]">${esc(formatEventDates(event, event.default_locale))}</p><p class="mt-2 text-[#776a63]">Μοιράσου τις αγαπημένες σου στιγμές</p><form action="/api/upload/${event.code}" method="post" enctype="multipart/form-data" class="mx-auto mt-7 max-w-xl space-y-3 text-left"><input name="name" maxlength="60" placeholder="Το όνομά σου" class="w-full rounded-xl border px-4 py-3"><input name="file" required type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="w-full rounded-xl border p-3"><p class="text-xs text-[#776a63]">Μέχρι 20 MB ανά αρχείο. Επίλεξε ένα αρχείο κάθε φορά.</p><button class="w-full rounded-xl bg-gradient-to-r from-[#caa58f] to-[#76533d] py-3 font-semibold text-white">Ανέβασμα</button></form></section><section class="rounded-3xl bg-white p-7 shadow-lg"><div class="mb-5 flex items-center justify-between gap-3"><h2 class="text-2xl font-bold">Gallery (${items.length})</h2><button id="download-selected" class="rounded-xl border px-4 py-2 text-sm">Download selected</button></div>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items,{selectable:true})}</div>` : `<p class="py-12 text-center text-[#776a63]">Γίνε ο πρώτος που θα ανεβάσει μια στιγμή!</p>`}</section></main><script>const selected=()=>[...document.querySelectorAll('.media-select:checked')];document.getElementById('download-selected').onclick=()=>selected().forEach((box,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=box.dataset.download;a.download='';a.click()},i*250))<\/script>`));
 });
 
 app.post("/api/upload/:code", async (c) => {
@@ -391,7 +507,8 @@ app.post("/api/upload/:code", async (c) => {
   const objectKey = `${event.id}/${id}.${extension}`;
   await c.env.MEDIA.put(objectKey, file.stream(), { httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" } });
   try {
-    await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes) VALUES (?,?,?,?,?,?,?,?)").bind(id, event.id, objectKey, file.type.startsWith("image/") ? "image" : "video", file.type, uploadedBy, Date.now(), file.size).run();
+    const title = file.name.replace(/\.[^.]+$/, "").trim().slice(0, 120) || uploadedBy;
+    await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?)").bind(id, event.id, objectKey, file.type.startsWith("image/") ? "image" : "video", file.type, uploadedBy, Date.now(), file.size, title).run();
   } catch (error) {
     await c.env.MEDIA.delete(objectKey);
     throw error;
@@ -400,11 +517,12 @@ app.post("/api/upload/:code", async (c) => {
 });
 
 app.get("/media/:id", async (c) => {
-  const row = await c.env.DB.prepare("SELECT object_key, content_type FROM media WHERE id = ?").bind(c.req.param("id")).first<{ object_key: string; content_type: string }>();
+  const row = await c.env.DB.prepare("SELECT object_key,content_type,title FROM media WHERE id=? AND deleted_at IS NULL").bind(c.req.param("id")).first<{ object_key: string; content_type: string; title: string | null }>();
   if (!row) return c.text("Το αρχείο δεν βρέθηκε.", 404);
   const object = await c.env.MEDIA.get(row.object_key);
   if (!object) return c.text("Το αρχείο δεν βρέθηκε.", 404);
   const headers = new Headers({ "Content-Type": row.content_type, "Cache-Control": "public, max-age=31536000, immutable", "ETag": object.httpEtag, "X-Content-Type-Options": "nosniff" });
+  if (c.req.query("download") === "1") headers.set("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent((row.title || "memboux-media").replace(/[\r\n]/g, ""))}`);
   return new Response(object.body, { headers });
 });
 
@@ -414,4 +532,9 @@ app.onError((error, c) => {
   if (host === "127.0.0.1" || host === "localhost") return c.text(error.stack ?? error.message, 500);
   return c.text("Παρουσιάστηκε προσωρινό σφάλμα.", 500);
 });
-export default app;
+export default {
+  fetch: app.fetch,
+  scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(purgeExpiredTrash(env));
+  },
+};
