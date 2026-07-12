@@ -1,12 +1,12 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "wedding-gallery",
+  "name": "memboux",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-12",
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "wedding-gallery-db",
+      "database_name": "memboux-db",
       "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
       "migrations_dir": "migrations"
     }
@@ -14,7 +14,7 @@
   "r2_buckets": [
     {
       "binding": "MEDIA",
-      "bucket_name": "wedding-gallery-media"
+      "bucket_name": "memboux-media"
     }
   ],
   "observability": { "enabled": true }

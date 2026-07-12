@@ -1,13 +1,13 @@
 {
-  "name": "wedding-gallery-cloudflare",
+  "name": "memboux",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:local": "wrangler d1 migrations apply wedding-gallery-db --local",
-    "db:remote": "wrangler d1 migrations apply wedding-gallery-db --remote",
+    "db:local": "wrangler d1 migrations apply memboux-db --local",
+    "db:remote": "wrangler d1 migrations apply memboux-db --remote",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,4 +1,4 @@
-# Wedding Gallery – Cloudflare
+# Memboux
 
 Full-stack Cloudflare Workers app με:
 
@@ -12,8 +12,8 @@ Full-stack Cloudflare Workers app με:
 ```bash
 npm install
 npx wrangler login
-npx wrangler d1 create wedding-gallery-db
-npx wrangler r2 bucket create wedding-gallery-media
+npx wrangler d1 create memboux-db
+npx wrangler r2 bucket create memboux-media
 ```
 
 Αντέγραψε το `database_id` που επιστρέφει η D1 εντολή στο `wrangler.jsonc`, αντικαθιστώντας το `REPLACE_WITH_YOUR_D1_DATABASE_ID`.
