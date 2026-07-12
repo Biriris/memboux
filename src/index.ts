@@ -1,16 +1,35 @@
 import { Hono } from "hono";
 
-type Bindings = { DB: D1Database; MEDIA: R2Bucket };
-type EventRow = { id: string; code: string; couple: string; admin_token_hash: string; created_at: number; expires_at: number };
+type Bindings = { DB: D1Database; MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
+type EventRow = { id: string; code: string; couple: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null };
 type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number };
 
 const app = new Hono<{ Bindings: Bindings }>();
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"]);
+const ADMIN_COOKIE = "memboux_admin";
 
 const esc = (value: unknown) => String(value ?? "").replace(/[&<>'\"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[ch]!));
 const randomCode = () => crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
 const sha256 = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+const dateInput = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+const formatDate = (timestamp: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium" }).format(new Date(timestamp));
+
+async function adminSession(password: string) {
+  return sha256(`memboux-admin-session:${password}`);
+}
+
+async function isAdmin(c: { env: Bindings; req: { header(name: string): string | undefined } }) {
+  const password = c.env.ADMIN_PASSWORD;
+  if (!password) return false;
+  const cookie = c.req.header("Cookie") ?? "";
+  const value = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${ADMIN_COOKIE}=`))?.slice(ADMIN_COOKIE.length + 1);
+  return Boolean(value && value === await adminSession(password));
+}
+
+function adminShell(title: string, content: string) {
+  return page(`${title} – Memboux Admin`, `<header class="border-b bg-slate-950 text-white"><div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><a href="/admin" class="text-xl font-bold tracking-wide">Memboux Admin</a><form action="/admin/logout" method="post"><button class="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10">Αποσύνδεση</button></form></div></header>${content}`);
+}
 
 function page(title: string, body: string) {
   return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body class="min-h-screen bg-gradient-to-br from-rose-50 via-white to-violet-50 text-slate-800">${body}</body></html>`;
@@ -28,6 +47,64 @@ async function getMedia(db: D1Database, eventId: string) {
 function cards(items: MediaRow[]) {
   return items.map((m) => `<article class="overflow-hidden rounded-2xl bg-slate-100 shadow-sm"><div class="aspect-square">${m.media_type === "image" ? `<img src="/media/${encodeURIComponent(m.id)}" alt="Ανέβηκε από ${esc(m.uploaded_by)}" loading="lazy" class="h-full w-full object-cover">` : `<video src="/media/${encodeURIComponent(m.id)}" controls preload="metadata" class="h-full w-full object-cover"></video>`}</div><p class="px-4 py-3 text-sm text-slate-600">Από ${esc(m.uploaded_by)}</p></article>`).join("");
 }
+
+app.get("/admin/login", async (c) => {
+  if (await isAdmin(c)) return c.redirect("/admin");
+  const configured = Boolean(c.env.ADMIN_PASSWORD);
+  return c.html(page("Admin Login – Memboux", `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl"><p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-600">Memboux Admin</p><h1 class="mt-2 text-3xl font-bold">Ιδιωτική διαχείριση</h1><p class="mt-2 text-slate-500">Πρόσβαση μόνο για τον διαχειριστή.</p>${configured ? `<form action="/admin/login" method="post" class="mt-7 space-y-3"><input name="password" type="password" required autocomplete="current-password" placeholder="Admin password" class="w-full rounded-xl border px-4 py-3"><button class="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white">Σύνδεση</button></form>` : `<div class="mt-7 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Το ADMIN_PASSWORD δεν έχει ρυθμιστεί ακόμη στη Cloudflare.</div>`}</section></main>`));
+});
+
+app.post("/admin/login", async (c) => {
+  const configured = c.env.ADMIN_PASSWORD;
+  if (!configured) return c.text("Το admin password δεν έχει ρυθμιστεί.", 503);
+  const body = await c.req.parseBody();
+  if (String(body.password ?? "") !== configured) return c.html(page("Λάθος password", `<main class="flex min-h-screen items-center justify-center p-5"><section class="rounded-3xl bg-white p-8 text-center shadow-xl"><h1 class="text-2xl font-bold">Λάθος password</h1><a href="/admin/login" class="mt-5 inline-block text-violet-600">Δοκίμασε ξανά</a></section></main>`), 401);
+  c.header("Set-Cookie", `${ADMIN_COOKIE}=${await adminSession(configured)}; Path=/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`);
+  return c.redirect("/admin", 303);
+});
+
+app.post("/admin/logout", (c) => {
+  c.header("Set-Cookie", `${ADMIN_COOKIE}=; Path=/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);
+  return c.redirect("/admin/login", 303);
+});
+
+app.get("/admin", async (c) => {
+  if (!await isAdmin(c)) return c.redirect("/admin/login");
+  const query = (c.req.query("q") ?? "").trim().slice(0, 100);
+  const status = c.req.query("status") === "archived" ? "archived" : c.req.query("status") === "active" ? "active" : "all";
+  let sql = `SELECT e.*, COUNT(m.id) AS media_count FROM events e LEFT JOIN media m ON m.event_id=e.id WHERE 1=1`;
+  const binds: string[] = [];
+  if (query) { sql += ` AND (e.couple LIKE ? OR e.code LIKE ?)`; binds.push(`%${query}%`, `%${query.toUpperCase()}%`); }
+  if (status !== "all") { sql += ` AND e.status = ?`; binds.push(status); }
+  sql += ` GROUP BY e.id ORDER BY CASE e.status WHEN 'active' THEN 0 ELSE 1 END, e.created_at DESC`;
+  const result = await c.env.DB.prepare(sql).bind(...binds).all<EventRow & { media_count: number }>();
+  const counts = await c.env.DB.prepare(`SELECT COUNT(*) total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) active, SUM(CASE WHEN status='archived' THEN 1 ELSE 0 END) archived FROM events`).first<{ total: number; active: number; archived: number }>();
+  const rows = result.results.map((event) => `<a href="/admin/events/${encodeURIComponent(event.code)}" class="grid gap-3 rounded-2xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:grid-cols-[1fr_auto_auto_auto] md:items-center"><div><div class="flex flex-wrap items-center gap-2"><h2 class="text-lg font-bold">${esc(event.couple)}</h2><span class="rounded-full px-2 py-1 text-xs font-semibold ${event.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}">${event.status === "active" ? "Ενεργό" : "Αρχειοθετημένο"}</span></div><p class="mt-1 font-mono text-sm text-violet-600">${esc(event.code)}</p>${event.notes ? `<p class="mt-2 line-clamp-1 text-sm text-slate-500">${esc(event.notes)}</p>` : ""}</div><div class="text-sm text-slate-500"><strong class="block text-lg text-slate-900">${event.media_count}</strong>αρχεία</div><div class="text-sm text-slate-500"><strong class="block text-slate-900">${formatDate(event.created_at)}</strong>δημιουργία</div><div class="text-sm text-slate-500"><strong class="block text-slate-900">${formatDate(event.expires_at)}</strong>λήξη</div></a>`).join("");
+  return c.html(adminShell("Βιβλιοθήκη", `<main class="mx-auto max-w-7xl p-5 md:p-10"><div class="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><div><p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-600">Βιβλιοθήκη</p><h1 class="mt-1 text-4xl font-bold">Όλα τα events</h1><p class="mt-2 text-slate-500">${counts?.total ?? 0} συνολικά · ${counts?.active ?? 0} ενεργά · ${counts?.archived ?? 0} αρχειοθετημένα</p></div><a href="/" class="rounded-xl bg-violet-600 px-5 py-3 text-center font-semibold text-white">Νέο event</a></div><form class="mb-6 grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-[1fr_auto_auto]"><input name="q" value="${esc(query)}" placeholder="Αναζήτηση ονόματος ή κωδικού" class="rounded-xl border px-4 py-3"><select name="status" class="rounded-xl border px-4 py-3"><option value="all"${status === "all" ? " selected" : ""}>Όλα</option><option value="active"${status === "active" ? " selected" : ""}>Ενεργά</option><option value="archived"${status === "archived" ? " selected" : ""}>Αρχειοθετημένα</option></select><button class="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white">Φιλτράρισμα</button></form><div class="space-y-3">${rows || `<div class="rounded-2xl bg-white py-16 text-center text-slate-500">Δεν βρέθηκαν events.</div>`}</div></main>`));
+});
+
+app.get("/admin/events/:code", async (c) => {
+  if (!await isAdmin(c)) return c.redirect("/admin/login");
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Το event δεν βρέθηκε.", 404);
+  const items = await getMedia(c.env.DB, event.id);
+  const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
+  return c.html(adminShell(event.couple, `<main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/admin" class="text-sm font-semibold text-violet-600">← Πίσω στη βιβλιοθήκη</a><div class="mt-5 grid gap-6 lg:grid-cols-[420px_1fr]"><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="flex items-start justify-between gap-3"><div><p class="font-mono text-sm text-violet-600">${esc(event.code)}</p><h1 class="mt-1 text-3xl font-bold">${esc(event.couple)}</h1></div><span class="rounded-full px-3 py-1 text-xs font-semibold ${event.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}">${event.status === "active" ? "Ενεργό" : "Αρχειοθετημένο"}</span></div><form action="/admin/events/${encodeURIComponent(event.code)}/update" method="post" class="mt-7 space-y-4"><label class="block text-sm font-semibold">Ονόματα<input name="couple" required maxlength="100" value="${esc(event.couple)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">Κατάσταση<select name="status" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"><option value="active"${event.status === "active" ? " selected" : ""}>Ενεργό</option><option value="archived"${event.status === "archived" ? " selected" : ""}>Αρχειοθετημένο</option></select></label><label class="block text-sm font-semibold">Ημερομηνία λήξης<input name="expires_at" type="date" required value="${dateInput(event.expires_at)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">Εσωτερικές σημειώσεις<textarea name="notes" maxlength="2000" rows="6" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal" placeholder="Πληροφορίες, συμφωνίες, εκκρεμότητες…">${esc(event.notes)}</textarea></label><button class="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white">Αποθήκευση αλλαγών</button></form><div class="mt-5"><a href="${esc(guestUrl)}" target="_blank" class="block rounded-xl border px-4 py-3 text-center text-sm font-semibold">Άνοιγμα guest gallery</a></div></section><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="mb-5 flex items-center justify-between"><div><p class="text-sm text-slate-500">Δημιουργήθηκε ${formatDate(event.created_at)}</p><h2 class="text-2xl font-bold">Αρχεία (${items.length})</h2></div></div>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-16 text-center text-slate-500">Δεν υπάρχουν uploads.</p>`}</section></div></main>`));
+});
+
+app.post("/admin/events/:code/update", async (c) => {
+  if (!await isAdmin(c)) return c.redirect("/admin/login");
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Το event δεν βρέθηκε.", 404);
+  const body = await c.req.parseBody();
+  const couple = String(body.couple ?? "").trim().slice(0, 100);
+  const status = body.status === "archived" ? "archived" : "active";
+  const notes = String(body.notes ?? "").trim().slice(0, 2000);
+  const expiresAt = Date.parse(`${String(body.expires_at ?? "")}T23:59:59.999Z`);
+  if (!couple || !Number.isFinite(expiresAt)) return c.text("Μη έγκυρα στοιχεία.", 400);
+  await c.env.DB.prepare("UPDATE events SET couple=?, status=?, notes=?, expires_at=?, updated_at=? WHERE id=?").bind(couple, status, notes, expiresAt, Date.now(), event.id).run();
+  return c.redirect(`/admin/events/${event.code}`, 303);
+});
 
 app.get("/", (c) => c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-lg items-center p-5"><section class="w-full rounded-3xl bg-white p-8 shadow-xl"><p class="mb-2 text-center text-sm font-semibold uppercase tracking-[.25em] text-rose-500">Memboux</p><h1 class="mb-3 text-center text-4xl font-bold">Οι αναμνήσεις σας, μαζί</h1><p class="mb-8 text-center text-slate-500">Δημιούργησε μια ιδιωτική συλλογή για τον γάμο σου.</p><form action="/api/events" method="post" class="space-y-3"><input name="couple" required maxlength="100" placeholder="π.χ. Μαρία & Νίκος" class="w-full rounded-xl border px-4 py-3"><button class="w-full rounded-xl bg-gradient-to-r from-rose-500 to-violet-500 py-3 font-semibold text-white">Δημιουργία εκδήλωσης</button></form><div class="my-7 border-t"></div><form id="join" class="space-y-3"><input id="code" required maxlength="6" placeholder="Κωδικός πρόσκλησης" class="w-full rounded-xl border px-4 py-3 uppercase"><button class="w-full rounded-xl bg-slate-700 py-3 font-semibold text-white">Είσοδος ως καλεσμένος</button></form></section></main><script>document.getElementById('join').addEventListener('submit',e=>{e.preventDefault();location.href='/gallery/'+document.getElementById('code').value.trim().toUpperCase()})<\/script>`)));
 
