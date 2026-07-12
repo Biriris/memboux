@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "memboux-db",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "79d0c265-f697-476c-9255-9281875673ac",
       "migrations_dir": "migrations"
     }
   ],
