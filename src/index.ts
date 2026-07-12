@@ -72,11 +72,13 @@ function cards(items: MediaRow[]) {
 
 app.get("/", (c) => c.redirect("/el"));
 
-app.get("/:locale{el|en}", (c) => {
-  const locale = normalizeLocale(c.req.param("locale"));
+const localizedHome = (c: any) => {
+  const locale = normalizeLocale(new URL(c.req.url).pathname === "/en" ? "en" : "el");
   const m = t(locale);
   return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4"><strong class="text-2xl">Memboux</strong><div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a><a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-slate-950 px-4 py-2 font-semibold text-white">${m.register}</a></div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-rose-500">Memboux</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Οι αναμνήσεις του γάμου σας, όλες μαζί." : "All your wedding memories, together."}</h1><p class="mt-6 max-w-2xl text-xl text-slate-500">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/register" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-rose-500 to-violet-500 px-7 py-4 font-semibold text-white">${m.createEvent}</a></div></section></main>`));
-});
+};
+app.get("/el", localizedHome);
+app.get("/en", localizedHome);
 
 app.get("/:locale{el|en}/login", (c) => c.html(authPage(normalizeLocale(c.req.param("locale")), "login")));
 app.get("/:locale{el|en}/register", (c) => c.html(authPage(normalizeLocale(c.req.param("locale")), "register")));
