@@ -3,6 +3,16 @@
   "name": "memboux",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-12",
+  "routes": [
+    {
+      "pattern": "memboux.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.memboux.com",
+      "custom_domain": true
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
