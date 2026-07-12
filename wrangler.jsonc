@@ -28,5 +28,13 @@
       "bucket_name": "memboux-media"
     }
   ],
-  "observability": { "enabled": true }
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false
+    }
+  }
 }
