@@ -4,7 +4,7 @@ import { normalizeLocale, t, type Locale } from "./i18n";
 import QRCode from "qrcode";
 
 type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
-type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null };
+type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null; default_locale: Locale };
 type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -75,7 +75,7 @@ function cards(items: MediaRow[]) {
   return items.map((m) => `<article class="overflow-hidden rounded-2xl bg-slate-100 shadow-sm"><div class="aspect-square">${m.media_type === "image" ? `<img src="/media/${encodeURIComponent(m.id)}" alt="Ανέβηκε από ${esc(m.uploaded_by)}" loading="lazy" class="h-full w-full object-cover">` : `<video src="/media/${encodeURIComponent(m.id)}" controls preload="metadata" class="h-full w-full object-cover"></video>`}</div><p class="px-4 py-3 text-sm text-slate-600">Από ${esc(m.uploaded_by)}</p></article>`).join("");
 }
 
-app.get("/", (c) => c.redirect("/el"));
+app.get("/", (c) => c.redirect("/en"));
 
 const localizedHome = async (c: any) => {
   const locale = normalizeLocale(new URL(c.req.url).pathname === "/en" ? "en" : "el");
@@ -120,7 +120,7 @@ app.get("/:locale{el|en}/account", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   const events = await c.env.DB.prepare(`SELECT e.*, em.role, COUNT(md.id) media_count FROM event_members em JOIN events e ON e.id=em.event_id LEFT JOIN media md ON md.event_id=e.id WHERE em.user_id=? GROUP BY e.id, em.role ORDER BY e.created_at DESC`).bind(user.id).all<EventRow & { role: string; media_count: number }>();
-  const list = events.results.map((event) => `<a href="/dashboard/${event.code}" class="rounded-2xl border bg-white p-5 shadow-sm"><p class="font-mono text-sm text-violet-600">${event.code}</p><h2 class="mt-1 text-xl font-bold">${esc(event.eventName)}</h2><p class="mt-3 text-sm text-slate-500">${event.media_count} uploads · ${formatDate(event.expires_at)}</p></a>`).join("");
+  const list = events.results.map((event) => `<a href="/dashboard/${event.code}?lang=${locale}" class="rounded-2xl border bg-white p-5 shadow-sm"><p class="font-mono text-sm text-violet-600">${event.code}</p><h2 class="mt-1 text-xl font-bold">${esc(event.eventName)}</h2><p class="mt-3 text-sm text-slate-500">${event.media_count} uploads · ${formatDate(event.expires_at)}</p></a>`).join("");
   return c.html(page(m.dashboard, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-3"><span class="hidden text-sm text-slate-500 md:inline">${esc(user.email)}</span><button id="logout" class="rounded-xl border px-4 py-2 text-sm font-semibold">${m.logout}</button></div></div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-600">Dashboard</p><h1 class="mt-1 text-4xl font-bold">${m.dashboard}</h1></div></div><form action="/api/account/events" method="post" class="mt-8 flex gap-3 rounded-2xl bg-white p-4 shadow-sm"><input type="hidden" name="locale" value="${locale}"><input name="eventName" required maxlength="100" placeholder="${m.eventName}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button class="rounded-xl bg-violet-600 px-5 font-semibold text-white">${m.createEvent}</button></form><div class="mt-6 grid gap-4 md:grid-cols-2">${list || `<div class="rounded-2xl bg-white p-10 text-center text-slate-500">${locale === "el" ? "Δεν έχεις events ακόμη." : "You don't have any events yet."}</div>`}</div></main><script>document.getElementById('logout').onclick=async()=>{await fetch('/api/auth/sign-out',{method:'POST'});location.href='/${locale}'}<\/script>`));
 });
 
@@ -215,6 +215,35 @@ app.post("/api/events", async (c) => {
 });
 
 app.get("/dashboard/:code", async (c) => {
+  const locale = normalizeLocale(c.req.query("lang") ?? "en");
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text(locale === "el" ? "Το event δεν βρέθηκε." : "Event not found.", 404);
+  const token = c.req.query("token") ?? "";
+  let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
+  if (!allowed) {
+    const user = await currentUser(c);
+    if (user) allowed = Boolean(await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first());
+  }
+  if (!allowed) return c.text(locale === "el" ? "Δεν έχεις πρόσβαση σε αυτή τη διαχείριση." : "You do not have access to this dashboard.", 403);
+  const items = await getMedia(c.env.DB, event.id);
+  const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
+  const qrSvg = (await QRCode.toString(guestUrl, { type: "svg", width: 256, margin: 1, errorCorrectionLevel: "M" }))
+    .replace("<svg", '<svg class="block h-auto w-full max-w-full"');
+  const labels = locale === "el" ? {
+    title: "Διαχείριση event", code: "Κωδικός", qr: "QR Code καλεσμένων",
+    qrHelp: "Οι καλεσμένοι σκανάρουν το QR και ανοίγουν απευθείας το gallery του event.",
+    copy: "Αντιγραφή", empty: "Δεν υπάρχουν uploads ακόμη.", gallery: "Gallery",
+  } : {
+    title: "Event Dashboard", code: "Event code", qr: "Guest gallery QR code",
+    qrHelp: "Guests can scan this QR code to open the event gallery directly.",
+    copy: "Copy link", empty: "No uploads yet.", gallery: "Gallery",
+  };
+  const otherLocale = locale === "el" ? "en" : "el";
+  const toggleUrl = `/dashboard/${event.code}?lang=${otherLocale}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+  return c.html(page(`${event.eventName} – ${labels.title}`, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-4 sm:p-5">${brandMark(`/${locale}`, true)}<a href="${toggleUrl}" class="rounded-lg border px-3 py-2 text-sm font-semibold">${otherLocale.toUpperCase()}</a></div></header><main class="mx-auto max-w-6xl p-4 sm:p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><p class="text-sm font-semibold uppercase tracking-[.18em] text-[#9b725c]">${labels.title}</p><h1 class="mt-2 break-words text-3xl font-bold sm:text-4xl">${esc(event.eventName)}</h1><p class="mt-3">${labels.code}: <strong class="font-mono text-2xl text-[#76533d]">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><h2 class="text-xl font-bold">${labels.qr}</h2><p class="mt-2 text-sm text-slate-500">${labels.qrHelp}</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block max-w-full break-all text-sm font-semibold text-[#76533d]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="link" readonly value="${esc(guestUrl)}" class="w-full min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="shrink-0 rounded-xl bg-slate-800 px-5 py-3 text-white">${labels.copy}</button></div></div></div></section><section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="mb-5 text-2xl font-bold">${labels.gallery} (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-slate-500">${labels.empty}</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
+});
+
+app.get("/dashboard-legacy/:code", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
   const token = c.req.query("token") ?? "";
