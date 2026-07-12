@@ -2,6 +2,10 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "memboux",
   "main": "src/index.ts",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
   "compatibility_date": "2026-07-12",
   "compatibility_flags": ["nodejs_compat"],
   "routes": [
