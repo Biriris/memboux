@@ -1,0 +1,21 @@
+{
+  "name": "wedding-gallery-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply wedding-gallery-db --local",
+    "db:remote": "wrangler d1 migrations apply wedding-gallery-db --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.12.29"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260712.1",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.110.0"
+  }
+}
