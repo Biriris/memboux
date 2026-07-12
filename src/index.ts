@@ -1,11 +1,13 @@
 import { Hono } from "hono";
-import { createAuth, type AuthEnv } from "./auth";
+import { createAuth, sendEmail, type AuthEnv } from "./auth";
 import { normalizeLocale, t, type Locale } from "./i18n";
 import QRCode from "qrcode";
 
 type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
 type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null; default_locale: Locale };
 type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number };
+type EventMemberRow = { user_id: string; name: string; email: string; role: "owner" | "editor" | "viewer"; created_at: number };
+type EventInvitationRow = { id: string; email: string; role: "editor" | "viewer"; created_at: number; expires_at: number };
 
 const app = new Hono<{ Bindings: Bindings }>();
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -123,8 +125,16 @@ app.get("/:locale{el|en}/account", async (c) => {
   const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
+  const now = Date.now();
+  await c.env.DB.batch([
+    c.env.DB.prepare(`INSERT OR IGNORE INTO event_members (event_id,user_id,role,created_at)
+      SELECT event_id, ?, role, ? FROM event_invitations
+      WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(user.id, now, user.email, now),
+    c.env.DB.prepare(`UPDATE event_invitations SET accepted_at=?
+      WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(now, user.email, now),
+  ]);
   const events = await c.env.DB.prepare(`SELECT e.*, em.role, COUNT(md.id) media_count FROM event_members em JOIN events e ON e.id=em.event_id LEFT JOIN media md ON md.event_id=e.id WHERE em.user_id=? GROUP BY e.id, em.role ORDER BY e.created_at DESC`).bind(user.id).all<EventRow & { role: string; media_count: number }>();
-  const list = events.results.map((event) => `<a href="/dashboard/${event.code}?lang=${locale}" class="rounded-2xl border bg-white p-5 shadow-sm"><p class="font-mono text-sm text-[#8a654f]">${event.code}</p><h2 class="mt-1 text-xl font-bold">${esc(event.eventName)}</h2><p class="mt-3 text-sm text-[#776a63]">${event.media_count} uploads · ${formatDate(event.expires_at)}</p></a>`).join("");
+  const list = events.results.map((event) => `<a href="/dashboard/${event.code}?lang=${locale}" class="rounded-2xl border bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><p class="font-mono text-sm text-[#8a654f]">${event.code}</p><span class="rounded-full bg-[#f1e8e1] px-2.5 py-1 text-xs font-medium text-[#76533d]">${event.role === "owner" ? (locale === "el" ? "Ιδιοκτήτης" : "Owner") : (locale === "el" ? "Συνεργάτης" : "Collaborator")}</span></div><h2 class="mt-1 text-xl font-bold">${esc(event.eventName)}</h2><p class="mt-3 text-sm text-[#776a63]">${event.media_count} uploads · ${formatDate(event.expires_at)}</p></a>`).join("");
   return c.html(page(m.dashboard, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-3"><span class="hidden text-sm text-[#776a63] md:inline">${esc(user.email)}</span><button id="logout" class="rounded-xl border px-4 py-2 text-sm font-semibold">${m.logout}</button></div></div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-[.2em] text-[#8a654f]">Dashboard</p><h1 class="mt-1 text-4xl font-bold">${m.dashboard}</h1></div></div><form action="/api/account/events" method="post" class="mt-8 flex gap-3 rounded-2xl bg-white p-4 shadow-sm"><input type="hidden" name="locale" value="${locale}"><input name="eventName" required maxlength="100" placeholder="${m.eventName}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button class="rounded-xl bg-[#8a654f] px-5 font-semibold text-white">${m.createEvent}</button></form><div class="mt-6 grid gap-4 md:grid-cols-2">${list || `<div class="rounded-2xl bg-white p-10 text-center text-[#776a63]">${locale === "el" ? "Δεν έχεις events ακόμη." : "You don't have any events yet."}</div>`}</div></main><script>const logoutButton=document.getElementById('logout');logoutButton.onclick=async()=>{logoutButton.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok){logoutButton.disabled=false;alert(${JSON.stringify(locale === "el" ? "Η αποσύνδεση απέτυχε. Δοκίμασε ξανά." : "Sign out failed. Please try again.")});return}location.replace('/${locale}')}<\/script>`));
 });
 
@@ -224,12 +234,14 @@ app.get("/dashboard/:code", async (c) => {
   if (!event) return c.text(locale === "el" ? "Το event δεν βρέθηκε." : "Event not found.", 404);
   const token = c.req.query("token") ?? "";
   let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
-  if (!allowed) {
-    const user = await currentUser(c);
-    if (user) allowed = Boolean(await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first());
-  }
+  const user = await currentUser(c);
+  const membership = user ? await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first<{ role: "owner" | "editor" | "viewer" }>() : null;
+  if (!allowed) allowed = Boolean(membership);
   if (!allowed) return c.text(locale === "el" ? "Δεν έχεις πρόσβαση σε αυτή τη διαχείριση." : "You do not have access to this dashboard.", 403);
   const items = await getMedia(c.env.DB, event.id);
+  const canManageMembers = membership?.role === "owner";
+  const members = canManageMembers ? (await c.env.DB.prepare(`SELECT em.user_id,u.name,u.email,em.role,em.created_at FROM event_members em JOIN "user" u ON u.id=em.user_id WHERE em.event_id=? ORDER BY CASE em.role WHEN 'owner' THEN 0 ELSE 1 END, em.created_at`).bind(event.id).all<EventMemberRow>()).results : [];
+  const invitations = canManageMembers ? (await c.env.DB.prepare("SELECT id,email,role,created_at,expires_at FROM event_invitations WHERE event_id=? AND accepted_at IS NULL AND expires_at>? ORDER BY created_at DESC").bind(event.id, Date.now()).all<EventInvitationRow>()).results : [];
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
   const qrSvg = (await QRCode.toString(guestUrl, { type: "svg", width: 256, margin: 1, errorCorrectionLevel: "M" }))
     .replace("<svg", '<svg class="block h-auto w-full max-w-full"');
@@ -237,14 +249,70 @@ app.get("/dashboard/:code", async (c) => {
     title: "Διαχείριση event", code: "Κωδικός", qr: "QR Code καλεσμένων",
     qrHelp: "Οι καλεσμένοι σκανάρουν το QR και ανοίγουν απευθείας το gallery του event.",
     copy: "Αντιγραφή", empty: "Δεν υπάρχουν uploads ακόμη.", gallery: "Gallery", events: "Τα events μου",
+    team: "Συνεργάτες", invite: "Πρόσκληση συνεργάτη", inviteHelp: "Ο συνεργάτης θα μπορεί να διαχειρίζεται μόνο αυτό το event.", sendInvite: "Αποστολή πρόσκλησης", pending: "Σε αναμονή", remove: "Αφαίρεση",
   } : {
     title: "Event Dashboard", code: "Event code", qr: "Guest gallery QR code",
     qrHelp: "Guests can scan this QR code to open the event gallery directly.",
     copy: "Copy link", empty: "No uploads yet.", gallery: "Gallery", events: "My Events",
+    team: "Collaborators", invite: "Invite a collaborator", inviteHelp: "The collaborator will only be able to manage this event.", sendInvite: "Send invitation", pending: "Pending", remove: "Remove",
   };
   const otherLocale = locale === "el" ? "en" : "el";
   const toggleUrl = `/dashboard/${event.code}?lang=${otherLocale}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
-  return c.html(page(`${event.eventName} – ${labels.title}`, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale}/account" class="rounded-lg bg-[#76533d] px-3 py-2 text-sm font-semibold text-white sm:px-4">← ${labels.events}</a><a href="${toggleUrl}" class="rounded-lg border px-3 py-2 text-sm font-semibold">${otherLocale.toUpperCase()}</a></div></div></header><main class="mx-auto max-w-6xl p-4 sm:p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><p class="text-sm font-semibold uppercase tracking-[.18em] text-[#9b725c]">${labels.title}</p><h1 class="mt-2 break-words text-3xl font-bold sm:text-4xl">${esc(event.eventName)}</h1><p class="mt-3">${labels.code}: <strong class="font-mono text-2xl text-[#76533d]">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><h2 class="text-xl font-bold">${labels.qr}</h2><p class="mt-2 text-sm text-[#776a63]">${labels.qrHelp}</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block max-w-full break-all text-sm font-semibold text-[#76533d]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="link" readonly value="${esc(guestUrl)}" class="w-full min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="shrink-0 rounded-xl bg-[#4b382e] px-5 py-3 text-white">${labels.copy}</button></div></div></div></section><section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="mb-5 text-2xl font-bold">${labels.gallery} (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-[#776a63]">${labels.empty}</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
+  const teamPanel = canManageMembers ? `<section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="grid gap-7 lg:grid-cols-[1fr_1fr]"><div><h2 class="text-2xl">${labels.team}</h2><div class="mt-4 space-y-3">${members.map((member) => `<div class="flex items-center justify-between gap-3 rounded-2xl border p-4"><div class="min-w-0"><p class="truncate font-medium">${esc(member.name)}</p><p class="truncate text-sm text-[#776a63]">${esc(member.email)}</p></div>${member.role === "owner" ? `<span class="rounded-full bg-[#f1e8e1] px-3 py-1 text-xs">Owner</span>` : `<form action="/api/account/events/${encodeURIComponent(event.code)}/members/remove" method="post"><input type="hidden" name="userId" value="${esc(member.user_id)}"><input type="hidden" name="locale" value="${locale}"><button class="text-sm font-medium text-red-700">${labels.remove}</button></form>`}</div>`).join("")}${invitations.map((invite) => `<div class="flex items-center justify-between gap-3 rounded-2xl border border-dashed p-4"><div class="min-w-0"><p class="truncate">${esc(invite.email)}</p><p class="text-xs text-[#776a63]">${labels.pending}</p></div><form action="/api/account/events/${encodeURIComponent(event.code)}/members/remove" method="post"><input type="hidden" name="invitationId" value="${esc(invite.id)}"><input type="hidden" name="locale" value="${locale}"><button class="text-sm font-medium text-red-700">${labels.remove}</button></form></div>`).join("")}</div></div><div class="rounded-2xl bg-[#faf6f1] p-5"><h2 class="text-2xl">${labels.invite}</h2><p class="mt-1 text-sm text-[#776a63]">${labels.inviteHelp}</p><form action="/api/account/events/${encodeURIComponent(event.code)}/invite" method="post" class="mt-5 space-y-3"><input type="hidden" name="locale" value="${locale}"><input name="email" type="email" required maxlength="254" placeholder="name@example.com" class="w-full rounded-xl border bg-white px-4 py-3"><button class="w-full rounded-xl bg-[#76533d] px-5 py-3 font-medium text-white">${labels.sendInvite}</button></form></div></div></section>` : "";
+  return c.html(page(`${event.eventName} – ${labels.title}`, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale}/account" class="rounded-lg bg-[#76533d] px-3 py-2 text-sm font-semibold text-white sm:px-4">← ${labels.events}</a><a href="${toggleUrl}" class="rounded-lg border px-3 py-2 text-sm font-semibold">${otherLocale.toUpperCase()}</a></div></div></header><main class="mx-auto max-w-6xl p-4 sm:p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><p class="text-sm font-semibold uppercase tracking-[.18em] text-[#9b725c]">${labels.title}</p><h1 class="mt-2 break-words text-3xl font-bold sm:text-4xl">${esc(event.eventName)}</h1><p class="mt-3">${labels.code}: <strong class="font-mono text-2xl text-[#76533d]">${esc(event.code)}</strong></p><div class="mt-7 grid items-center gap-7 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><h2 class="text-xl font-bold">${labels.qr}</h2><p class="mt-2 text-sm text-[#776a63]">${labels.qrHelp}</p><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block max-w-full break-all text-sm font-semibold text-[#76533d]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="link" readonly value="${esc(guestUrl)}" class="w-full min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="shrink-0 rounded-xl bg-[#4b382e] px-5 py-3 text-white">${labels.copy}</button></div></div></div></section>${teamPanel}<section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><h2 class="mb-5 text-2xl font-bold">${labels.gallery} (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-[#776a63]">${labels.empty}</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
+});
+
+app.post("/api/account/events/:code/invite", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  const owner = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id, user.id).first();
+  if (!owner) return c.text("Only the event owner can invite collaborators", 403);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const email = String(body.email ?? "").trim().toLowerCase().slice(0, 254);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.text("Invalid email", 400);
+  if (email === user.email.toLowerCase()) return c.text(locale === "el" ? "Είσαι ήδη ο ιδιοκτήτης αυτού του event." : "You already own this event.", 400);
+  const existingUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE lower(email)=lower(?)`).bind(email).first<{ id: string }>();
+  if (existingUser) {
+    const existingMember = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, existingUser.id).first();
+    if (existingMember) return c.redirect(`/dashboard/${event.code}?lang=${locale}`, 303);
+  }
+  const invitationId = crypto.randomUUID();
+  const now = Date.now();
+  await c.env.DB.prepare(`INSERT INTO event_invitations (id,event_id,email,role,invited_by,created_at,expires_at,accepted_at)
+    VALUES (?,?,?,?,?,?,?,NULL)
+    ON CONFLICT(event_id,email) DO UPDATE SET id=excluded.id,role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL`)
+    .bind(invitationId, event.id, email, "editor", user.id, now, now + 14 * 86400000).run();
+  const accountUrl = `https://memboux.com/${locale}/account`;
+  const subject = locale === "el" ? `Πρόσκληση στο event ${event.eventName}` : `Invitation to ${event.eventName}`;
+  const text = locale === "el"
+    ? `${user.name} σε προσκάλεσε να διαχειριστείς το event «${event.eventName}» στο Memboux. Συνδέσου με αυτό το email: ${accountUrl}`
+    : `${user.name} invited you to manage “${event.eventName}” on Memboux. Sign in with this email: ${accountUrl}`;
+  await sendEmail(c.env, {
+    to: email,
+    subject,
+    text,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#3b2a23"><h1 style="font-family:Georgia,serif">Memboux</h1><p>${esc(text)}</p><p><a href="${accountUrl}" style="display:inline-block;background:#76533d;color:white;padding:12px 20px;border-radius:10px;text-decoration:none">${locale === "el" ? "Αποδοχή πρόσκλησης" : "Accept invitation"}</a></p><p style="color:#776a63;font-size:13px">${locale === "el" ? "Η πρόσκληση λήγει σε 14 ημέρες και αφορά μόνο αυτό το event." : "This invitation expires in 14 days and only grants access to this event."}</p></div>`,
+  });
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}`, 303);
+});
+
+app.post("/api/account/events/:code/members/remove", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  const owner = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id, user.id).first();
+  if (!owner) return c.text("Only the event owner can remove collaborators", 403);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const userId = String(body.userId ?? "");
+  const invitationId = String(body.invitationId ?? "");
+  if (userId) await c.env.DB.prepare("DELETE FROM event_members WHERE event_id=? AND user_id=? AND role!='owner'").bind(event.id, userId).run();
+  if (invitationId) await c.env.DB.prepare("DELETE FROM event_invitations WHERE id=? AND event_id=?").bind(invitationId, event.id).run();
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}`, 303);
 });
 
 app.get("/dashboard-legacy/:code", async (c) => {

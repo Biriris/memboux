@@ -10,7 +10,7 @@ export type AuthEnv = {
 
 type SendEmailInput = { to: string; subject: string; html: string; text: string };
 
-async function sendEmail(env: AuthEnv, message: SendEmailInput) {
+export async function sendEmail(env: AuthEnv, message: SendEmailInput) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
