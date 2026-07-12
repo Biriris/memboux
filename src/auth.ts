@@ -38,6 +38,25 @@ export function createAuth(env: AuthEnv, waitUntil?: (promise: Promise<unknown>)
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
     trustedOrigins: ["https://memboux.com", "https://www.memboux.com"],
+    session: {
+      expiresIn: 60 * 60 * 24 * 30,
+      updateAge: 60 * 60 * 24,
+      cookieCache: {
+        enabled: true,
+        maxAge: 60 * 5,
+      },
+    },
+    advanced: {
+      crossSubDomainCookies: {
+        enabled: true,
+        domain: "memboux.com",
+      },
+      defaultCookieAttributes: {
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
+      },
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
