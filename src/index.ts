@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import { createAuth, type AuthEnv } from "./auth";
+import { normalizeLocale, t, type Locale } from "./i18n";
 
-type Bindings = { DB: D1Database; MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
+type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
 type EventRow = { id: string; code: string; couple: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null };
 type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; size_bytes: number };
 
@@ -8,6 +10,11 @@ const app = new Hono<{ Bindings: Bindings }>();
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"]);
 const ADMIN_COOKIE = "memboux_admin";
+
+app.on(["GET", "POST"], "/api/auth/*", (c) => {
+  const auth = createAuth(c.env, (promise) => c.executionCtx.waitUntil(promise));
+  return auth.handler(c.req.raw);
+});
 
 const esc = (value: unknown) => String(value ?? "").replace(/[&<>'\"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[ch]!));
 const randomCode = () => crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -31,6 +38,21 @@ function adminShell(title: string, content: string) {
   return page(`${title} – Memboux Admin`, `<header class="border-b bg-slate-950 text-white"><div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"><a href="/admin" class="text-xl font-bold tracking-wide">Memboux Admin</a><form action="/admin/logout" method="post"><button class="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10">Αποσύνδεση</button></form></div></header>${content}`);
 }
 
+async function currentUser(c: { env: Bindings; req: { raw: Request } }) {
+  const session = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+  return session?.user ?? null;
+}
+
+function authPage(locale: Locale, mode: "login" | "register") {
+  const m = t(locale);
+  const isRegister = mode === "register";
+  return page(`${isRegister ? m.register : m.login} – Memboux`, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl"><div class="mb-7 flex items-center justify-between"><a href="/${locale}" class="text-xl font-bold">Memboux</a><a href="/${locale === "el" ? "en" : "el"}/${mode}" class="text-sm font-semibold text-violet-600">${locale === "el" ? "EN" : "EL"}</a></div><h1 class="text-3xl font-bold">${isRegister ? m.register : m.login}</h1><button id="google" class="mt-6 w-full rounded-xl border px-4 py-3 font-semibold hover:bg-slate-50">${m.continueGoogle}</button><div class="my-5 flex items-center gap-3 text-xs text-slate-400"><span class="h-px flex-1 bg-slate-200"></span>OR<span class="h-px flex-1 bg-slate-200"></span></div><form id="authForm" class="space-y-3">${isRegister ? `<input name="name" required maxlength="100" placeholder="${m.name}" class="w-full rounded-xl border px-4 py-3">` : ""}<input name="email" type="email" required autocomplete="email" placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><input name="password" type="password" required minlength="10" autocomplete="${isRegister ? "new-password" : "current-password"}" placeholder="${m.password}" class="w-full rounded-xl border px-4 py-3"><p id="error" class="hidden rounded-xl bg-red-50 p-3 text-sm text-red-700"></p><button class="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white">${isRegister ? m.register : m.login}</button></form>${!isRegister ? `<a href="/${locale}/forgot-password" class="mt-4 block text-center text-sm text-violet-600">${m.forgotPassword}</a>` : ""}<p class="mt-6 text-center text-sm text-slate-500">${isRegister ? m.hasAccount : m.noAccount} <a class="font-semibold text-violet-600" href="/${locale}/${isRegister ? "login" : "register"}">${isRegister ? m.login : m.register}</a></p></section></main><script>
+const locale=${JSON.stringify(locale)};const error=document.getElementById('error');
+document.getElementById('google').onclick=async()=>{const r=await fetch('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL:'/'+locale+'/account'})});const d=await r.json();if(d.url)location.href=d.url;else{error.textContent=d.message||${JSON.stringify(m.genericError)};error.classList.remove('hidden')}};
+document.getElementById('authForm').onsubmit=async(e)=>{e.preventDefault();error.classList.add('hidden');const values=Object.fromEntries(new FormData(e.target));const r=await fetch('/api/auth/${isRegister ? "sign-up" : "sign-in"}/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,callbackURL:'/'+locale+'/account'})});const d=await r.json().catch(()=>({}));if(r.ok){location.href=${isRegister ? `'/${locale}/verify-email'` : `'/${locale}/account'`}}else{error.textContent=d.message||${JSON.stringify(m.genericError)};error.classList.remove('hidden')}};
+<\/script>`);
+}
+
 function page(title: string, body: string) {
   return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body class="min-h-screen bg-gradient-to-br from-rose-50 via-white to-violet-50 text-slate-800">${body}</body></html>`;
 }
@@ -47,6 +69,46 @@ async function getMedia(db: D1Database, eventId: string) {
 function cards(items: MediaRow[]) {
   return items.map((m) => `<article class="overflow-hidden rounded-2xl bg-slate-100 shadow-sm"><div class="aspect-square">${m.media_type === "image" ? `<img src="/media/${encodeURIComponent(m.id)}" alt="Ανέβηκε από ${esc(m.uploaded_by)}" loading="lazy" class="h-full w-full object-cover">` : `<video src="/media/${encodeURIComponent(m.id)}" controls preload="metadata" class="h-full w-full object-cover"></video>`}</div><p class="px-4 py-3 text-sm text-slate-600">Από ${esc(m.uploaded_by)}</p></article>`).join("");
 }
+
+app.get("/", (c) => c.redirect("/el"));
+
+app.get("/:locale{el|en}", (c) => {
+  const locale = normalizeLocale(c.req.param("locale"));
+  const m = t(locale);
+  return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4"><strong class="text-2xl">Memboux</strong><div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a><a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-slate-950 px-4 py-2 font-semibold text-white">${m.register}</a></div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-rose-500">Memboux</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Οι αναμνήσεις του γάμου σας, όλες μαζί." : "All your wedding memories, together."}</h1><p class="mt-6 max-w-2xl text-xl text-slate-500">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/register" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-rose-500 to-violet-500 px-7 py-4 font-semibold text-white">${m.createEvent}</a></div></section></main>`));
+});
+
+app.get("/:locale{el|en}/login", (c) => c.html(authPage(normalizeLocale(c.req.param("locale")), "login")));
+app.get("/:locale{el|en}/register", (c) => c.html(authPage(normalizeLocale(c.req.param("locale")), "register")));
+
+app.get("/:locale{el|en}/verify-email", (c) => {
+  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
+  return c.html(page(m.verifyTitle, `<main class="flex min-h-screen items-center justify-center p-5"><section class="max-w-lg rounded-3xl bg-white p-10 text-center shadow-xl"><div class="text-5xl">✉️</div><h1 class="mt-5 text-3xl font-bold">${m.verifyTitle}</h1><p class="mt-3 text-slate-500">${m.verifyText}</p><a href="/${locale}/login" class="mt-7 inline-block rounded-xl bg-slate-950 px-6 py-3 font-semibold text-white">${m.login}</a></section></main>`));
+});
+
+app.get("/:locale{el|en}/forgot-password", (c) => {
+  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
+  return c.html(page(m.forgotPassword, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl"><h1 class="text-3xl font-bold">${m.forgotPassword}</h1><form id="forgot" class="mt-6 space-y-3"><input name="email" type="email" required placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700"></p><button class="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white">${locale === "el" ? "Αποστολή συνδέσμου" : "Send reset link"}</button></form></section></main><script>document.getElementById('forgot').onsubmit=async(e)=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));await fetch('/api/auth/request-password-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...v,redirectTo:'/${locale}/reset-password'})});const m=document.getElementById('message');m.textContent=${JSON.stringify(locale === "el" ? "Αν υπάρχει λογαριασμός, στάλθηκε email επαναφοράς." : "If the account exists, a reset email has been sent.")};m.classList.remove('hidden')}<\/script>`));
+});
+
+app.get("/:locale{el|en}/account", async (c) => {
+  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
+  const events = await c.env.DB.prepare(`SELECT e.*, em.role, COUNT(md.id) media_count FROM event_members em JOIN events e ON e.id=em.event_id LEFT JOIN media md ON md.event_id=e.id WHERE em.user_id=? GROUP BY e.id, em.role ORDER BY e.created_at DESC`).bind(user.id).all<EventRow & { role: string; media_count: number }>();
+  const list = events.results.map((event) => `<a href="/dashboard/${event.code}" class="rounded-2xl border bg-white p-5 shadow-sm"><p class="font-mono text-sm text-violet-600">${event.code}</p><h2 class="mt-1 text-xl font-bold">${esc(event.couple)}</h2><p class="mt-3 text-sm text-slate-500">${event.media_count} uploads · ${formatDate(event.expires_at)}</p></a>`).join("");
+  return c.html(page(m.dashboard, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5"><a href="/${locale}" class="text-xl font-bold">Memboux</a><div class="flex items-center gap-3"><span class="hidden text-sm text-slate-500 md:inline">${esc(user.email)}</span><button id="logout" class="rounded-xl border px-4 py-2 text-sm font-semibold">${m.logout}</button></div></div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-600">Dashboard</p><h1 class="mt-1 text-4xl font-bold">${m.dashboard}</h1></div></div><form action="/api/account/events" method="post" class="mt-8 flex gap-3 rounded-2xl bg-white p-4 shadow-sm"><input type="hidden" name="locale" value="${locale}"><input name="couple" required maxlength="100" placeholder="${m.coupleNames}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button class="rounded-xl bg-violet-600 px-5 font-semibold text-white">${m.createEvent}</button></form><div class="mt-6 grid gap-4 md:grid-cols-2">${list || `<div class="rounded-2xl bg-white p-10 text-center text-slate-500">${locale === "el" ? "Δεν έχεις events ακόμη." : "You don't have any events yet."}</div>`}</div></main><script>document.getElementById('logout').onclick=async()=>{await fetch('/api/auth/sign-out',{method:'POST'});location.href='/${locale}'}<\/script>`));
+});
+
+app.post("/api/account/events", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const body = await c.req.parseBody(); const couple = String(body.couple ?? "").trim().slice(0, 100); const locale = normalizeLocale(String(body.locale ?? "el"));
+  if (!couple) return c.text("Missing couple", 400);
+  const id = crypto.randomUUID(); const token = crypto.randomUUID() + crypto.randomUUID(); const tokenHash = await sha256(token); const now = Date.now();
+  for (let attempt=0; attempt<5; attempt++) { const code=randomCode(); try { await c.env.DB.batch([c.env.DB.prepare("INSERT INTO events (id,code,couple,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(id,code,couple,tokenHash,now,now+365*86400000,"active","",now,locale),c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(id,user.id,"owner",now)]); return c.redirect(`/${locale}/account`,303); } catch(error) { if(attempt===4) throw error; } }
+  return c.text("Could not create event",500);
+});
 
 app.get("/admin/login", async (c) => {
   if (await isAdmin(c)) return c.redirect("/admin");
@@ -132,7 +194,12 @@ app.get("/dashboard/:code", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
   const token = c.req.query("token") ?? "";
-  if (!token || await sha256(token) !== event.admin_token_hash) return c.text("Δεν έχεις πρόσβαση σε αυτή τη διαχείριση.", 403);
+  let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
+  if (!allowed) {
+    const user = await currentUser(c);
+    if (user) allowed = Boolean(await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first());
+  }
+  if (!allowed) return c.text("Δεν έχεις πρόσβαση σε αυτή τη διαχείριση.", 403);
   const items = await getMedia(c.env.DB, event.id);
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
   return c.html(page(`${event.couple} – Διαχείριση`, `<main class="mx-auto max-w-6xl p-5 md:p-10"><section class="mb-6 rounded-3xl bg-white p-7 shadow-lg"><p class="text-sm font-semibold text-rose-500">ΙΔΙΩΤΙΚΗ ΔΙΑΧΕΙΡΙΣΗ</p><h1 class="mt-2 text-4xl font-bold">${esc(event.couple)}</h1><p class="mt-3">Κωδικός: <strong class="font-mono text-2xl text-violet-600">${esc(event.code)}</strong></p><p class="mt-5 text-sm text-slate-500">Φύλαξε το URL αυτής της σελίδας. Είναι το ιδιωτικό admin link σου.</p><div class="mt-5 flex gap-2"><input id="link" readonly value="${esc(guestUrl)}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy" class="rounded-xl bg-slate-800 px-5 text-white">Αντιγραφή</button></div></section><section class="rounded-3xl bg-white p-7 shadow-lg"><h2 class="mb-5 text-2xl font-bold">Gallery (${items.length})</h2>${items.length ? `<div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items)}</div>` : `<p class="py-12 text-center text-slate-500">Δεν υπάρχουν uploads ακόμη.</p>`}</section></main><script>document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('link').value)<\/script>`));
@@ -178,5 +245,10 @@ app.get("/media/:id", async (c) => {
   return new Response(object.body, { headers });
 });
 
-app.onError((error, c) => { console.error(error); return c.text("Παρουσιάστηκε προσωρινό σφάλμα.", 500); });
+app.onError((error, c) => {
+  console.error(error);
+  const host = new URL(c.req.url).hostname;
+  if (host === "127.0.0.1" || host === "localhost") return c.text(error.stack ?? error.message, 500);
+  return c.text("Παρουσιάστηκε προσωρινό σφάλμα.", 500);
+});
 export default app;
