@@ -45,9 +45,9 @@ export function createAuth(env: AuthEnv, waitUntil?: (promise: Promise<unknown>)
       sendResetPassword: async ({ user, url }) => {
         schedule(sendEmail(env, {
           to: user.email,
-          subject: "Reset your Memboux password",
-          text: `Reset your password: ${url}`,
-          html: `<h1>Reset your password</h1><p>Use the link below to choose a new Memboux password.</p><p><a href="${url}">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+          subject: "Memboux – Password reset / Επαναφορά κωδικού",
+          text: `Reset your password / Επαναφορά κωδικού: ${url}`,
+          html: `<h1>Reset your password</h1><p>Use the link below to choose a new Memboux password.</p><p><a href="${url}">Reset password</a></p><hr><h1>Επαναφορά κωδικού</h1><p>Χρησιμοποίησε τον παραπάνω σύνδεσμο για να ορίσεις νέο κωδικό στο Memboux.</p><p>If you did not request this / Αν δεν το ζήτησες εσύ, αγνόησε αυτό το email.</p>`,
         }));
       },
     },
@@ -58,9 +58,9 @@ export function createAuth(env: AuthEnv, waitUntil?: (promise: Promise<unknown>)
       sendVerificationEmail: async ({ user, url }) => {
         schedule(sendEmail(env, {
           to: user.email,
-          subject: "Verify your Memboux email",
-          text: `Verify your email address: ${url}`,
-          html: `<h1>Verify your email</h1><p>Welcome to Memboux. Confirm your email address using the link below.</p><p><a href="${url}">Verify email</a></p>`,
+          subject: "Memboux – Verify email / Επιβεβαίωση email",
+          text: `Verify your email / Επιβεβαίωσε το email σου: ${url}`,
+          html: `<h1>Verify your email</h1><p>Welcome to Memboux. Confirm your email address using the link below.</p><p><a href="${url}">Verify email</a></p><hr><h1>Επιβεβαίωσε το email σου</h1><p>Καλώς ήρθες στο Memboux. Χρησιμοποίησε τον παραπάνω σύνδεσμο για να ενεργοποιήσεις τον λογαριασμό σου.</p>`,
         }));
       },
     },
