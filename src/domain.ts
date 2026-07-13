@@ -1,6 +1,8 @@
 import type { AuthEnv } from "./auth";
 import type { Locale } from "./i18n";
 
+export type EventRole = "owner" | "editor" | "viewer";
+
 export type Bindings = AuthEnv & {
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
@@ -46,7 +48,7 @@ export type EventMemberRow = {
   user_id: string;
   name: string;
   email: string;
-  role: "owner" | "editor" | "viewer";
+  role: EventRole;
   created_at: number;
 };
 

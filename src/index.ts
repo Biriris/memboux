@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createAuth, sendEmail } from "./auth";
+import { getEventRole, roleCan } from "./access";
 import { normalizeLocale, t, type Locale } from "./i18n";
 import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, TRASH_RETENTION_MS } from "./config";
 import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
@@ -203,7 +204,7 @@ app.post("/api/account/events", async (c) => {
 app.post("/api/account/events/:code/trash", async (c) => {
   const user=await currentUser(c); if(!user) return c.text("Unauthorized",401);
   const event=await getEvent(c.env.DB,c.req.param("code")); if(!event) return c.text("Event not found",404);
-  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first(); if(!owner) return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale)); const now=Date.now();
   await c.env.DB.prepare("UPDATE events SET deleted_at=?,purge_at=?,updated_at=? WHERE id=?").bind(now,now+TRASH_RETENTION_MS,now,event.id).run();
   return c.redirect(`/${locale}/account`,303);
@@ -212,7 +213,7 @@ app.post("/api/account/events/:code/trash", async (c) => {
 app.post("/api/account/events/:code/restore", async (c) => {
   const user=await currentUser(c); if(!user) return c.text("Unauthorized",401);
   const event=await getEvent(c.env.DB,c.req.param("code"),true); if(!event) return c.text("Event not found",404);
-  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first(); if(!owner) return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale));
   await c.env.DB.prepare("UPDATE events SET deleted_at=NULL,purge_at=NULL,updated_at=? WHERE id=?").bind(Date.now(),event.id).run();
   return c.redirect(`/${locale}/trash`,303);
@@ -403,8 +404,8 @@ function shareIconButtons(guestUrl:string,eventName:string,locale:Locale){
 app.get("/dashboard/:code", async(c)=>{
   const locale=normalizeLocale(c.req.query("lang")??"en");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text(locale==="el"?"Το event δεν βρέθηκε.":"Event not found.",404);
   const user=await currentUser(c);if(!user)return c.redirect(`/${locale}/login`);
-  const membership=await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=?").bind(event.id,user.id).first<{role:"owner"|"editor"|"viewer"}>();if(!membership)return c.text("Forbidden",403);
-  const canManageMedia=membership.role==="owner"||membership.role==="editor";
+  const membership=await getEventRole(c.env.DB,event.id,user.id);if(!membership)return c.text("Forbidden",403);
+  const canManageMedia=roleCan(membership,"manage_media");
   const items=await getMedia(c.env.DB,event.id);
   const guestUrl=`${new URL(c.req.url).origin}/gallery/${event.code}`;
   const shareText=locale==="el"?`Δες και πρόσθεσε στιγμές στο ${event.eventName}: ${guestUrl}`:`View and add moments to ${event.eventName}: ${guestUrl}`;
@@ -413,12 +414,12 @@ app.get("/dashboard/:code", async(c)=>{
   const qrSvg=(await QRCode.toString(guestUrl,{type:"svg",width:220,margin:1,errorCorrectionLevel:"M"})).replace("<svg",'<svg class="block h-auto w-full max-w-full"');
   const sharePanel=`<section class="mb-7 rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="grid items-center gap-6 md:grid-cols-[160px_minmax(0,1fr)]"><div class="mx-auto w-full max-w-[160px] rounded-2xl border bg-white p-3">${qrSvg}</div><div class="min-w-0"><p class="text-xs uppercase tracking-[.2em] text-[#765440]">${locale==="el"?"Κοινοποίηση event":"Share event"}</p><h2 class="mt-1 text-3xl">QR Code & link</h2><a href="${esc(guestUrl)}" target="_blank" class="mt-3 block break-all text-sm text-[#654534]">${esc(guestUrl)}</a><div class="mt-4 flex flex-col gap-2 sm:flex-row"><input id="guest-link" readonly value="${esc(guestUrl)}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button id="copy-guest-link" class="rounded-xl bg-[#654534] px-5 py-3 text-white">${locale==="el"?"Αντιγραφή":"Copy link"}</button></div>${shareIconButtons(guestUrl,event.eventName,locale)}${event.gallery_pin_hash?`<p class="mt-3 text-xs text-[#625750]">🔒 ${locale==="el"?"Το gallery προστατεύεται με PIN.":"This gallery is PIN protected."}</p>`:""}</div></div></section>`;
   const ownerSelectionScript=`<script>const ownerSelect=document.getElementById('owner-select-media'),ownerDownload=document.getElementById('owner-download-selected'),ownerDelete=document.getElementById('owner-delete-selected'),ownerSelectors=[...document.querySelectorAll('.media-selector')],ownerSelected=()=>[...document.querySelectorAll('.media-select:checked')];let ownerMode=false;const ownerRefresh=()=>{document.querySelectorAll('.selectable-media').forEach(card=>{const checked=card.querySelector('.media-select')?.checked;card.classList.toggle('ring-4',!!checked);card.classList.toggle('ring-[#8b6250]',!!checked);card.classList.toggle('brightness-75',!!checked);const tick=card.querySelector('.selection-tick');if(tick){tick.classList.toggle('hidden',!checked);tick.classList.toggle('flex',!!checked)}});const count=ownerSelected().length;ownerDownload.textContent=${JSON.stringify(locale==="el"?"Λήψη επιλεγμένων":"Download selected")}+' ('+count+')';if(ownerDelete)ownerDelete.textContent=${JSON.stringify(locale==="el"?"Διαγραφή επιλεγμένων":"Delete selected")}+' ('+count+')'};ownerSelect.onclick=()=>{ownerMode=!ownerMode;ownerSelectors.forEach(x=>x.classList.toggle('hidden',!ownerMode));ownerDownload.classList.toggle('hidden',!ownerMode);if(ownerDelete)ownerDelete.classList.toggle('hidden',!ownerMode);ownerSelect.textContent=ownerMode?${JSON.stringify(locale==="el"?"Ακύρωση":"Cancel")}:${JSON.stringify(locale==="el"?"Επιλογή":"Select")};if(!ownerMode){document.querySelectorAll('.media-select').forEach(x=>x.checked=false);ownerRefresh()}};document.querySelectorAll('.media-select').forEach(x=>x.onchange=ownerRefresh);ownerDownload.onclick=()=>ownerSelected().forEach((box,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=box.dataset.download;a.download='';a.click()},i*250));if(ownerDelete)ownerDelete.onclick=()=>{const ids=ownerSelected().map(x=>x.value);if(ids.length&&confirm(${JSON.stringify(locale==="el"?"Μεταφορά των επιλεγμένων στον κάδο;":"Move selected media to trash?")})){document.getElementById('owner-media-ids').value=ids.join(',');document.getElementById('owner-bulk-media').submit()}}<\/script>`;
-  return c.html(page(event.eventName,`<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><section class="relative mb-8 text-center">${membership.role==="owner"?`<details class="absolute right-0 top-0 z-20 text-left"><summary class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border bg-white text-2xl shadow-sm" aria-label="Event actions">⋯</summary><div class="absolute right-0 mt-1 w-44 rounded-2xl border bg-white p-2 shadow-xl"><a href="/dashboard/${event.code}/edit?lang=${locale}" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]">${locale==="el"?"Επεξεργασία event":"Edit event"}</a></div></details>`:""}<p class="text-xs uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-3 text-5xl md:text-6xl">${esc(event.eventName)}</h1><p class="mt-3 text-lg text-[#654534]">${esc(formatEventDates(event,locale))}</p></section>${sharePanel}<section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="mb-5 flex items-center justify-between"><div><h2 class="text-3xl">Gallery</h2>${galleryFilterControls(items,"owner-gallery",locale)}</div><div class="flex flex-wrap items-center justify-end gap-2"><span class="text-sm text-[#625750]">${items.length} ${locale==="el"?"αρχεία":"items"}</span><button id="owner-select-media" class="rounded-xl border px-3 py-2 text-sm">${locale==="el"?"Επιλογή":"Select"}</button><button id="owner-download-selected" class="hidden rounded-xl bg-[#654534] px-3 py-2 text-sm text-white">${locale==="el"?"Λήψη επιλεγμένων":"Download selected"}</button>${canManageMedia?`<button id="owner-delete-selected" class="hidden rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">${locale==="el"?"Διαγραφή επιλεγμένων":"Delete selected"}</button>`:""}</div></div><form id="owner-bulk-media" action="/api/account/events/${event.code}/media/bulk-trash" method="post"><input type="hidden" name="locale" value="${locale}"><input id="owner-media-ids" type="hidden" name="ids"></form>${items.length?`<div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">${cards(items,{lightbox:true,selectable:true,deferredSelection:true})}</div>`:`<p class="py-16 text-center text-[#625750]">${locale==="el"?"Δεν υπάρχουν φωτογραφίες ακόμη.":"No photos yet."}</p>`}</section></main><script>document.getElementById('copy-guest-link').onclick=()=>navigator.clipboard.writeText(document.getElementById('guest-link').value);document.querySelectorAll('[data-native-share]').forEach(button=>button.onclick=async()=>{if(navigator.share){try{await navigator.share({title:${JSON.stringify(event.eventName)},text:${JSON.stringify(shareText)},url:${JSON.stringify(guestUrl)}});return}catch(error){if(error.name==='AbortError')return}}await navigator.clipboard.writeText(${JSON.stringify(shareText)});alert(${JSON.stringify(locale==="el"?"Το link αντιγράφηκε. Άνοιξε την εφαρμογή και κάνε επικόλληση.":"Link copied. Open the app and paste it.")})<\/script>${ownerSelectionScript}${galleryFilterScript(items,"owner-gallery")}${lightboxMarkup(locale)}${logoutScript(locale)}`));
+  return c.html(page(event.eventName,`<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><section class="relative mb-8 text-center">${membership==="owner"?`<details class="absolute right-0 top-0 z-20 text-left"><summary class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border bg-white text-2xl shadow-sm" aria-label="Event actions">⋯</summary><div class="absolute right-0 mt-1 w-44 rounded-2xl border bg-white p-2 shadow-xl"><a href="/dashboard/${event.code}/edit?lang=${locale}" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]">${locale==="el"?"Επεξεργασία event":"Edit event"}</a></div></details>`:""}<p class="text-xs uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-3 text-5xl md:text-6xl">${esc(event.eventName)}</h1><p class="mt-3 text-lg text-[#654534]">${esc(formatEventDates(event,locale))}</p></section>${sharePanel}<section class="rounded-3xl bg-white p-5 shadow-lg sm:p-7"><div class="mb-5 flex items-center justify-between"><div><h2 class="text-3xl">Gallery</h2>${galleryFilterControls(items,"owner-gallery",locale)}</div><div class="flex flex-wrap items-center justify-end gap-2"><span class="text-sm text-[#625750]">${items.length} ${locale==="el"?"αρχεία":"items"}</span><button id="owner-select-media" class="rounded-xl border px-3 py-2 text-sm">${locale==="el"?"Επιλογή":"Select"}</button><button id="owner-download-selected" class="hidden rounded-xl bg-[#654534] px-3 py-2 text-sm text-white">${locale==="el"?"Λήψη επιλεγμένων":"Download selected"}</button>${canManageMedia?`<button id="owner-delete-selected" class="hidden rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">${locale==="el"?"Διαγραφή επιλεγμένων":"Delete selected"}</button>`:""}</div></div><form id="owner-bulk-media" action="/api/account/events/${event.code}/media/bulk-trash" method="post"><input type="hidden" name="locale" value="${locale}"><input id="owner-media-ids" type="hidden" name="ids"></form>${items.length?`<div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">${cards(items,{lightbox:true,selectable:true,deferredSelection:true})}</div>`:`<p class="py-16 text-center text-[#625750]">${locale==="el"?"Δεν υπάρχουν φωτογραφίες ακόμη.":"No photos yet."}</p>`}</section></main><script>document.getElementById('copy-guest-link').onclick=()=>navigator.clipboard.writeText(document.getElementById('guest-link').value);document.querySelectorAll('[data-native-share]').forEach(button=>button.onclick=async()=>{if(navigator.share){try{await navigator.share({title:${JSON.stringify(event.eventName)},text:${JSON.stringify(shareText)},url:${JSON.stringify(guestUrl)}});return}catch(error){if(error.name==='AbortError')return}}await navigator.clipboard.writeText(${JSON.stringify(shareText)});alert(${JSON.stringify(locale==="el"?"Το link αντιγράφηκε. Άνοιξε την εφαρμογή και κάνε επικόλληση.":"Link copied. Open the app and paste it.")})<\/script>${ownerSelectionScript}${galleryFilterScript(items,"owner-gallery")}${lightboxMarkup(locale)}${logoutScript(locale)}`));
 });
 
 app.get("/dashboard/:code/edit", async(c)=>{
   const locale=normalizeLocale(c.req.query("lang")??"en");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const user=await currentUser(c);if(!user)return c.redirect(`/${locale}/login`);
-  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first();if(!owner)return c.text("Only the event owner can edit this event",403);
+  const owner=await getEventRole(c.env.DB,event.id,user.id);if(!roleCan(owner,"manage_event"))return c.text("Only the event owner can edit this event",403);
   const members=(await c.env.DB.prepare(`SELECT em.user_id,u.name,u.email,em.role,em.created_at FROM event_members em JOIN "user" u ON u.id=em.user_id WHERE em.event_id=? ORDER BY CASE em.role WHEN 'owner' THEN 0 ELSE 1 END,em.created_at`).bind(event.id).all<EventMemberRow>()).results;
   const invitations=(await c.env.DB.prepare("SELECT id,email,role,created_at,expires_at FROM event_invitations WHERE event_id=? AND accepted_at IS NULL AND expires_at>? ORDER BY created_at DESC").bind(event.id,Date.now()).all<EventInvitationRow>()).results;
   const removalRequests=(await c.env.DB.prepare("SELECT rr.id,rr.media_id,rr.requester_email,rr.reason,rr.created_at FROM media_removal_requests rr WHERE rr.event_id=? AND rr.status='pending' ORDER BY rr.created_at DESC").bind(event.id).all<{id:string;media_id:string;requester_email:string;reason:string;created_at:number}>()).results;
@@ -436,11 +437,11 @@ app.get("/dashboard/:code/manage-legacy", async (c) => {
   const token = c.req.query("token") ?? "";
   let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
   const user = await currentUser(c);
-  const membership = user ? await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first<{ role: "owner" | "editor" | "viewer" }>() : null;
+  const membership = user ? await getEventRole(c.env.DB, event.id, user.id) : null;
   if (!allowed) allowed = Boolean(membership);
   if (!allowed) return c.text(locale === "el" ? "Δεν έχεις πρόσβαση σε αυτή τη διαχείριση." : "You do not have access to this dashboard.", 403);
   const items = await getMedia(c.env.DB, event.id);
-  const canManageMembers = membership?.role === "owner";
+  const canManageMembers = roleCan(membership, "manage_members");
   const members = canManageMembers ? (await c.env.DB.prepare(`SELECT em.user_id,u.name,u.email,em.role,em.created_at FROM event_members em JOIN "user" u ON u.id=em.user_id WHERE em.event_id=? ORDER BY CASE em.role WHEN 'owner' THEN 0 ELSE 1 END, em.created_at`).bind(event.id).all<EventMemberRow>()).results : [];
   const invitations = canManageMembers ? (await c.env.DB.prepare("SELECT id,email,role,created_at,expires_at FROM event_invitations WHERE event_id=? AND accepted_at IS NULL AND expires_at>? ORDER BY created_at DESC").bind(event.id, Date.now()).all<EventInvitationRow>()).results : [];
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
@@ -468,7 +469,7 @@ app.get("/dashboard/:code/manage-legacy", async (c) => {
 
 app.post("/api/account/events/:code/privacy",async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
-  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first();if(!owner)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const action=String(body.action??"set");
   if(action==="remove") await c.env.DB.prepare("UPDATE events SET gallery_pin_hash=NULL,updated_at=? WHERE id=?").bind(Date.now(),event.id).run();
   else {const pin=String(body.pin??"");if(!/^\d{4,8}$/.test(pin))return c.text("PIN must contain 4–8 digits",400);await c.env.DB.prepare("UPDATE events SET gallery_pin_hash=?,updated_at=? WHERE id=?").bind(await sha256(pin),Date.now(),event.id).run();}
@@ -478,7 +479,7 @@ app.post("/api/account/events/:code/privacy",async(c)=>{
 app.post("/api/account/events/:code/removal/:requestId/:action{approve|dismiss}", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);
   const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
-  const owner=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id,user.id).first();if(!owner)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const request=await c.env.DB.prepare("SELECT media_id FROM media_removal_requests WHERE id=? AND event_id=? AND status='pending'").bind(c.req.param("requestId"),event.id).first<{media_id:string}>();if(!request)return c.text("Request not found",404);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const now=Date.now();
   if(c.req.param("action")==="approve") await c.env.DB.batch([c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(now,now+TRASH_RETENTION_MS,request.media_id,event.id),c.env.DB.prepare("UPDATE media_removal_requests SET status='resolved',resolved_at=? WHERE id=?").bind(now,c.req.param("requestId"))]);
@@ -491,8 +492,7 @@ app.post("/api/account/events/:code/details", async (c) => {
   if (!user) return c.text("Unauthorized", 401);
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);
-  const owner = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id, user.id).first();
-  if (!owner) return c.text("Only the event owner can update event details", 403);
+  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Only the event owner can update event details", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const eventName = String(body.eventName ?? "").trim().slice(0, 100);
@@ -508,8 +508,7 @@ app.post("/api/account/events/:code/invite", async (c) => {
   if (!user) return c.text("Unauthorized", 401);
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);
-  const owner = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id, user.id).first();
-  if (!owner) return c.text("Only the event owner can invite collaborators", 403);
+  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_members")) return c.text("Only the event owner can invite collaborators", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const email = String(body.email ?? "").trim().toLowerCase().slice(0, 254);
@@ -547,8 +546,7 @@ app.post("/api/account/events/:code/members/remove", async (c) => {
   if (!user) return c.text("Unauthorized", 401);
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);
-  const owner = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role='owner'").bind(event.id, user.id).first();
-  if (!owner) return c.text("Only the event owner can remove collaborators", 403);
+  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_members")) return c.text("Only the event owner can remove collaborators", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const userId = String(body.userId ?? "");
@@ -561,7 +559,7 @@ app.post("/api/account/events/:code/members/remove", async (c) => {
 app.get("/dashboard/:code/media/:id", async(c)=>{
   const locale=normalizeLocale(c.req.query("lang")??"en"); const user=await currentUser(c); if(!user) return c.redirect(`/${locale}/login`);
   const event=await getEvent(c.env.DB,c.req.param("code")); if(!event) return c.text("Event not found",404);
-  const member=await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=?").bind(event.id,user.id).first<{role:string}>(); if(!member) return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"view"))return c.text("Forbidden",403);
   const media=await c.env.DB.prepare("SELECT * FROM media WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(c.req.param("id"),event.id).first<MediaRow>(); if(!media) return c.text("Media not found",404);
   const preview=media.media_type==="image"?`<img src="/media/${media.id}" class="max-h-[70vh] w-full rounded-2xl object-contain bg-black">`:`<video src="/media/${media.id}" controls class="max-h-[70vh] w-full rounded-2xl bg-black"></video>`;
   const chronologicalDate=media.captured_at??media.uploaded_at;
@@ -570,26 +568,26 @@ app.get("/dashboard/:code/media/:id", async(c)=>{
 
 app.post("/api/account/events/:code/media/:id/rename", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
-  const member=await c.env.DB.prepare("SELECT role FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_media"))return c.text("Forbidden",403);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const title=String(body.title??"").trim().slice(0,120);if(!title)return c.text("Missing title",400);
   await c.env.DB.prepare("UPDATE media SET title=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(title,c.req.param("id"),event.id).run();return c.redirect(`/dashboard/${event.code}/media/${c.req.param("id")}?lang=${locale}`,303);
 });
 
 app.post("/api/account/events/:code/media/:id/trash", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
-  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_media"))return c.text("Forbidden",403);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const now=Date.now();await c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=?").bind(now,now+TRASH_RETENTION_MS,c.req.param("id"),event.id).run();return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
 });
 
 app.post("/api/account/events/:code/media/bulk-trash", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
-  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_media"))return c.text("Forbidden",403);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const ids=String(body.ids??"").split(",").filter(id=>/^[a-f0-9-]{36}$/i.test(id)).slice(0,100);const now=Date.now();if(ids.length)await c.env.DB.batch(ids.map(id=>c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(now,now+TRASH_RETENTION_MS,id,event.id)));return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
 });
 
 app.post("/api/account/events/:code/media/:id/restore", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"),true);if(!event)return c.text("Event not found",404);
-  const member=await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=? AND role IN ('owner','editor')").bind(event.id,user.id).first();if(!member)return c.text("Forbidden",403);
+  if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_media"))return c.text("Forbidden",403);
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL WHERE id=? AND event_id=?").bind(c.req.param("id"),event.id).run();return c.redirect(`/${locale}/trash`,303);
 });
 
@@ -600,7 +598,7 @@ app.get("/dashboard-legacy/:code", async (c) => {
   let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
   if (!allowed) {
     const user = await currentUser(c);
-    if (user) allowed = Boolean(await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, user.id).first());
+    if (user) allowed = roleCan(await getEventRole(c.env.DB,event.id,user.id),"view");
   }
   if (!allowed) return c.text("Δεν έχεις πρόσβαση σε αυτή τη διαχείριση.", 403);
   const items = await getMedia(c.env.DB, event.id);
@@ -684,7 +682,7 @@ app.post("/api/upload/:code", async (c) => {
 app.get("/media/:id", async (c) => {
   const row = await c.env.DB.prepare("SELECT m.object_key,m.content_type,m.media_type,m.captured_at,m.uploaded_at,m.event_id,e.code,e.gallery_pin_hash FROM media m JOIN events e ON e.id=m.event_id WHERE m.id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL AND e.deleted_at IS NULL").bind(c.req.param("id")).first<{ object_key: string; content_type: string; media_type: "image" | "video"; captured_at: number | null; uploaded_at: number; event_id:string; code:string; gallery_pin_hash:string|null }>();
   if (!row) return c.text("Το αρχείο δεν βρέθηκε.", 404);
-  if(row.gallery_pin_hash){const expected=await sha256(`gallery-access:${row.event_id}:${row.gallery_pin_hash}`);if(cookieValue(c.req.raw,galleryCookieName(row.code))!==expected){const user=await currentUser(c);if(!user||!await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(row.event_id,user.id).first())return c.text("Private media",401);}}
+  if(row.gallery_pin_hash){const expected=await sha256(`gallery-access:${row.event_id}:${row.gallery_pin_hash}`);if(cookieValue(c.req.raw,galleryCookieName(row.code))!==expected){const user=await currentUser(c);if(!user||!roleCan(await getEventRole(c.env.DB,row.event_id,user.id),"view"))return c.text("Private media",401);}}
   const object = await c.env.MEDIA.get(row.object_key);
   if (!object) return c.text("Το αρχείο δεν βρέθηκε.", 404);
   const headers = new Headers({ "Content-Type": row.content_type, "Cache-Control": "public, max-age=31536000, immutable", "ETag": object.httpEtag, "X-Content-Type-Options": "nosniff" });
