@@ -42,6 +42,8 @@ export type MediaRow = {
   title: string | null;
   deleted_at: number | null;
   purge_at: number | null;
+  upload_consent_at: number | null;
+  upload_policy_version: string | null;
 };
 
 export type EventMemberRow = {

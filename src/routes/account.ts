@@ -4,6 +4,7 @@ import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale, t } from "../i18n";
 import { acceptPendingInvitations } from "../invitations";
+import { buildAccountExport, countActiveOwnedEvents } from "../account-data";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "../media-trash";
 import { getEvent, purgeExpiredTrash } from "../repositories";
 import { currentSession, currentUser } from "../session";
@@ -30,6 +31,34 @@ accountRoutes.post("/api/account/security/revoke-other-sessions", async (c) => {
   if (!session) return c.json({ message: "Unauthorized" }, 401);
   const result = await c.env.DB.prepare("DELETE FROM session WHERE userId=? AND id<>?").bind(session.user.id, session.session.id).run();
   return c.json({ status: true, revoked: result.meta.changes });
+});
+
+accountRoutes.get("/api/account/export", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ message: "Unauthorized" }, 401);
+  const data = await buildAccountExport(c.env.DB, user.id);
+  const date = new Date().toISOString().slice(0, 10);
+  return new Response(JSON.stringify(data, null, 2), { headers: {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="memboux-account-export-${date}.json"`,
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+  }});
+});
+
+accountRoutes.get("/api/account/deletion-eligibility", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ message: "Unauthorized" }, 401);
+  const activeOwnedEvents = await countActiveOwnedEvents(c.env.DB, user.id);
+  return c.json({ eligible: activeOwnedEvents === 0, activeOwnedEvents });
+});
+
+accountRoutes.get("/:locale{el|en}/privacy", async (c) => {
+  const locale = normalizeLocale(c.req.param("locale"));
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
+  const el = locale === "el";
+  return c.html(page(el ? "Απόρρητο & δεδομένα" : "Privacy & data", `<header class="border-b bg-white"><div class="mx-auto flex max-w-4xl items-center justify-between p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-4xl p-5 md:p-10"><p class="text-xs uppercase tracking-[.2em] text-[#6e4f3e]">Privacy center</p><h1 class="mt-2 text-4xl">${el ? "Τα δεδομένα σου" : "Your data"}</h1><p class="mt-3 max-w-2xl text-[#625750]">${el ? "Κατέβασε αντίγραφο των στοιχείων σου ή ξεκίνησε επαληθευμένη διαγραφή." : "Download a copy of your information or start verified deletion."}</p><div class="mt-7 grid gap-5"><section class="rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${el ? "Εξαγωγή δεδομένων" : "Data export"}</h2><p class="mt-2 text-sm text-[#625750]">${el ? "Περιλαμβάνει προφίλ, συνδέσεις, παρόχους login χωρίς μυστικά, event memberships και προσκλήσεις." : "Includes your profile, sessions, sign-in providers without secrets, event memberships and invitations."}</p><a href="/api/account/export" class="mt-4 inline-block rounded-xl bg-[#654534] px-5 py-3 text-white">${el ? "Λήψη JSON" : "Download JSON"}</a></section><section class="rounded-3xl border border-red-200 bg-white p-6 shadow"><h2 class="text-2xl text-red-800">${el ? "Διαγραφή λογαριασμού" : "Delete account"}</h2><p class="mt-2 text-sm text-[#625750]">${el ? "Η διαγραφή είναι οριστική και ολοκληρώνεται από σύνδεσμο email. Πρώτα πρέπει να διαγράψεις ή να μεταβιβάσεις τα ενεργά events που σου ανήκουν." : "Deletion is permanent and completes through an email link. First delete or transfer every active event you own."}</p><button id="delete-account" class="mt-4 rounded-xl border border-red-300 px-5 py-3 text-red-800">${el ? "Αίτημα διαγραφής" : "Request deletion"}</button><p id="delete-message" class="mt-3 hidden rounded-xl p-3 text-sm"></p></section></div></main><script>document.getElementById('delete-account').onclick=async()=>{const button=document.getElementById('delete-account'),message=document.getElementById('delete-message');button.disabled=true;message.classList.remove('hidden');const check=await fetch('/api/account/deletion-eligibility',{credentials:'include'});const eligibility=await check.json().catch(()=>({}));if(!check.ok){message.className='mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700';message.textContent=${JSON.stringify(el ? "Δεν ήταν δυνατός ο έλεγχος." : "Could not check eligibility.")};button.disabled=false;return}if(!eligibility.eligible){message.className='mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800';message.textContent=${JSON.stringify(el ? "Ενεργά events που σου ανήκουν: " : "Active events you own: ")}+eligibility.activeOwnedEvents;button.disabled=false;return}if(!confirm(${JSON.stringify(el ? "Να σταλεί email επιβεβαίωσης;" : "Send the confirmation email?")})){button.disabled=false;return}const response=await fetch('/api/auth/delete-user',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({callbackURL:'/${locale}'})});const data=await response.json().catch(()=>({}));message.className=response.ok?'mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700':'mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700';message.textContent=response.ok?${JSON.stringify(el ? "Στάλθηκε email επιβεβαίωσης." : "Confirmation email sent.")}:(data.message||${JSON.stringify(el ? "Το αίτημα απέτυχε." : "Request failed.")});button.disabled=false}</script>${logoutScript(locale)}`));
 });
 
 accountRoutes.get("/:locale{el|en}/account", async (c) => {

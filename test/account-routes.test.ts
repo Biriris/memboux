@@ -5,6 +5,7 @@ describe("account route boundaries", () => {
   it.each([
     "/en/profile",
     "/en/security",
+    "/en/privacy",
     "/en/account",
     "/en/account-legacy",
     "/en/trash",
@@ -15,6 +16,11 @@ describe("account route boundaries", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("/en/login");
+  });
+
+  it.each(["/api/account/export", "/api/account/deletion-eligibility"])("rejects anonymous data-rights request %s", async (path) => {
+    const response = await SELF.fetch(`https://memboux.com${path}`);
+    expect(response.status).toBe(401);
   });
 
   it.each([

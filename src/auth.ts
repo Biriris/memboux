@@ -1,4 +1,5 @@
-import { betterAuth } from "better-auth";
+import { APIError, betterAuth } from "better-auth";
+import { countActiveOwnedEvents } from "./account-data";
 
 export type AuthEnv = {
   DB: D1Database;
@@ -81,6 +82,25 @@ export function createAuth(env: AuthEnv, waitUntil?: (promise: Promise<unknown>)
           text: `Verify your email / Επιβεβαίωσε το email σου: ${url}`,
           html: `<h1>Verify your email</h1><p>Welcome to Memboux. Confirm your email address using the link below.</p><p><a href="${url}">Verify email</a></p><hr><h1>Επιβεβαίωσε το email σου</h1><p>Καλώς ήρθες στο Memboux. Χρησιμοποίησε τον παραπάνω σύνδεσμο για να ενεργοποιήσεις τον λογαριασμό σου.</p>`,
         }));
+      },
+    },
+    user: {
+      deleteUser: {
+        enabled: true,
+        deleteTokenExpiresIn: 60 * 60,
+        sendDeleteAccountVerification: async ({ user, url }) => {
+          await sendEmail(env, {
+            to: user.email,
+            subject: "Memboux – Confirm account deletion / Επιβεβαίωση διαγραφής",
+            text: `Confirm permanent account deletion / Επιβεβαίωσε την οριστική διαγραφή λογαριασμού: ${url}`,
+            html: `<h1>Confirm account deletion</h1><p>This link permanently deletes your Memboux account. It expires in one hour.</p><p><a href="${url}">Delete my account</a></p><hr><h1>Επιβεβαίωση διαγραφής</h1><p>Αυτός ο σύνδεσμος διαγράφει οριστικά τον λογαριασμό Memboux και λήγει σε μία ώρα.</p><p><a href="${url}">Διαγραφή λογαριασμού</a></p>`,
+          });
+        },
+        beforeDelete: async (user) => {
+          if (await countActiveOwnedEvents(env.DB, user.id)) {
+            throw new APIError("CONFLICT", { message: "Delete or transfer your active owned events before deleting the account." });
+          }
+        },
       },
     },
     socialProviders: {

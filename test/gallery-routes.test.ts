@@ -30,7 +30,8 @@ beforeAll(async () => {
       media_type TEXT NOT NULL, content_type TEXT NOT NULL, uploaded_by TEXT NOT NULL,
       uploaded_at INTEGER NOT NULL, captured_at INTEGER, content_hash TEXT,
       reported_at INTEGER, size_bytes INTEGER NOT NULL DEFAULT 0, title TEXT,
-      deleted_at INTEGER, purge_at INTEGER
+      deleted_at INTEGER, purge_at INTEGER, upload_consent_at INTEGER,
+      upload_policy_version TEXT
     )`),
     env.DB.prepare(`CREATE TABLE media_removal_requests (
       id TEXT PRIMARY KEY, media_id TEXT NOT NULL, event_id TEXT NOT NULL,
@@ -182,6 +183,25 @@ describe("gallery, upload, and media routes", () => {
       body: withoutFile,
     });
     expect(fileResponse.status).toBe(400);
+  });
+
+  it("stores versioned consent evidence for a guest upload", async () => {
+    const form = new FormData();
+    form.set("locale", "en");
+    form.set("name", "Consent Guest");
+    form.set("upload_confirmation", "accepted");
+    form.append("file", new File([new Uint8Array([1, 2, 3, 4])], "moment.jpg", { type: "image/jpeg" }));
+    const before = Date.now();
+    const response = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", "CF-Connecting-IP": "198.51.100.88" },
+      body: form,
+      redirect: "manual",
+    });
+    expect(response.status).toBe(303);
+    const row = await env.DB.prepare("SELECT upload_consent_at,upload_policy_version FROM media WHERE event_id=? AND uploaded_by=?").bind(publicEventId, "Consent Guest").first<{ upload_consent_at: number; upload_policy_version: string }>();
+    expect(row?.upload_policy_version).toBe("guest-upload-2026-07-13");
+    expect(row?.upload_consent_at).toBeGreaterThanOrEqual(before);
   });
 
   it("blocks uploads to a PIN gallery without its cookie", async () => {
