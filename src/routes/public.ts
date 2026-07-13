@@ -13,6 +13,24 @@ type AppEnvironment = { Bindings: Bindings };
 
 export const publicRoutes = new Hono<AppEnvironment>();
 
+publicRoutes.get("/health/live", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json({ status: "ok" });
+});
+
+publicRoutes.get("/health/ready", async (c) => {
+  c.header("Cache-Control", "no-store");
+  try {
+    const result = await c.env.DB.prepare("SELECT 1 AS ready").first<{
+      ready: number;
+    }>();
+    if (result?.ready !== 1) return c.json({ status: "unavailable" }, 503);
+    return c.json({ status: "ready" });
+  } catch {
+    return c.json({ status: "unavailable" }, 503);
+  }
+});
+
 const authRateLimits: Record<string, { limit: number; windowMs: number }> = {
   "/api/auth/sign-in/email": { limit: 10, windowMs: 15 * 60_000 },
   "/api/auth/sign-up/email": { limit: 5, windowMs: 60 * 60_000 },

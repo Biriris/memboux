@@ -2,6 +2,18 @@ import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 describe("public Worker routes", () => {
+  it("exposes dependency-free liveness and D1 readiness checks", async () => {
+    const live = await SELF.fetch("https://memboux.com/health/live");
+    expect(live.status).toBe(200);
+    expect(await live.json()).toEqual({ status: "ok" });
+    expect(live.headers.get("cache-control")).toBe("no-store");
+
+    const ready = await SELF.fetch("https://memboux.com/health/ready");
+    expect(ready.status).toBe(200);
+    expect(await ready.json()).toEqual({ status: "ready" });
+    expect(ready.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("redirects the root URL to the English homepage", async () => {
     const response = await SELF.fetch("https://memboux.com/", { redirect: "manual" });
 
