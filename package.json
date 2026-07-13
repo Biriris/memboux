@@ -8,6 +8,10 @@
     "build:css": "tailwindcss -i ./src/styles.css -o ./public/app.css --minify",
     "build": "npm run build:css",
     "deploy": "npm run build && wrangler deploy",
+    "check": "npm run build && npm run typecheck && npm test && npm run check:types && npm run check:bundle",
+    "check:types": "wrangler types --check",
+    "check:bundle": "wrangler deploy --dry-run",
+    "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:local": "wrangler d1 migrations apply memboux-db --local",
@@ -17,7 +21,7 @@
   "dependencies": {
     "better-auth": "^1.6.23",
     "exifr": "^7.1.3",
-    "hono": "^4.12.29",
+    "hono": "^4.12.30",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
