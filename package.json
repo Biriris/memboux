@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:local": "wrangler d1 migrations apply memboux-db --local",
     "db:remote": "wrangler d1 migrations apply memboux-db --remote",
     "typecheck": "tsc --noEmit"
@@ -17,8 +19,10 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
     "@types/qrcode": "^1.5.6",
     "typescript": "^5.8.3",
+    "vitest": "^4.1.10",
     "wrangler": "^4.110.0"
   }
 }
