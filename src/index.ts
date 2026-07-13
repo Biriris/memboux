@@ -2,11 +2,12 @@ import { Hono } from "hono";
 import { createAuth, sendEmail } from "./auth";
 import { getEventRole, roleCan } from "./access";
 import { normalizeLocale, t, type Locale } from "./i18n";
-import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, TRASH_RETENTION_MS } from "./config";
+import { ADMIN_COOKIE, TRASH_RETENTION_MS } from "./config";
 import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
 import { getEvent, getMedia, purgeExpiredTrash } from "./repositories";
 import { acceptPendingInvitations, createOrReplaceInvitation, normalizeInviteRole } from "./invitations";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "./media-trash";
+import { safeFileExtension, uploadValidationDetails, validateUploadFiles } from "./upload-policy";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
@@ -321,8 +322,8 @@ app.get("/admin/events/:code", async (c) => {
 app.post("/admin/events/:code/upload",async(c)=>{
   if(!await isAdmin(c))return c.redirect("/admin/login");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
   const form=await c.req.formData();const files=form.getAll("file").filter((value):value is File=>value instanceof File&&value.size>0);
-  if(!files.length||files.length>MAX_UPLOAD_FILES||files.some(file=>!ALLOWED_TYPES.has(file.type))||files.some(file=>file.size>MAX_FILE_SIZE)||files.reduce((sum,file)=>sum+file.size,0)>MAX_UPLOAD_TOTAL_SIZE)return c.text("Μη έγκυρη επιλογή αρχείων.",400);
-  const uploadedKeys:string[]=[];try{for(const file of files){const id=crypto.randomUUID();const extension=file.name.includes(".")?file.name.split(".").pop()!.replace(/[^a-zA-Z0-9]/g,"").slice(0,8):"bin";const objectKey=`${event.id}/${id}.${extension}`;const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;let capturedAt:number|null=null;if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{}await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"public, max-age=31536000, immutable"}});uploadedKeys.push(objectKey);await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,"Memboux Admin",Date.now(),capturedAt,contentHash,file.size).run();}}catch(error){if(uploadedKeys.length){await c.env.MEDIA.delete(uploadedKeys);await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));}throw error;}return c.redirect(`/admin/events/${event.code}`,303);
+  if(validateUploadFiles(files))return c.text("Μη έγκυρη επιλογή αρχείων.",400);
+  const uploadedKeys:string[]=[];try{for(const file of files){const id=crypto.randomUUID();const extension=safeFileExtension(file.name);const objectKey=`${event.id}/${id}.${extension}`;const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;let capturedAt:number|null=null;if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{}await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"public, max-age=31536000, immutable"}});uploadedKeys.push(objectKey);await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,"Memboux Admin",Date.now(),capturedAt,contentHash,file.size).run();}}catch(error){if(uploadedKeys.length){await c.env.MEDIA.delete(uploadedKeys);await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));}throw error;}return c.redirect(`/admin/events/${event.code}`,303);
 });
 
 app.post("/admin/events/:code/media/bulk-trash",async(c)=>{
@@ -643,16 +644,13 @@ app.post("/api/upload/:code", async (c) => {
   if (form.get("upload_confirmation") !== "accepted") return c.text("Απαιτείται επιβεβαίωση πριν από το upload.", 400);
   const uploadedBy = String(form.get("name") ?? "Ανώνυμος").trim().slice(0, 60) || "Ανώνυμος";
   const files=form.getAll("file").filter((value):value is File=>value instanceof File&&value.size>0);
-  if(!files.length)return c.text("Δεν επιλέχθηκαν αρχεία.",400);
-  if(files.length>MAX_UPLOAD_FILES)return c.text(`Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} αρχεία μαζί.`,413);
-  if(files.some(file=>!ALLOWED_TYPES.has(file.type)))return c.text("Κάποιο αρχείο έχει μη υποστηριζόμενο τύπο.",415);
-  if(files.some(file=>file.size>MAX_FILE_SIZE))return c.text("Κάθε αρχείο πρέπει να είναι έως 20 MB.",413);
-  if(files.reduce((total,file)=>total+file.size,0)>MAX_UPLOAD_TOTAL_SIZE)return c.text("Η συνολική επιλογή πρέπει να είναι έως 80 MB.",413);
+  const validationError=validateUploadFiles(files);
+  if(validationError){const detail=uploadValidationDetails(validationError,locale);return new Response(detail.message,{status:detail.status});}
   const uploadedKeys:string[]=[];
   try{
     for(const file of files){
       const id=crypto.randomUUID();
-      const extension=file.name.includes(".")?file.name.split(".").pop()!.replace(/[^a-zA-Z0-9]/g,"").slice(0,8):"bin";
+      const extension=safeFileExtension(file.name);
       const objectKey=`${event.id}/${id}.${extension}`;
       const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;
       let capturedAt:number|null=null;
