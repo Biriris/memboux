@@ -69,6 +69,35 @@ export function eventHeader(
   return `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2">${primaryAction}<a href="/${otherLocale}/account" class="rounded-lg border px-3 py-2 text-sm font-medium">${otherLocale.toUpperCase()}</a>${accountMenu(locale, user)}</div></div></header>`;
 }
 
+export function accountHeader(locale: Locale, user: { name: string; email: string }) {
+  return `<header class="border-b bg-white"><div class="mx-auto flex max-w-4xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}/account" class="rounded-xl border px-3 py-2 text-sm font-medium">${locale === "el" ? "EN" : "EL"}</a>${accountMenu(locale, user)}</div></div></header>`;
+}
+
+export function accountMenuDark(locale: Locale, user: { name: string; email: string }) {
+  const labels = locale === "el"
+    ? { events: "Τα events μου", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
+    : { events: "My events", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
+  const item = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-white/90 hover:bg-white/10"><span aria-hidden="true">${icon}</span>${label}</a>`;
+  return `<details class="relative z-30">
+    <summary class="flex touch-manipulation cursor-pointer list-none items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-white outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/30">
+      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span>
+      <span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span>
+      <span aria-hidden="true" class="text-xs opacity-70">⌄</span>
+    </summary>
+    <div role="menu" class="absolute right-0 z-40 mt-2 w-60 rounded-2xl border border-white/15 bg-[#2f231e] p-2 text-white shadow-2xl shadow-black/30">
+      <p class="truncate px-3 py-2 text-xs text-white/65">${esc(user.email)}</p>
+      ${item(`/${locale}/account`, "◆", labels.events)}
+      ${item(`/studio?lang=${locale}`, "★", labels.studio)}
+      ${item(`/${locale}/profile`, "◦", labels.profile)}
+      ${item(`/${locale}/security`, "†", labels.security)}
+      ${item(`/${locale}/plan`, "‡", labels.plan)}
+      ${item(`/${locale}/privacy`, "◌", labels.privacy)}
+      ${item(`/${locale}/trash`, "⌫", labels.trash)}
+      <button type="button" data-logout class="mt-1 w-full rounded-xl border-t border-white/10 px-3 py-3 text-left text-sm text-red-200 hover:bg-white/10">${labels.signOut}</button>
+    </div>
+  </details>`;
+}
+
 export const logoutScript = (locale: Locale) => `<script>document.querySelectorAll('[data-logout]').forEach(button=>button.onclick=async()=>{button.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(response.ok)location.replace('/${locale}');else button.disabled=false})<\/script>`;
 
 export function googleIcon() {
