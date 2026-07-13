@@ -4,6 +4,7 @@ import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
 import { normalizeLocale } from "../i18n";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
+import { canStoreForEvent, isQuotaDatabaseError } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent, getMedia } from "../repositories";
 import { currentUser } from "../session";
@@ -91,14 +92,14 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
       const id=crypto.randomUUID();
       const extension=safeFileExtension(file.name);
       const objectKey=`${event.id}/${id}.${extension}`;
-      const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;
+      const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;if(!(await canStoreForEvent(c.env.DB,event.id,file.size)).allowed)throw new Error("storage_quota_exceeded");
       let capturedAt:number|null=null;
       if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{/* No readable metadata. */}
       await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"private, no-store"}});uploadedKeys.push(objectKey);
       const uploadedAt=Date.now();
       await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title,upload_consent_at,upload_policy_version) VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,uploadedBy,uploadedAt,capturedAt,contentHash,file.size,uploadedAt,GUEST_UPLOAD_POLICY_VERSION).run();
     }
-  }catch(error){if(uploadedKeys.length)await c.env.MEDIA.delete(uploadedKeys);if(uploadedKeys.length)await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));throw error;}
+  }catch(error){if(uploadedKeys.length)await c.env.MEDIA.delete(uploadedKeys);if(uploadedKeys.length)await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));if(isQuotaDatabaseError(error,"storage"))return c.text(locale==="el"?"Το όριο χώρου του event συμπληρώθηκε.":"The event storage quota was reached.",413);throw error;}
   return c.redirect(`/gallery/${event.code}?lang=${locale}`, 303);
 });
 

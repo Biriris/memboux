@@ -42,6 +42,9 @@ beforeAll(async () => {
       rate_key TEXT PRIMARY KEY, window_started_at INTEGER NOT NULL,
       request_count INTEGER NOT NULL, expires_at INTEGER NOT NULL
     )`),
+    env.DB.prepare(`CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT,created_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE account_entitlements (user_id TEXT PRIMARY KEY,plan_key TEXT,storage_limit_bytes INTEGER,event_limit INTEGER,member_limit INTEGER,updated_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)`),
   ]);
 
   const insertEvent = env.DB.prepare(`INSERT INTO events (
@@ -53,6 +56,12 @@ beforeAll(async () => {
     insertEvent.bind(publicEventId, publicCode, "Public gallery", "Public gallery", "", now, now + 86_400_000, now, null),
     insertEvent.bind(pinnedEventId, pinnedCode, "Pinned gallery", "Pinned gallery", "", now, now + 86_400_000, now, pinHash),
     insertEvent.bind("gallery-expired-event", expiredCode, "Expired gallery", "Expired gallery", "", now - 172_800_000, now - 86_400_000, now, null),
+  ]);
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO event_members VALUES (?,?,?,?)").bind(publicEventId,"gallery-owner","owner",now),
+    env.DB.prepare("INSERT INTO event_members VALUES (?,?,?,?)").bind(pinnedEventId,"gallery-owner","owner",now),
+    env.DB.prepare("INSERT INTO account_entitlements VALUES (?,?,?,?,?,?)").bind("gallery-owner","beta",20*1024*1024*1024,25,25,now),
+    env.DB.prepare("INSERT INTO account_storage_usage VALUES (?,?,?)").bind("gallery-owner",36,now),
   ]);
 
   const insertMedia = env.DB.prepare(`INSERT INTO media (

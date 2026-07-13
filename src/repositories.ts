@@ -47,6 +47,7 @@ export async function purgeExpiredTrash(env: Bindings) {
       .bind(event.id)
       .all<{ object_key: string }>();
     if (objects.results.length) await env.MEDIA.delete(objects.results.map((item) => item.object_key));
+    await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(event.id).run();
     await env.DB.prepare("DELETE FROM events WHERE id=?").bind(event.id).run();
   }
 

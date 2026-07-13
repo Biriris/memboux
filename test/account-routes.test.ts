@@ -6,6 +6,7 @@ describe("account route boundaries", () => {
     "/en/profile",
     "/en/security",
     "/en/privacy",
+    "/en/plan",
     "/en/account",
     "/en/account-legacy",
     "/en/trash",

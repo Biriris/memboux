@@ -6,6 +6,7 @@ import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventInvitationRow, EventMemberRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
 import { createOrReplaceInvitation, normalizeInviteRole } from "../invitations";
+import { canInviteToEvent, isQuotaDatabaseError } from "../quotas";
 import { getEvent, getMedia } from "../repositories";
 import { currentUser } from "../session";
 import { constantTimeEqual, esc, formatDateTime, formatEventDates, sha256, validEventDate } from "../utils";
@@ -127,6 +128,7 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
   const role = normalizeInviteRole(body.role);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.text("Invalid email", 400);
   if (email === user.email.toLowerCase()) return c.text(locale === "el" ? "Είσαι ήδη ο ιδιοκτήτης αυτού του event." : "You already own this event.", 400);
+  if(!(await canInviteToEvent(c.env.DB,event.id)).allowed)return c.text(locale==="el"?"Έφτασες το όριο συνεργατών του plan σου.":"You reached your plan collaborator limit.",409);
   const existingUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE lower(email)=lower(?)`).bind(email).first<{ id: string }>();
   if (existingUser) {
     const existingMember = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, existingUser.id).first();
@@ -134,7 +136,7 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
   }
   const invitationId = crypto.randomUUID();
   const now = Date.now();
-  await createOrReplaceInvitation(c.env.DB,{id:invitationId,eventId:event.id,email,role,invitedBy:user.id,createdAt:now,expiresAt:now+14*86400000});
+  try{await createOrReplaceInvitation(c.env.DB,{id:invitationId,eventId:event.id,email,role,invitedBy:user.id,createdAt:now,expiresAt:now+14*86400000});}catch(error){if(isQuotaDatabaseError(error,"collaborator"))return c.text(locale==="el"?"Έφτασες το όριο συνεργατών του plan σου.":"You reached your plan collaborator limit.",409);throw error;}
   const accountUrl = `https://memboux.com/${locale}/account`;
   const subject = locale === "el" ? `Πρόσκληση στο event ${event.eventName}` : `Invitation to ${event.eventName}`;
   const roleLabel=locale==="el"?(role==="editor"?"διαχειριστής":"θεατής"):(role==="editor"?"manager":"viewer");
