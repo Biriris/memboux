@@ -5,6 +5,8 @@ import { permanentlyDeleteMedia, restoreDeletedMedia } from "../src/media-trash"
 beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("DROP TABLE IF EXISTS media"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_members"),
+    env.DB.prepare("CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT)"),
     env.DB.prepare(`CREATE TABLE media (
       id TEXT PRIMARY KEY,
       event_id TEXT NOT NULL,
@@ -13,6 +15,7 @@ beforeEach(async () => {
       deleted_at INTEGER,
       purge_at INTEGER,
       reported_at INTEGER
+      ,size_bytes INTEGER NOT NULL DEFAULT 0
     )`),
   ]);
 });

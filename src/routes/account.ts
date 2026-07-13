@@ -5,7 +5,7 @@ import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale, t } from "../i18n";
 import { acceptPendingInvitations } from "../invitations";
 import { buildAccountExport, countActiveOwnedEvents } from "../account-data";
-import { canCreateOwnedEvent, formatBytes, getUserEntitlement, isQuotaDatabaseError } from "../quotas";
+import { formatBytes, getUserEntitlement, releaseOwnedEvent, reserveOwnedEvent } from "../quotas";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "../media-trash";
 import { getEvent, purgeExpiredTrash } from "../repositories";
 import { currentSession, currentUser } from "../session";
@@ -111,9 +111,9 @@ accountRoutes.post("/api/account/events", async (c) => {
   const eventStartDate = validEventDate(body.eventStartDate);
   const eventEndDate = body.eventEndDate ? validEventDate(body.eventEndDate) : eventStartDate;
   if (!eventName || !eventStartDate || !eventEndDate || eventEndDate < eventStartDate) return c.text(locale === "el" ? "Έλεγξε το όνομα και τις ημερομηνίες του event." : "Check the event name and dates.", 400);
-  const quota=await canCreateOwnedEvent(c.env.DB,user.id);if(!quota.allowed)return c.text(locale==="el"?"Έφτασες το όριο events του plan σου.":"You reached your plan event limit.",409);
+  if(!await reserveOwnedEvent(c.env.DB,user.id))return c.text(locale==="el"?"Έφτασες το όριο events του plan σου.":"You reached your plan event limit.",409);
   const id = crypto.randomUUID(); const token = crypto.randomUUID() + crypto.randomUUID(); const tokenHash = await sha256(token); const now = Date.now();
-  for (let attempt=0; attempt<5; attempt++) { const code=randomCode(); try { await c.env.DB.batch([c.env.DB.prepare("INSERT INTO events (id,code,eventName,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale,event_start_date,event_end_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,code,eventName,tokenHash,now,now+365*86400000,"active","",now,locale,eventStartDate,eventEndDate),c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(id,user.id,"owner",now)]); return c.redirect(`/${locale}/account`,303); } catch(error) { if(isQuotaDatabaseError(error,"event"))return c.text(locale==="el"?"Έφτασες το όριο events του plan σου.":"You reached your plan event limit.",409);if(attempt===4) throw error; } }
+  for (let attempt=0; attempt<5; attempt++) { const code=randomCode(); try { await c.env.DB.batch([c.env.DB.prepare("INSERT INTO events (id,code,eventName,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale,event_start_date,event_end_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,code,eventName,tokenHash,now,now+365*86400000,"active","",now,locale,eventStartDate,eventEndDate),c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(id,user.id,"owner",now)]); return c.redirect(`/${locale}/account`,303); } catch(error) { if(attempt===4){await releaseOwnedEvent(c.env.DB,user.id);throw error;} } }
   return c.text("Could not create event",500);
 });
 
@@ -122,7 +122,7 @@ accountRoutes.post("/api/account/events/:code/trash", async (c) => {
   const event=await getEvent(c.env.DB,c.req.param("code")); if(!event) return c.text("Event not found",404);
   if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale)); const now=Date.now();
-  await c.env.DB.prepare("UPDATE events SET deleted_at=?,purge_at=?,updated_at=? WHERE id=?").bind(now,now+TRASH_RETENTION_MS,now,event.id).run();
+  const result=await c.env.DB.prepare("UPDATE events SET deleted_at=?,purge_at=?,updated_at=? WHERE id=? AND deleted_at IS NULL").bind(now,now+TRASH_RETENTION_MS,now,event.id).run();if(result.meta.changes)await releaseOwnedEvent(c.env.DB,user.id);
   return c.redirect(`/${locale}/account`,303);
 });
 
@@ -131,7 +131,8 @@ accountRoutes.post("/api/account/events/:code/restore", async (c) => {
   const event=await getEvent(c.env.DB,c.req.param("code"),true); if(!event) return c.text("Event not found",404);
   if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_event"))return c.text("Forbidden",403);
   const body=await c.req.parseBody(); const locale=normalizeLocale(String(body.locale??event.default_locale));
-  await c.env.DB.prepare("UPDATE events SET deleted_at=NULL,purge_at=NULL,updated_at=? WHERE id=?").bind(Date.now(),event.id).run();
+  if(!event.deleted_at)return c.redirect(`/${locale}/account`,303);if(!await reserveOwnedEvent(c.env.DB,user.id))return c.text(locale==="el"?"Έφτασες το όριο events του plan σου.":"You reached your plan event limit.",409);
+  const result=await c.env.DB.prepare("UPDATE events SET deleted_at=NULL,purge_at=NULL,updated_at=? WHERE id=? AND deleted_at IS NOT NULL").bind(Date.now(),event.id).run();if(!result.meta.changes)await releaseOwnedEvent(c.env.DB,user.id);
   return c.redirect(`/${locale}/trash`,303);
 });
 

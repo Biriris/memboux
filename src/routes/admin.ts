@@ -5,7 +5,7 @@ import type { Bindings, EventRow } from "../domain";
 import { normalizeLocale } from "../i18n";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "../media-trash";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
-import { canStoreForEvent, formatBytes, isQuotaDatabaseError } from "../quotas";
+import { formatBytes, releaseStorage, reserveStorageForEvent } from "../quotas";
 import { getEvent, getMedia } from "../repositories";
 import { safeFileExtension, validateUploadFiles } from "../upload-policy";
 import { constantTimeEqual, dateInput, esc, formatDate, formatDateTime, formatEventDates, secureSecretEqual, sha256, sha256Bytes, validEventDate } from "../utils";
@@ -136,11 +136,28 @@ adminRoutes.get("/admin/events/:code", async (c) => {
 });
 
 adminRoutes.post("/admin/events/:code/upload",async(c)=>{
-  if(!await isAdmin(c))return c.redirect("/admin/login");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
+  if(!await isAdmin(c))return c.redirect("/admin/login");
+  const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
   const form=await c.req.formData();const files=form.getAll("file").filter((value):value is File=>value instanceof File&&value.size>0);
   if(validateUploadFiles(files))return c.text("Μη έγκυρη επιλογή αρχείων.",400);
-  if(!(await canStoreForEvent(c.env.DB,event.id,files.reduce((total,file)=>total+file.size,0))).allowed)return c.text("Event storage quota exceeded",413);
-  const uploadedKeys:string[]=[];try{for(const file of files){const id=crypto.randomUUID();const extension=safeFileExtension(file.name);const objectKey=`${event.id}/${id}.${extension}`;const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;let capturedAt:number|null=null;if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{}await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"private, no-store"}});uploadedKeys.push(objectKey);await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,"Memboux Admin",Date.now(),capturedAt,contentHash,file.size).run();}}catch(error){if(uploadedKeys.length){await c.env.MEDIA.delete(uploadedKeys);await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));}if(isQuotaDatabaseError(error,"storage"))return c.text("Event storage quota exceeded",413);throw error;}return c.redirect(`/admin/events/${event.code}`,303);
+  const uploadedKeys:string[]=[];let reservedBytes=0;let reservationOwner:string|null=null;
+  try{
+    for(const file of files){
+      const id=crypto.randomUUID();const extension=safeFileExtension(file.name);const objectKey=`${event.id}/${id}.${extension}`;
+      const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);
+      if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;
+      const reservation=await reserveStorageForEvent(c.env.DB,event.id,file.size);if(!reservation.allowed)throw new Error("storage_quota_exceeded");reservationOwner=reservation.ownerId;reservedBytes+=file.size;
+      let capturedAt:number|null=null;if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{}
+      await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"private, no-store"}});uploadedKeys.push(objectKey);
+      await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,"Memboux Admin",Date.now(),capturedAt,contentHash,file.size).run();
+    }
+  }catch(error){
+    if(uploadedKeys.length){await c.env.MEDIA.delete(uploadedKeys);await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));}
+    await releaseStorage(c.env.DB,reservationOwner,reservedBytes);
+    if(error instanceof Error&&error.message.includes("storage_quota_exceeded"))return c.text("Event storage quota exceeded",413);
+    throw error;
+  }
+  return c.redirect(`/admin/events/${event.code}`,303);
 });
 
 adminRoutes.post("/admin/events/:code/media/bulk-trash",async(c)=>{

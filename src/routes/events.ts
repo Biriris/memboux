@@ -6,7 +6,7 @@ import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventInvitationRow, EventMemberRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
 import { createOrReplaceInvitation, normalizeInviteRole } from "../invitations";
-import { canInviteToEvent, isQuotaDatabaseError } from "../quotas";
+import { canInviteToEvent } from "../quotas";
 import { getEvent, getMedia } from "../repositories";
 import { currentUser } from "../session";
 import { constantTimeEqual, esc, formatDateTime, formatEventDates, sha256, validEventDate } from "../utils";
@@ -136,7 +136,7 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
   }
   const invitationId = crypto.randomUUID();
   const now = Date.now();
-  try{await createOrReplaceInvitation(c.env.DB,{id:invitationId,eventId:event.id,email,role,invitedBy:user.id,createdAt:now,expiresAt:now+14*86400000});}catch(error){if(isQuotaDatabaseError(error,"collaborator"))return c.text(locale==="el"?"Έφτασες το όριο συνεργατών του plan σου.":"You reached your plan collaborator limit.",409);throw error;}
+  await createOrReplaceInvitation(c.env.DB,{id:invitationId,eventId:event.id,email,role,invitedBy:user.id,createdAt:now,expiresAt:now+14*86400000});
   const accountUrl = `https://memboux.com/${locale}/account`;
   const subject = locale === "el" ? `Πρόσκληση στο event ${event.eventName}` : `Invitation to ${event.eventName}`;
   const roleLabel=locale==="el"?(role==="editor"?"διαχειριστής":"θεατής"):(role==="editor"?"manager":"viewer");

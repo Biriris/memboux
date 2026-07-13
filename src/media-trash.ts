@@ -1,4 +1,5 @@
 import type { Bindings } from "./domain";
+import { releaseStorage } from "./quotas";
 
 export type RestoreMediaResult = "restored" | "duplicate" | "missing";
 
@@ -22,12 +23,13 @@ export async function restoreDeletedMedia(db: D1Database, mediaId: string): Prom
 }
 
 export async function permanentlyDeleteMedia(env: Pick<Bindings, "DB" | "MEDIA">, mediaId: string) {
-  const media = await env.DB.prepare("SELECT object_key FROM media WHERE id=? AND deleted_at IS NOT NULL")
+  const media = await env.DB.prepare(`SELECT m.object_key,m.size_bytes,(SELECT user_id FROM event_members WHERE event_id=m.event_id AND role='owner' LIMIT 1) owner_id FROM media m WHERE m.id=? AND m.deleted_at IS NOT NULL`)
     .bind(mediaId)
-    .first<{ object_key: string }>();
+    .first<{ object_key: string; size_bytes:number; owner_id:string|null }>();
   if (!media) return false;
 
   await env.MEDIA.delete(media.object_key);
-  await env.DB.prepare("DELETE FROM media WHERE id=? AND deleted_at IS NOT NULL").bind(mediaId).run();
+  const result=await env.DB.prepare("DELETE FROM media WHERE id=? AND deleted_at IS NOT NULL").bind(mediaId).run();
+  if(result.meta.changes)await releaseStorage(env.DB,media.owner_id,media.size_bytes);
   return true;
 }
