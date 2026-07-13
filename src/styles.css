@@ -32,6 +32,9 @@ input::file-selector-button { font: inherit; }
   -webkit-touch-callout: default !important;
   -webkit-user-select: auto !important;
   user-select: auto !important;
+  -webkit-user-drag: auto;
+  touch-action: auto;
+  pointer-events: auto;
 }
 button { letter-spacing: .025em; }
 a, button, input, select, textarea {

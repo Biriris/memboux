@@ -11,8 +11,8 @@ const file = (overrides: Partial<UploadFileDescriptor> = {}): UploadFileDescript
 
 describe("upload validation", () => {
   it("uses the raised Cloudflare-safe upload limits", () => {
-    expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
-    expect(MAX_UPLOAD_TOTAL_SIZE).toBe(95 * 1024 * 1024);
+    expect(MAX_FILE_SIZE).toBe(100 * 1024 * 1024);
+    expect(MAX_UPLOAD_TOTAL_SIZE).toBe(100 * 1024 * 1024);
   });
 
   it("accepts all supported image and video MIME types", () => {

@@ -24,8 +24,8 @@ export function uploadValidationDetails(error: UploadValidationError, locale: Lo
     empty: { en: "No files were selected.", el: "Δεν επιλέχθηκαν αρχεία.", status: 400 },
     too_many: { en: `You can upload up to ${MAX_UPLOAD_FILES} files at once.`, el: `Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} αρχεία μαζί.`, status: 413 },
     unsupported_type: { en: "One or more files have an unsupported type.", el: "Κάποιο αρχείο έχει μη υποστηριζόμενο τύπο.", status: 415 },
-    file_too_large: { en: "Each file must be no larger than 50 MB.", el: "Κάθε αρχείο πρέπει να είναι έως 50 MB.", status: 413 },
-    total_too_large: { en: "The total selection must be no larger than 95 MB.", el: "Η συνολική επιλογή πρέπει να είναι έως 95 MB.", status: 413 },
+    file_too_large: { en: "Each file must be no larger than 100 MB.", el: "Κάθε αρχείο πρέπει να είναι έως 100 MB.", status: 413 },
+    total_too_large: { en: "The total selection must be no larger than 100 MB.", el: "Η συνολική επιλογή πρέπει να είναι έως 100 MB.", status: 413 },
   };
   const detail = messages[error];
   return { message: detail[locale], status: detail.status };
