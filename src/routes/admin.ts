@@ -4,6 +4,7 @@ import { ADMIN_COOKIE, TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow } from "../domain";
 import { normalizeLocale } from "../i18n";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "../media-trash";
+import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent, getMedia } from "../repositories";
 import { safeFileExtension, validateUploadFiles } from "../upload-policy";
 import { constantTimeEqual, dateInput, esc, formatDate, formatDateTime, formatEventDates, secureSecretEqual, sha256, sha256Bytes, validEventDate } from "../utils";
@@ -34,6 +35,12 @@ adminRoutes.get("/admin/login", async (c) => {
 adminRoutes.post("/admin/login", async (c) => {
   const configured = c.env.ADMIN_PASSWORD;
   if (!configured) return c.text("Το admin password δεν έχει ρυθμιστεί.", 503);
+  const rateLimit = await consumeRateLimit(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, {
+    scope: "admin-login",
+    limit: 10,
+    windowMs: 15 * 60_000,
+  });
+  if (!rateLimit.allowed) return tooManyRequests(rateLimit, "Πολλές προσπάθειες σύνδεσης. Δοκίμασε ξανά αργότερα.");
   const body = await c.req.parseBody();
   if (!await secureSecretEqual(String(body.password ?? ""), configured)) return c.html(page("Λάθος password", `<main class="flex min-h-screen items-center justify-center p-5"><section class="rounded-3xl bg-white p-8 text-center shadow-xl"><h1 class="text-2xl font-bold">Λάθος password</h1><a href="/admin/login" class="mt-5 inline-block text-[#6e4f3e]">Δοκίμασε ξανά</a></section></main>`), 401);
   c.header("Set-Cookie", `${ADMIN_COOKIE}=${await adminSession(configured)}; Path=/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`);

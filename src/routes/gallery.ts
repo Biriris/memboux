@@ -3,6 +3,7 @@ import { parse as parseMetadata } from "exifr";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
 import { normalizeLocale } from "../i18n";
+import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent, getMedia } from "../repositories";
 import { currentUser } from "../session";
 import { safeFileExtension, uploadValidationDetails, validateUploadFiles } from "../upload-policy";
@@ -26,6 +27,8 @@ galleryRoutes.post("/gallery/:code/unlock",async(c)=>{
   const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));
   if(Date.now()>event.expires_at)return c.text(locale==="el"?"Το event έχει λήξει.":"This event has expired.",410);
   if(!event.gallery_pin_hash)return c.redirect(`/gallery/${event.code}?lang=${locale}`,303);
+  const pinLimit=await consumeRateLimit(c.env.DB,c.req.raw,c.env.BETTER_AUTH_SECRET,{scope:`gallery-pin:${event.code}`,limit:10,windowMs:15*60_000});
+  if(!pinLimit.allowed)return tooManyRequests(pinLimit,locale==="el"?"Πολλές προσπάθειες PIN. Δοκίμασε ξανά αργότερα.":"Too many PIN attempts. Please try again later.");
   if(!constantTimeEqual(await sha256(String(body.pin??"")),event.gallery_pin_hash))return c.text(locale==="el"?"Λάθος PIN":"Incorrect PIN",401);
   const token=await galleryAccessToken(event);const maxAge=Math.max(0,Math.min(2592000,Math.floor((event.expires_at-Date.now())/1000)));return new Response(null,{status:303,headers:{Location:`/gallery/${event.code}?lang=${locale}`,"Set-Cookie":`${galleryCookieName(event.code)}=${token}; Path=/gallery/${event.code}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`}});
 });
@@ -56,6 +59,8 @@ galleryRoutes.post("/gallery/:code/removal/:mediaId", async (c) => {
   if (!await hasGalleryAccess(c.req.raw, event)) return c.text("Gallery PIN required", 401);
   const media = await c.env.DB.prepare("SELECT id FROM media WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(c.req.param("mediaId"), event.id).first();
   if (!media) return c.text("Media not found", 404);
+  const reportLimit=await consumeRateLimit(c.env.DB,c.req.raw,c.env.BETTER_AUTH_SECRET,{scope:`removal-report:${event.code}`,limit:5,windowMs:60*60_000});
+  if(!reportLimit.allowed)return tooManyRequests(reportLimit);
   const body = await c.req.parseBody();
   const email = String(body.email ?? "").trim().toLowerCase().slice(0,254);
   const reason = String(body.reason ?? "").trim().slice(0,1000);
@@ -70,6 +75,8 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
   if (Date.now() > event.expires_at) return c.text("Η εκδήλωση έχει λήξει.", 410);
   if(!await hasGalleryAccess(c.req.raw,event)) return c.text("Gallery PIN required",401);
+  const uploadLimit=await consumeRateLimit(c.env.DB,c.req.raw,c.env.BETTER_AUTH_SECRET,{scope:`gallery-upload:${event.code}`,limit:30,windowMs:60*60_000});
+  if(!uploadLimit.allowed)return tooManyRequests(uploadLimit);
   const form = await c.req.formData();
   const locale=normalizeLocale(String(form.get("locale")??event.default_locale));
   if (form.get("upload_confirmation") !== "accepted") return c.text("Απαιτείται επιβεβαίωση πριν από το upload.", 400);

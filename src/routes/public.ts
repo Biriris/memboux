@@ -2,6 +2,7 @@ import { Hono, type Handler } from "hono";
 import { createAuth } from "../auth";
 import type { Bindings } from "../domain";
 import { normalizeLocale, t } from "../i18n";
+import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { currentUser } from "../session";
 import { authPage } from "../views/auth";
 import { brandMark, page } from "../views/shared";
@@ -9,6 +10,25 @@ import { brandMark, page } from "../views/shared";
 type AppEnvironment = { Bindings: Bindings };
 
 export const publicRoutes = new Hono<AppEnvironment>();
+
+const authRateLimits: Record<string, { limit: number; windowMs: number }> = {
+  "/api/auth/sign-in/email": { limit: 10, windowMs: 15 * 60_000 },
+  "/api/auth/sign-up/email": { limit: 5, windowMs: 60 * 60_000 },
+  "/api/auth/request-password-reset": { limit: 5, windowMs: 60 * 60_000 },
+  "/api/auth/sign-in/social": { limit: 20, windowMs: 60 * 60_000 },
+};
+
+publicRoutes.use("/api/auth/*", async (c, next) => {
+  const rule = c.req.method === "POST" ? authRateLimits[c.req.path] : undefined;
+  if (rule) {
+    const result = await consumeRateLimit(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, {
+      scope: `auth:${c.req.path}`,
+      ...rule,
+    });
+    if (!result.allowed) return tooManyRequests(result);
+  }
+  await next();
+});
 
 publicRoutes.on(["GET", "POST"], "/api/auth/*", (c) => {
   const auth = createAuth(c.env, (promise) => c.executionCtx.waitUntil(promise));

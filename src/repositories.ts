@@ -1,4 +1,5 @@
 import type { Bindings, EventRow, MediaRow } from "./domain";
+import { purgeExpiredRateLimits } from "./rate-limit";
 
 export async function getEvent(db: D1Database, code: string, includeDeleted = false) {
   return db.prepare(`SELECT * FROM events WHERE code = ?${includeDeleted ? "" : " AND deleted_at IS NULL"}`)
@@ -35,4 +36,6 @@ export async function purgeExpiredTrash(env: Bindings) {
     if (objects.results.length) await env.MEDIA.delete(objects.results.map((item) => item.object_key));
     await env.DB.prepare("DELETE FROM events WHERE id=?").bind(event.id).run();
   }
+
+  await purgeExpiredRateLimits(env.DB, now);
 }

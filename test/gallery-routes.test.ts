@@ -37,6 +37,10 @@ beforeAll(async () => {
       requester_email TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL,
       created_at INTEGER NOT NULL, resolved_at INTEGER
     )`),
+    env.DB.prepare(`CREATE TABLE request_rate_limits (
+      rate_key TEXT PRIMARY KEY, window_started_at INTEGER NOT NULL,
+      request_count INTEGER NOT NULL, expires_at INTEGER NOT NULL
+    )`),
   ]);
 
   const insertEvent = env.DB.prepare(`INSERT INTO events (
@@ -118,6 +122,36 @@ describe("gallery, upload, and media routes", () => {
       redirect: "manual",
     });
     expect(response.status).toBe(410);
+  });
+
+  it("rate limits repeated PIN guessing without storing a raw IP", async () => {
+    const headers = {
+      Origin: "https://memboux.com",
+      "CF-Connecting-IP": "198.51.100.77",
+    };
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const response = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/unlock`, {
+        method: "POST",
+        headers,
+        body: new URLSearchParams({ locale: "en", pin: "0000" }),
+        redirect: "manual",
+      });
+      expect(response.status).toBe(401);
+    }
+
+    const blocked = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/unlock`, {
+      method: "POST",
+      headers,
+      body: new URLSearchParams({ locale: "en", pin: "0000" }),
+      redirect: "manual",
+    });
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(blocked.headers.get("x-ratelimit-remaining")).toBe("0");
+
+    const stored = await env.DB.prepare("SELECT rate_key FROM request_rate_limits WHERE request_count>10").first<{ rate_key: string }>();
+    expect(stored?.rate_key).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored?.rate_key).not.toContain("198.51.100.77");
   });
 
   it("accepts the timing-safe gallery cookie after unlock", async () => {
