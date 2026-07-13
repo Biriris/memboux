@@ -14,6 +14,7 @@ describe("admin route boundaries", () => {
   it.each([
     "/admin",
     "/admin/reported",
+    "/admin/privacy-requests",
     "/admin/trash",
     "/admin/events/ABC123",
   ])("redirects anonymous admin page %s", async (path) => {

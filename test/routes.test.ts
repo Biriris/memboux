@@ -23,6 +23,9 @@ describe("public Worker routes", () => {
     ["/en/verify-email", "Check your email"],
     ["/el/forgot-password", "Αποστολή συνδέσμου"],
     ["/en/reset-password?token=test-token", "Choose a new password"],
+    ["/en/privacy-policy", "Privacy policy"],
+    ["/el/terms", "Όροι χρήσης"],
+    ["/en/privacy-request", "Exercise your rights"],
   ])("renders public route %s", async (path, expectedText) => {
     const response = await SELF.fetch(`https://memboux.com${path}`);
     const html = await response.text();

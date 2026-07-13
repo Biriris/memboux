@@ -1,6 +1,19 @@
 import type { Bindings, EventRow, MediaRow } from "./domain";
 import { purgeExpiredRateLimits } from "./rate-limit";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function purgeExpiredOperationalRecords(db: D1Database, now = Date.now()) {
+  const results = await db.batch([
+    db.prepare("DELETE FROM session WHERE expiresAt<=?").bind(now),
+    db.prepare("DELETE FROM verification WHERE expiresAt<=?").bind(now),
+    db.prepare("DELETE FROM event_invitations WHERE (accepted_at IS NULL AND expires_at<=?) OR (accepted_at IS NOT NULL AND accepted_at<=?)").bind(now, now - 90 * DAY_MS),
+    db.prepare("DELETE FROM media_removal_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 365 * DAY_MS),
+    db.prepare("DELETE FROM privacy_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 3 * 365 * DAY_MS),
+  ]);
+  return results.reduce((total, result) => total + Number(result.meta.changes ?? 0), 0);
+}
+
 export async function getEvent(db: D1Database, code: string, includeDeleted = false) {
   return db.prepare(`SELECT * FROM events WHERE code = ?${includeDeleted ? "" : " AND deleted_at IS NULL"}`)
     .bind(code.toUpperCase())
@@ -38,4 +51,5 @@ export async function purgeExpiredTrash(env: Bindings) {
   }
 
   await purgeExpiredRateLimits(env.DB, now);
+  await purgeExpiredOperationalRecords(env.DB, now);
 }

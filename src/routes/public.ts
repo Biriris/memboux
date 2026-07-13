@@ -4,7 +4,9 @@ import type { Bindings } from "../domain";
 import { normalizeLocale, t } from "../i18n";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { currentUser } from "../session";
+import { validPrivacyEmail, validPrivacyRequestType } from "../privacy-requests";
 import { authPage } from "../views/auth";
+import { privacyPolicyPage, privacyRequestPage, termsPage } from "../views/legal";
 import { brandMark, page } from "../views/shared";
 
 type AppEnvironment = { Bindings: Bindings };
@@ -43,10 +45,34 @@ const localizedHome: Handler<AppEnvironment> = async (c) => {
   const user = await currentUser(c);
   if (user) return c.redirect(`/${locale}/account`);
   const accountActions = `<a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-[#33251f] px-4 py-2 font-semibold text-white">${m.register}</a>`;
-  return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section></main>`));
+  return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section><footer class="flex flex-wrap gap-5 border-t py-6 text-sm text-[#625750]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`));
 };
 publicRoutes.get("/el", localizedHome);
 publicRoutes.get("/en", localizedHome);
+
+publicRoutes.get("/:locale{el|en}/privacy-policy", (c) => c.html(privacyPolicyPage(normalizeLocale(c.req.param("locale")))));
+publicRoutes.get("/:locale{el|en}/terms", (c) => c.html(termsPage(normalizeLocale(c.req.param("locale")))));
+publicRoutes.get("/:locale{el|en}/privacy-request", (c) => {
+  const reference = /^[a-f0-9-]{36}$/i.test(c.req.query("reference") ?? "") ? c.req.query("reference")! : "";
+  return c.html(privacyRequestPage(normalizeLocale(c.req.param("locale")), c.req.query("sent") === "1", reference));
+});
+
+publicRoutes.post("/api/privacy/requests", async (c) => {
+  const limit = await consumeRateLimit(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, { scope: "privacy-request", limit: 3, windowMs: 60 * 60_000 });
+  if (!limit.allowed) return tooManyRequests(limit);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? "en"));
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const requestType = String(body.requestType ?? "");
+  const details = String(body.details ?? "").trim();
+  if (!validPrivacyEmail(email) || !validPrivacyRequestType(requestType) || details.length < 20 || details.length > 2000) {
+    return c.text(locale === "el" ? "Έλεγξε τα στοιχεία του αιτήματος." : "Check the request details.", 400);
+  }
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare("INSERT INTO privacy_requests (id,email,request_type,details,status,created_at) VALUES (?,?,?,?,'pending',?)")
+    .bind(id, email, requestType, details, Date.now()).run();
+  return c.redirect(`/${locale}/privacy-request?sent=1&reference=${encodeURIComponent(id)}`, 303);
+});
 
 publicRoutes.get("/:locale{el|en}/login", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
