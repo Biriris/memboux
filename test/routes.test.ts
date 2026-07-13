@@ -21,6 +21,33 @@ describe("public Worker routes", () => {
     expect(response.headers.get("location")).toBe("/en");
   });
 
+  it("publishes robots and sitemap files while excluding private routes", async () => {
+    const robots = await SELF.fetch("https://memboux.com/robots.txt");
+    const robotsText = await robots.text();
+    expect(robots.status).toBe(200);
+    expect(robotsText).toContain("Disallow: /gallery/");
+    expect(robotsText).toContain("Sitemap: https://memboux.com/sitemap.xml");
+
+    const sitemap = await SELF.fetch("https://memboux.com/sitemap.xml");
+    const sitemapText = await sitemap.text();
+    expect(sitemap.status).toBe(200);
+    expect(sitemap.headers.get("content-type")).toContain("application/xml");
+    expect(sitemapText).toContain("https://memboux.com/en");
+    expect(sitemapText).toContain('hreflang="el"');
+  });
+
+  it("renders canonical multilingual SEO on homepages and noindex on login", async () => {
+    const home = await SELF.fetch("https://memboux.com/en");
+    const homeHtml = await home.text();
+    expect(homeHtml).toContain('<link rel="canonical" href="https://memboux.com/en">');
+    expect(homeHtml).toContain('hreflang="x-default"');
+    expect(homeHtml).toContain('property="og:title"');
+    expect(homeHtml).toContain('content="index,follow,max-image-preview:large"');
+
+    const login = await SELF.fetch("https://memboux.com/en/login");
+    expect(await login.text()).toContain('content="noindex,nofollow,noarchive"');
+  });
+
   it("returns 404 for an unknown route", async () => {
     const response = await SELF.fetch("https://memboux.com/route-that-does-not-exist");
 

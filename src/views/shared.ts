@@ -1,8 +1,31 @@
 import type { Locale } from "../i18n";
 import { esc } from "../utils";
 
-export function page(title: string, body: string) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f1eb"><meta name="description" content="Memboux – Collecting Moments"><link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300;400;500;600&display=swap" rel="stylesheet"><title>${esc(title)}</title><link rel="stylesheet" href="/app.css"></head><body class="min-h-screen bg-gradient-to-br from-[#f6f1eb] via-[#fffcf8] to-[#e8ddd3] text-[#2b211d]">${body}</body></html>`;
+export type PageOptions = {
+  locale?: Locale;
+  description?: string;
+  canonical?: string;
+  alternates?: Partial<Record<Locale | "x-default", string>>;
+  index?: boolean;
+  image?: string;
+  structuredData?: Record<string, unknown>;
+};
+
+export function page(title: string, body: string, options: PageOptions = {}) {
+  const locale = options.locale ?? "en";
+  const description = options.description ?? "Memboux – Collecting Moments";
+  const robots = options.index ? "index,follow,max-image-preview:large" : "noindex,nofollow,noarchive";
+  const canonical = options.canonical ? `<link rel="canonical" href="${esc(options.canonical)}">` : "";
+  const alternates = Object.entries(options.alternates ?? {})
+    .map(([language, url]) => `<link rel="alternate" hreflang="${language}" href="${esc(url)}">`)
+    .join("");
+  const social = options.canonical
+    ? `<meta property="og:type" content="website"><meta property="og:site_name" content="Memboux"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(options.canonical)}"><meta property="og:locale" content="${locale === "el" ? "el_GR" : "en_US"}"><meta property="og:image" content="${esc(options.image ?? "https://memboux.com/brand/memboux-icon.png")}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="${esc(options.image ?? "https://memboux.com/brand/memboux-icon.png")}">`
+    : "";
+  const structuredData = options.structuredData
+    ? `<script type="application/ld+json">${JSON.stringify(options.structuredData).replace(/</g, "\\u003c")}</script>`
+    : "";
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f1eb"><meta name="description" content="${esc(description)}"><meta name="robots" content="${robots}">${canonical}${alternates}${social}${structuredData}<link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300;400;500;600&display=swap" rel="stylesheet"><title>${esc(title)}</title><link rel="stylesheet" href="/app.css"></head><body class="min-h-screen bg-gradient-to-br from-[#f6f1eb] via-[#fffcf8] to-[#e8ddd3] text-[#2b211d]">${body}</body></html>`;
 }
 
 export function brandMark(href: string, compact = false, light = false) {

@@ -28,6 +28,11 @@ input::file-selector-button { font: inherit; }
   font-family: "Noto Serif", serif;
   font-weight: 400;
 }
+.native-save-image {
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+}
 button { letter-spacing: .025em; }
 a, button, input, select, textarea {
   transition: border-color .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;

@@ -31,6 +31,42 @@ publicRoutes.get("/health/ready", async (c) => {
   }
 });
 
+publicRoutes.get("/robots.txt", (c) => {
+  c.header("Content-Type", "text/plain; charset=utf-8");
+  c.header("Cache-Control", "public, max-age=3600");
+  return c.body(`User-agent: *
+Allow: /en$
+Allow: /el$
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /gallery/
+Disallow: /studio/
+Disallow: /en/account
+Disallow: /el/account
+Disallow: /en/profile
+Disallow: /el/profile
+Disallow: /en/security
+Disallow: /el/security
+Disallow: /en/plan
+Disallow: /el/plan
+Disallow: /en/trash
+Disallow: /el/trash
+
+Sitemap: https://memboux.com/sitemap.xml
+`);
+});
+
+publicRoutes.get("/sitemap.xml", (c) => {
+  c.header("Content-Type", "application/xml; charset=utf-8");
+  c.header("Cache-Control", "public, max-age=3600");
+  return c.body(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>https://memboux.com/en</loc><xhtml:link rel="alternate" hreflang="en" href="https://memboux.com/en"/><xhtml:link rel="alternate" hreflang="el" href="https://memboux.com/el"/><xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en"/></url>
+  <url><loc>https://memboux.com/el</loc><xhtml:link rel="alternate" hreflang="en" href="https://memboux.com/en"/><xhtml:link rel="alternate" hreflang="el" href="https://memboux.com/el"/><xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en"/></url>
+</urlset>`);
+});
+
 const authRateLimits: Record<string, { limit: number; windowMs: number }> = {
   "/api/auth/sign-in/email": { limit: 10, windowMs: 15 * 60_000 },
   "/api/auth/sign-up/email": { limit: 5, windowMs: 60 * 60_000 },
@@ -57,13 +93,46 @@ publicRoutes.on(["GET", "POST"], "/api/auth/*", (c) => {
 
 publicRoutes.get("/", (c) => c.redirect("/en"));
 
+const homePage = (locale: "el" | "en", body: string) => {
+  const title =
+    locale === "el"
+      ? "Memboux – Ιδιωτικά galleries φωτογραφιών και βίντεο για events"
+      : "Memboux – Private Event Photo & Video Galleries";
+  const description =
+    locale === "el"
+      ? "Συγκέντρωσε φωτογραφίες και βίντεο από κάθε event σε ένα ιδιωτικό gallery και μοιράσου τις στιγμές με ασφάλεια."
+      : "Collect photos and videos from every event in one private gallery and share every moment securely.";
+  const canonical = `https://memboux.com/${locale}`;
+  return page(title, body, {
+    locale,
+    description,
+    canonical,
+    alternates: {
+      en: "https://memboux.com/en",
+      el: "https://memboux.com/el",
+      "x-default": "https://memboux.com/en",
+    },
+    index: true,
+    structuredData: {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: "Memboux",
+      url: canonical,
+      applicationCategory: "PhotographyApplication",
+      operatingSystem: "Web",
+      description,
+      inLanguage: locale,
+    },
+  });
+};
+
 const localizedHome: Handler<AppEnvironment> = async (c) => {
   const locale = normalizeLocale(new URL(c.req.url).pathname === "/en" ? "en" : "el");
   const m = t(locale);
   const user = await currentUser(c);
   if (user) return c.redirect(`/${locale}/account`);
   const accountActions = `<a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-[#33251f] px-4 py-2 font-semibold text-white">${m.register}</a>`;
-  return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section><footer class="flex flex-wrap gap-5 border-t py-6 text-sm text-[#625750]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`));
+  return c.html(homePage(locale, `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section><footer class="flex flex-wrap gap-5 border-t py-6 text-sm text-[#625750]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`));
 };
 publicRoutes.get("/el", localizedHome);
 publicRoutes.get("/en", localizedHome);

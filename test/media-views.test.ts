@@ -57,6 +57,8 @@ describe("media views", () => {
 
     expect(html).toContain("touchmove");
     expect(html).toContain("translateX('+dx+'px)");
+    expect(html).toContain("native-save-image");
+    expect(html).toContain('draggable="true"');
     expect(html).toContain("if(e.target===dialog||e.target===stage)dialog.close()");
     expect(html).toContain("ArrowLeft");
     expect(html).toContain("ArrowRight");

@@ -10,6 +10,11 @@ const file = (overrides: Partial<UploadFileDescriptor> = {}): UploadFileDescript
 });
 
 describe("upload validation", () => {
+  it("uses the raised Cloudflare-safe upload limits", () => {
+    expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
+    expect(MAX_UPLOAD_TOTAL_SIZE).toBe(95 * 1024 * 1024);
+  });
+
   it("accepts all supported image and video MIME types", () => {
     const supported = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
     expect(validateUploadFiles(supported.map((type) => file({ type })))).toBeNull();
@@ -29,7 +34,10 @@ describe("upload validation", () => {
   it("enforces per-file and total byte limits at exact boundaries", () => {
     expect(validateUploadFiles([file({ size: MAX_FILE_SIZE })])).toBeNull();
     expect(validateUploadFiles([file({ size: MAX_FILE_SIZE + 1 })])).toBe("file_too_large");
-    const maximumSelection = Array.from({ length: MAX_UPLOAD_TOTAL_SIZE / MAX_FILE_SIZE }, () => file({ size: MAX_FILE_SIZE }));
+    const maximumSelection = [
+      file({ size: MAX_FILE_SIZE }),
+      file({ size: MAX_UPLOAD_TOTAL_SIZE - MAX_FILE_SIZE }),
+    ];
     expect(validateUploadFiles(maximumSelection)).toBeNull();
     expect(validateUploadFiles([...maximumSelection, file({ size: 1 })])).toBe("total_too_large");
   });
