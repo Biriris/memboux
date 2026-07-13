@@ -6,6 +6,7 @@ import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOA
 import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
 import { getEvent, getMedia, purgeExpiredTrash } from "./repositories";
 import { acceptPendingInvitations, createOrReplaceInvitation, normalizeInviteRole } from "./invitations";
+import { permanentlyDeleteMedia, restoreDeletedMedia } from "./media-trash";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
@@ -224,15 +225,10 @@ app.post("/api/account/trash/:action{restore|delete}",async(c)=>{
   const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??"en"));
   const ids=String(body.ids??"").split(",").filter(id=>/^[a-f0-9-]{36}$/i.test(id)).slice(0,200);
   for(const id of ids){
-    const media=await c.env.DB.prepare(`SELECT m.id,m.object_key,m.event_id,m.content_hash FROM media m JOIN event_members em ON em.event_id=m.event_id WHERE m.id=? AND m.deleted_at IS NOT NULL AND em.user_id=? AND em.role='owner'`).bind(id,user.id).first<{id:string;object_key:string;event_id:string;content_hash:string|null}>();
+    const media=await c.env.DB.prepare(`SELECT m.id FROM media m JOIN event_members em ON em.event_id=m.event_id WHERE m.id=? AND m.deleted_at IS NOT NULL AND em.user_id=? AND em.role='owner'`).bind(id,user.id).first<{id:string}>();
     if(!media)continue;
-    if(c.req.param("action")==="delete"){
-      await c.env.MEDIA.delete(media.object_key);
-      await c.env.DB.prepare("DELETE FROM media WHERE id=? AND deleted_at IS NOT NULL").bind(media.id).run();
-    }else{
-      if(media.content_hash&&await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(media.event_id,media.content_hash).first())continue;
-      await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL,reported_at=NULL WHERE id=?").bind(media.id).run();
-    }
+    if(c.req.param("action")==="delete")await permanentlyDeleteMedia(c.env,media.id);
+    else await restoreDeletedMedia(c.env.DB,media.id);
   }
   return c.redirect(`/${locale}/trash`,303);
 });
@@ -291,9 +287,9 @@ app.get("/admin/trash",async(c)=>{
   return c.html(adminShell(locale==="el"?"Κάδος":"Trash",`<main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/admin" class="text-sm text-[#6e4f3e]">← ${locale==="el"?"Πίσω στη βιβλιοθήκη":"Back to library"}</a><div class="mt-4 flex flex-wrap items-end justify-between gap-3"><div><h1 class="text-4xl">${locale==="el"?"Κάδος φωτογραφιών":"Media trash"}</h1><p class="mt-2 text-[#625750]">${locale==="el"?"Οι φωτογραφίες διαγράφονται οριστικά 30 ημέρες μετά τη μεταφορά τους στον κάδο. Πάτησε το preview για μεγέθυνση.":"Media is permanently deleted 30 days after being moved to trash. Select a preview to enlarge it."}</p></div><div class="flex flex-wrap gap-2"><button id="trash-select" class="rounded-xl border px-4 py-2">${locale==="el"?"Επιλογή":"Select"}</button><button id="trash-restore" class="hidden rounded-xl bg-[#654534] px-4 py-2 text-white">${locale==="el"?"Επαναφορά επιλεγμένων":"Restore selected"}</button><button id="trash-delete" class="hidden rounded-xl border border-red-200 px-4 py-2 text-red-700">${locale==="el"?"Οριστική διαγραφή":"Delete permanently"}</button></div></div><form id="trash-restore-form" action="/admin/trash/restore" method="post"><input id="trash-restore-ids" type="hidden" name="ids"></form><form id="trash-delete-form" action="/admin/trash/delete" method="post"><input id="trash-delete-ids" type="hidden" name="ids"></form><div class="mt-7 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">${rows||`<p class="rounded-2xl bg-white p-8 text-center text-[#625750]">${locale==="el"?"Ο κάδος είναι άδειος.":"Trash is empty."}</p>`}</div></main>${lightboxMarkup(locale)}${trashScript}`,locale));
 });
 
-app.post("/admin/trash/:action{restore|delete}",async(c)=>{if(!await isAdmin(c))return c.redirect("/admin/login");const body=await c.req.parseBody();const ids=String(body.ids??"").split(",").filter(id=>/^[a-f0-9-]{36}$/i.test(id)).slice(0,200);if(c.req.param("action")==="delete"){if(ids.length){const placeholders=ids.map(()=>"?").join(",");const objects=await c.env.DB.prepare(`SELECT object_key FROM media WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL`).bind(...ids).all<{object_key:string}>();if(objects.results.length)await c.env.MEDIA.delete(objects.results.map(x=>x.object_key));await c.env.DB.prepare(`DELETE FROM media WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL`).bind(...ids).run();}}else{for(const id of ids){const media=await c.env.DB.prepare("SELECT event_id,content_hash FROM media WHERE id=? AND deleted_at IS NOT NULL").bind(id).first<{event_id:string;content_hash:string|null}>();if(!media)continue;if(media.content_hash&&await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(media.event_id,media.content_hash).first())continue;await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL,reported_at=NULL WHERE id=?").bind(id).run();}}return c.redirect("/admin/trash",303);});
+app.post("/admin/trash/:action{restore|delete}",async(c)=>{if(!await isAdmin(c))return c.redirect("/admin/login");const body=await c.req.parseBody();const ids=String(body.ids??"").split(",").filter(id=>/^[a-f0-9-]{36}$/i.test(id)).slice(0,200);for(const id of ids){if(c.req.param("action")==="delete")await permanentlyDeleteMedia(c.env,id);else await restoreDeletedMedia(c.env.DB,id);}return c.redirect("/admin/trash",303);});
 
-app.post("/admin/events/:code/media/:id/restore",async(c)=>{if(!await isAdmin(c))return c.redirect("/admin/login");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const media=await c.env.DB.prepare("SELECT content_hash FROM media WHERE id=? AND event_id=? AND deleted_at IS NOT NULL").bind(c.req.param("id"),event.id).first<{content_hash:string|null}>();if(!media)return c.text("Media not found",404);if(media.content_hash&&await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,media.content_hash).first())return c.text("Δεν μπορεί να γίνει επαναφορά επειδή υπάρχει ήδη το ίδιο αρχείο στο event.",409);await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL WHERE id=? AND event_id=?").bind(c.req.param("id"),event.id).run();return c.redirect("/admin/trash",303);});
+app.post("/admin/events/:code/media/:id/restore",async(c)=>{if(!await isAdmin(c))return c.redirect("/admin/login");const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const media=await c.env.DB.prepare("SELECT id FROM media WHERE id=? AND event_id=? AND deleted_at IS NOT NULL").bind(c.req.param("id"),event.id).first<{id:string}>();if(!media)return c.text("Media not found",404);const result=await restoreDeletedMedia(c.env.DB,media.id);if(result==="duplicate")return c.text("Δεν μπορεί να γίνει επαναφορά επειδή υπάρχει ήδη το ίδιο αρχείο στο event.",409);return c.redirect("/admin/trash",303);});
 
 app.get("/admin", async (c) => {
   if (!await isAdmin(c)) return c.redirect("/admin/login");
