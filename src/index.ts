@@ -9,8 +9,10 @@ import { acceptPendingInvitations, createOrReplaceInvitation, normalizeInviteRol
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "./media-trash";
 import { safeFileExtension, uploadValidationDetails, validateUploadFiles } from "./upload-policy";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
+import { adminLocale, adminShell } from "./views/admin";
+import { authPage } from "./views/auth";
 import { cards, galleryFilterControls, galleryFilterScript, lightboxMarkup } from "./views/media";
-import { accountMenu, brandMark, googleIcon, logoutScript, page } from "./views/shared";
+import { accountMenu, brandMark, logoutScript, page } from "./views/shared";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
 
@@ -40,26 +42,10 @@ async function isAdmin(c: { env: Bindings; req: { header(name: string): string |
 
 
 
-const adminLocale=(request:Request):Locale=>normalizeLocale(cookieValue(request,"memboux_admin_locale")??"en");
-function adminShell(title: string, content: string, locale:Locale="en") {
-  return page(`${title} – Memboux Admin`, `<style>.admin-ui,.admin-ui button,.admin-ui input,.admin-ui select,.admin-ui textarea{font-family:'Noto Serif',serif}.admin-ui{font-weight:300}.admin-ui h1,.admin-ui h2,.admin-ui h3{font-family:'Noto Serif',serif;font-weight:400}.admin-ui strong{font-weight:500}</style><div class="admin-ui"><header class="border-b bg-[#33251f] text-white"><div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">${brandMark("/admin", true, true)}<div class="flex items-center gap-2"><a href="/admin/language/${locale==="el"?"en":"el"}" class="rounded-lg border border-white/20 px-3 py-2 text-sm">${locale==="el"?"EN":"EL"}</a><div class="group relative"><button class="flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-sm hover:bg-white/10"><span class="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">A</span>Admin <span>⌄</span></button><div class="invisible absolute right-0 top-full z-40 w-56 translate-y-1 rounded-2xl border border-[#ddd0c6] bg-white p-2 text-[#2b211d] opacity-0 shadow-2xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"><a href="/admin" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]">${locale==="el"?"Βιβλιοθήκη events":"Event library"}</a><a href="/admin/reported" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]">${locale==="el"?"Reported φωτογραφίες":"Reported media"}</a><a href="/admin/trash" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]">${locale==="el"?"Κάδος φωτογραφιών":"Media trash"}</a><form action="/admin/logout" method="post" class="mt-1 border-t"><button class="w-full rounded-xl px-3 py-3 text-left text-sm text-red-700 hover:bg-red-50">${locale==="el"?"Αποσύνδεση":"Sign out"}</button></form></div></div></div></div></header>${content}</div>`);
-}
-
 async function currentUser(c: { env: Bindings; req: { raw: Request } }) {
   const session = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers });
   return session?.user ?? null;
 }
-
-function authPage(locale: Locale, mode: "login" | "register") {
-  const m = t(locale);
-  const isRegister = mode === "register";
-  return page(`${isRegister ? m.register : m.login} – Memboux`, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#ddd0c6] bg-white/95 p-8 shadow-[0_24px_70px_rgba(71,50,40,.12)]"><div class="mb-7 flex items-center justify-between">${brandMark(`/${locale}`, true)}<a href="/${locale === "el" ? "en" : "el"}/${mode}" class="text-sm font-medium text-[#6e4f3e]">${locale === "el" ? "EN" : "EL"}</a></div><h1 class="text-4xl">${isRegister ? m.register : m.login}</h1><button id="google" class="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border border-[#d8ccc3] bg-white px-4 py-3 font-medium shadow-sm transition hover:border-[#a47c65] hover:bg-[#fbf8f4]">${googleIcon()}<span>${m.continueGoogle}</span></button><div class="my-5 flex items-center gap-3 text-xs text-slate-400"><span class="h-px flex-1 bg-slate-200"></span>OR<span class="h-px flex-1 bg-slate-200"></span></div><form id="authForm" class="space-y-3">${isRegister ? `<input name="name" required maxlength="100" placeholder="${m.name}" class="w-full rounded-xl border px-4 py-3">` : ""}<input name="email" type="email" required autocomplete="email" placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><input name="password" type="password" required minlength="10" autocomplete="${isRegister ? "new-password" : "current-password"}" placeholder="${m.password}" class="w-full rounded-xl border px-4 py-3"><p id="error" class="hidden rounded-xl bg-red-50 p-3 text-sm text-red-700"></p><button class="w-full rounded-xl bg-[#33251f] py-3 font-semibold text-white">${isRegister ? m.register : m.login}</button></form>${!isRegister ? `<a href="/${locale}/forgot-password" class="mt-4 block text-center text-sm text-[#6e4f3e]">${m.forgotPassword}</a>` : ""}<p class="mt-6 text-center text-sm text-[#625750]">${isRegister ? m.hasAccount : m.noAccount} <a class="font-semibold text-[#6e4f3e]" href="/${locale}/${isRegister ? "login" : "register"}">${isRegister ? m.login : m.register}</a></p></section></main><script>
-const locale=${JSON.stringify(locale)};const error=document.getElementById('error');
-document.getElementById('google').onclick=async()=>{const r=await fetch('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL:'/'+locale+'/account'})});const d=await r.json();if(d.url)location.href=d.url;else{error.textContent=d.message||${JSON.stringify(m.genericError)};error.classList.remove('hidden')}};
-document.getElementById('authForm').onsubmit=async(e)=>{e.preventDefault();error.classList.add('hidden');const values=Object.fromEntries(new FormData(e.target));const r=await fetch('/api/auth/${isRegister ? "sign-up" : "sign-in"}/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,callbackURL:'/'+locale+'/account'})});const d=await r.json().catch(()=>({}));if(r.ok){location.href=${isRegister ? `'/${locale}/verify-email'` : `'/${locale}/account'`}}else{error.textContent=d.message||${JSON.stringify(m.genericError)};error.classList.remove('hidden')}};
-<\/script>`);
-}
-
 
 app.get("/", (c) => c.redirect("/en"));
 
