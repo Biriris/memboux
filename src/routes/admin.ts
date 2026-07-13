@@ -3,6 +3,7 @@ import { parse as parseMetadata } from "exifr";
 import { ADMIN_COOKIE, TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow } from "../domain";
 import { normalizeLocale } from "../i18n";
+import { getLaunchReadiness } from "../launch-readiness";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "../media-trash";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { formatBytes, releaseStorage, reserveStorageForEvent } from "../quotas";
@@ -313,6 +314,25 @@ adminRoutes.post("/admin/events/:code/media/:id/restore", async (c) => {
       409,
     );
   return c.redirect("/admin/trash", 303);
+});
+
+adminRoutes.get("/admin/readiness", async (c) => {
+  if (!(await isAdmin(c))) return c.redirect("/admin/login");
+  const locale = adminLocale(c.req.raw);
+  const readiness = getLaunchReadiness(c.env);
+  const rows = readiness.checks
+    .map(
+      (check) =>
+        `<article class="flex items-center justify-between gap-4 rounded-2xl border bg-white p-5 shadow-sm"><div><p class="text-xs uppercase tracking-[.15em] text-[#6e4f3e]">${esc(check.category)}</p><h2 class="mt-1 text-xl">${esc(check.label)}</h2></div><span class="rounded-full px-3 py-1 text-sm ${check.ready ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}">${check.ready ? (locale === "el" ? "Έτοιμο" : "Ready") : locale === "el" ? "Εκκρεμεί" : "Pending"}</span></article>`,
+    )
+    .join("");
+  return c.html(
+    adminShell(
+      locale === "el" ? "Ετοιμότητα launch" : "Launch readiness",
+      `<main class="mx-auto max-w-5xl p-5 md:p-10"><p class="text-xs uppercase tracking-[.2em] text-[#6e4f3e]">Production gates</p><h1 class="mt-2 text-4xl">${locale === "el" ? "Ετοιμότητα launch" : "Launch readiness"}</h1><div class="mt-6 grid gap-3 sm:grid-cols-2"><div class="rounded-2xl p-5 ${readiness.technicalReady ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}"><p class="text-sm">Technical production</p><strong class="mt-1 block text-2xl">${readiness.technicalReady ? "READY" : "PENDING"}</strong></div><div class="rounded-2xl p-5 ${readiness.commercialReady ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}"><p class="text-sm">Commercial launch</p><strong class="mt-1 block text-2xl">${readiness.commercialReady ? "READY" : "BLOCKED"}</strong></div></div><p class="mt-5 rounded-2xl bg-white p-4 text-sm text-[#625750]">${locale === "el" ? "Δεν εμφανίζονται ποτέ τιμές secrets. Το commercial launch παραμένει κλειδωμένο μέχρι να ολοκληρωθούν όλα τα νομικά και billing gates." : "Secret values are never displayed. Commercial launch stays locked until every legal and billing gate is complete."}</p><div class="mt-6 grid gap-3">${rows}</div></main>`,
+      locale,
+    ),
+  );
 });
 
 adminRoutes.get("/admin/professionals", async (c) => {

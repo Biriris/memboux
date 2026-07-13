@@ -7,6 +7,10 @@ export type Bindings = AuthEnv & {
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
   ADMIN_PASSWORD?: string;
+  BUSINESS_LEGAL_NAME?: string;
+  BUSINESS_POSTAL_ADDRESS?: string;
+  PRIVACY_EMAIL?: string;
+  SUPPORT_EMAIL?: string;
 };
 
 export type EventRow = {
