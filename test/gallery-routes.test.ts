@@ -31,7 +31,13 @@ beforeAll(async () => {
       uploaded_at INTEGER NOT NULL, captured_at INTEGER, content_hash TEXT,
       reported_at INTEGER, size_bytes INTEGER NOT NULL DEFAULT 0, title TEXT,
       deleted_at INTEGER, purge_at INTEGER, upload_consent_at INTEGER,
-      upload_policy_version TEXT
+      upload_policy_version TEXT, origin TEXT NOT NULL DEFAULT 'guest',
+      uploaded_by_user_id TEXT
+    )`),
+    env.DB.prepare(`CREATE TABLE official_album_items (
+      event_id TEXT NOT NULL, media_id TEXT NOT NULL, added_by TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+      PRIMARY KEY (event_id,media_id)
     )`),
     env.DB.prepare(`CREATE TABLE media_removal_requests (
       id TEXT PRIMARY KEY, media_id TEXT NOT NULL, event_id TEXT NOT NULL,
@@ -74,11 +80,22 @@ beforeAll(async () => {
     insertMedia.bind("public-stream-media", publicEventId, "test/public-stream.jpg", "image", "image/jpeg", "Guest", now, "public-stream-hash", 12),
     insertMedia.bind("public-report-media", publicEventId, "test/public-report.jpg", "image", "image/jpeg", "Guest", now, "public-report-hash", 12),
     insertMedia.bind("pinned-stream-media", pinnedEventId, "test/pinned-stream.jpg", "image", "image/jpeg", "Guest", now, "pinned-stream-hash", 12),
+    env.DB.prepare(`INSERT INTO media (
+      id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,
+      captured_at,content_hash,reported_at,size_bytes,title,deleted_at,purge_at,origin
+    ) VALUES (?,?,?,?,?,?,?,NULL,?,NULL,?,NULL,NULL,NULL,'official')`).bind(
+      "official-stream-media", publicEventId, "test/official-stream.jpg", "image",
+      "image/jpeg", "Memboux Studio", now, "official-stream-hash", 12,
+    ),
+    env.DB.prepare("INSERT INTO official_album_items VALUES (?,?,?,?,?)").bind(
+      publicEventId, "official-stream-media", "studio-user", 0, now,
+    ),
   ]);
   await Promise.all([
     env.MEDIA.put("test/public-stream.jpg", new TextEncoder().encode("public-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/public-report.jpg", new TextEncoder().encode("report-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/pinned-stream.jpg", new TextEncoder().encode("pinned-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/official-stream.jpg", new TextEncoder().encode("official-image"), { httpMetadata: { contentType: "image/jpeg" } }),
   ]);
 });
 
@@ -91,6 +108,18 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain("Public gallery");
     expect(html).toContain("Upload");
     expect(html).toContain("Images (2)");
+  });
+
+  it("keeps official uploads separate and renders the curated official album", async () => {
+    const guestResponse = await SELF.fetch(`https://memboux.com/gallery/${publicCode}?lang=en`);
+    const guestHtml = await guestResponse.text();
+    expect(guestHtml).not.toContain("official-stream-media");
+
+    const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/official?lang=en`);
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain("Official album");
+    expect(html).toContain("official-stream-media");
   });
 
   it("expires galleries according to the event expiration", async () => {

@@ -44,6 +44,8 @@ export type MediaRow = {
   purge_at: number | null;
   upload_consent_at: number | null;
   upload_policy_version: string | null;
+  origin: "guest" | "official";
+  uploaded_by_user_id: string | null;
 };
 
 export type EventMemberRow = {

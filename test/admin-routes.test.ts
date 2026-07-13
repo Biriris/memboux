@@ -16,6 +16,7 @@ describe("admin route boundaries", () => {
     "/admin/reported",
     "/admin/privacy-requests",
     "/admin/accounts",
+    "/admin/professionals",
     "/admin/trash",
     "/admin/events/ABC123",
   ])("redirects anonymous admin page %s", async (path) => {

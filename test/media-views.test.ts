@@ -12,6 +12,8 @@ const media = (overrides: Partial<MediaRow> = {}): MediaRow => ({
   uploaded_at: 1_700_000_000_000,
   captured_at: null,
   content_hash: "hash",
+  origin: "guest",
+  uploaded_by_user_id: null,
   reported_at: null,
   size_bytes: 1024,
   title: null,

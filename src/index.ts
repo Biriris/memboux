@@ -9,6 +9,7 @@ import { adminRoutes } from "./routes/admin";
 import { eventRoutes } from "./routes/events";
 import { galleryRoutes } from "./routes/gallery";
 import { publicRoutes } from "./routes/public";
+import { studioRoutes } from "./routes/studio";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -32,6 +33,7 @@ app.route("/", accountRoutes);
 app.route("/", adminRoutes);
 app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
+app.route("/", studioRoutes);
 
 app.onError((error, c) => {
   if (error instanceof HTTPException) return error.getResponse();
