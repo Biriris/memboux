@@ -1,0 +1,54 @@
+@import "tailwindcss" source("./");
+
+:root {
+  --ivory: #f6f1eb;
+  --champagne: #c9aa91;
+  --taupe: #8b6854;
+  --espresso: #2b211d;
+  --muted: #625750;
+}
+
+html { background: var(--ivory); }
+body {
+  color: var(--espresso);
+  font-family: "Noto Serif", serif;
+  font-weight: 300;
+  letter-spacing: .01em;
+}
+h1, h2, h3, .font-serif {
+  font-family: "Noto Serif", serif;
+  font-weight: 400;
+  letter-spacing: -.015em;
+}
+strong { font-weight: 500; }
+button, input, select, textarea { font: inherit; }
+input::file-selector-button { font: inherit; }
+.gallery-upload, .gallery-upload * { font-family: "Noto Serif", serif; }
+.gallery-upload input::file-selector-button {
+  font-family: "Noto Serif", serif;
+  font-weight: 400;
+}
+button { letter-spacing: .025em; }
+a, button, input, select, textarea {
+  transition: border-color .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.border { border-color: #d8ccc3; }
+input, select, textarea {
+  background-color: #fff;
+  caret-color: #654534;
+}
+input:hover, select:hover, textarea:hover { border-color: #a98b78; }
+input:focus, select:focus, textarea:focus {
+  border-color: #654534;
+  outline: 3px solid rgba(101, 69, 52, .18);
+  outline-offset: 1px;
+}
+a:focus-visible, button:focus-visible {
+  outline: 3px solid rgba(101, 69, 52, .35);
+  outline-offset: 3px;
+}
+.shadow, .shadow-lg, .shadow-xl { box-shadow: 0 14px 38px rgba(43, 33, 29, .09); }
+::selection {
+  background: #ddd0c6;
+  color: #2b211d;
+}

@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build production CSS
+        run: npm run build
+
+      - name: Verify committed CSS is current
+        run: git diff --exit-code -- public/app.css
+
       - name: Run Worker tests
         run: npm test
 
