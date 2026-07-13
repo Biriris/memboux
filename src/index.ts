@@ -3,6 +3,7 @@ import { createAuth, sendEmail } from "./auth";
 import { normalizeLocale, t, type Locale } from "./i18n";
 import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, TRASH_RETENTION_MS } from "./config";
 import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
+import { getEvent, getMedia, purgeExpiredTrash } from "./repositories";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
@@ -66,30 +67,6 @@ document.getElementById('authForm').onsubmit=async(e)=>{e.preventDefault();error
 
 function page(title: string, body: string) {
   return `<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f1eb"><meta name="description" content="Memboux – Collecting Moments"><link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@300;400;500;600&display=swap" rel="stylesheet"><title>${esc(title)}</title><script src="https://cdn.tailwindcss.com"><\/script><style>:root{--ivory:#f6f1eb;--champagne:#c9aa91;--taupe:#8b6854;--espresso:#2b211d;--muted:#625750}html{background:var(--ivory)}body{font-family:'Noto Serif',serif;font-weight:300;letter-spacing:.01em;color:var(--espresso)}h1,h2,h3,.font-serif{font-family:'Noto Serif',serif;font-weight:400;letter-spacing:-.015em}strong{font-weight:500}button,input,select,textarea{font:inherit}input::file-selector-button{font:inherit}.gallery-upload,.gallery-upload *{font-family:'Noto Serif',serif}.gallery-upload input::file-selector-button{font-family:'Noto Serif',serif;font-weight:400}button{letter-spacing:.025em}a,button,input,select,textarea{transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}.border{border-color:#d8ccc3}input,select,textarea{background-color:#fff;caret-color:#654534}input:hover,select:hover,textarea:hover{border-color:#a98b78}input:focus,select:focus,textarea:focus{border-color:#654534;outline:3px solid rgba(101,69,52,.18);outline-offset:1px}a:focus-visible,button:focus-visible{outline:3px solid rgba(101,69,52,.35);outline-offset:3px}.shadow,.shadow-lg,.shadow-xl{box-shadow:0 14px 38px rgba(43,33,29,.09)}::selection{background:#ddd0c6;color:#2b211d}</style></head><body class="min-h-screen bg-gradient-to-br from-[#f6f1eb] via-[#fffcf8] to-[#e8ddd3] text-[#2b211d]">${body}</body></html>`;
-}
-
-async function getEvent(db: D1Database, code: string, includeDeleted = false) {
-  return db.prepare(`SELECT * FROM events WHERE code = ?${includeDeleted ? "" : " AND deleted_at IS NULL"}`).bind(code.toUpperCase()).first<EventRow>();
-}
-
-async function getMedia(db: D1Database, eventId: string, includeDeleted = false) {
-  const result = await db.prepare(`SELECT * FROM media WHERE event_id = ?${includeDeleted ? "" : " AND deleted_at IS NULL AND reported_at IS NULL"} ORDER BY COALESCE(captured_at, uploaded_at) ASC, uploaded_at ASC`).bind(eventId).all<MediaRow>();
-  return result.results;
-}
-
-async function purgeExpiredTrash(env: Bindings) {
-  const now = Date.now();
-  const expiredMedia = await env.DB.prepare("SELECT id,object_key FROM media WHERE purge_at IS NOT NULL AND purge_at<=? LIMIT 100").bind(now).all<{ id: string; object_key: string }>();
-  if (expiredMedia.results.length) {
-    await env.MEDIA.delete(expiredMedia.results.map((item) => item.object_key));
-    await env.DB.batch(expiredMedia.results.map((item) => env.DB.prepare("DELETE FROM media WHERE id=?").bind(item.id)));
-  }
-  const expiredEvents = await env.DB.prepare("SELECT id FROM events WHERE purge_at IS NOT NULL AND purge_at<=? LIMIT 25").bind(now).all<{ id: string }>();
-  for (const event of expiredEvents.results) {
-    const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?").bind(event.id).all<{ object_key: string }>();
-    if (objects.results.length) await env.MEDIA.delete(objects.results.map((item) => item.object_key));
-    await env.DB.prepare("DELETE FROM events WHERE id=?").bind(event.id).run();
-  }
 }
 
 function cards(items: MediaRow[], options?: { code?: string; locale?: Locale; selectable?: boolean; deferredSelection?: boolean; manage?: boolean; lightbox?: boolean; reportCode?: string }) {
