@@ -15,6 +15,7 @@ describe("global security middleware", () => {
     expect(response.headers.get("permissions-policy")).toContain("camera=()");
     expect(response.headers.get("permissions-policy")).toContain("geolocation=()");
     expect(response.headers.get("permissions-policy")).toContain("microphone=()");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.has("x-powered-by")).toBe(false);
   });
 

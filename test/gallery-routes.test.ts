@@ -105,6 +105,19 @@ describe("gallery, upload, and media routes", () => {
     expect(unlocked.headers.get("location")).toBe(`/gallery/${pinnedCode}?lang=en`);
     galleryCookie = unlocked.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
     expect(galleryCookie).toContain(`memboux_gallery_${pinnedCode.toLowerCase()}=`);
+    const maxAge = Number(unlocked.headers.get("set-cookie")?.match(/Max-Age=(\d+)/)?.[1]);
+    expect(maxAge).toBeGreaterThan(0);
+    expect(maxAge).toBeLessThanOrEqual(86_400);
+  });
+
+  it("does not unlock an expired event", async () => {
+    const response = await SELF.fetch(`https://memboux.com/gallery/${expiredCode}/unlock`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com" },
+      body: new URLSearchParams({ locale: "en", pin }),
+      redirect: "manual",
+    });
+    expect(response.status).toBe(410);
   });
 
   it("accepts the timing-safe gallery cookie after unlock", async () => {
@@ -151,6 +164,7 @@ describe("gallery, upload, and media routes", () => {
     expect(inline.status).toBe(200);
     expect(inline.headers.get("content-type")).toBe("image/jpeg");
     expect(inline.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(inline.headers.get("cache-control")).toBe("private, no-store");
     expect(new TextDecoder().decode(await inline.arrayBuffer())).toBe("public-image");
 
     const download = await SELF.fetch("https://memboux.com/media/public-stream-media?download=1");
@@ -190,5 +204,16 @@ describe("gallery, upload, and media routes", () => {
 
     const hidden = await SELF.fetch("https://memboux.com/media/public-report-media");
     expect(hidden.status).toBe(404);
+  });
+
+  it("requires gallery access before opening a PIN-protected removal flow", async () => {
+    const locked = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/removal/pinned-stream-media`);
+    expect(locked.status).toBe(401);
+
+    const unlocked = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/removal/pinned-stream-media`, {
+      headers: { Cookie: galleryCookie },
+    });
+    expect(unlocked.status).toBe(200);
+    expect(await unlocked.text()).toContain("Request photo removal");
   });
 });

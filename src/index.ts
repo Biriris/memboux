@@ -20,6 +20,12 @@ app.use("*", secureHeaders({
   },
 }));
 app.use("*", csrf());
+app.use("*", async (c, next) => {
+  await next();
+  if (c.res.headers.get("Content-Type")?.toLowerCase().startsWith("text/html")) {
+    c.header("Cache-Control", "private, no-store");
+  }
+});
 
 app.route("/", publicRoutes);
 app.route("/", accountRoutes);

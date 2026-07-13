@@ -23,9 +23,11 @@ async function hasGalleryAccess(request: Request, event: EventRow) {
 }
 
 galleryRoutes.post("/gallery/:code/unlock",async(c)=>{
-  const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));if(!event.gallery_pin_hash)return c.redirect(`/gallery/${event.code}?lang=${locale}`,303);
+  const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));
+  if(Date.now()>event.expires_at)return c.text(locale==="el"?"Το event έχει λήξει.":"This event has expired.",410);
+  if(!event.gallery_pin_hash)return c.redirect(`/gallery/${event.code}?lang=${locale}`,303);
   if(!constantTimeEqual(await sha256(String(body.pin??"")),event.gallery_pin_hash))return c.text(locale==="el"?"Λάθος PIN":"Incorrect PIN",401);
-  const token=await galleryAccessToken(event);return new Response(null,{status:303,headers:{Location:`/gallery/${event.code}?lang=${locale}`,"Set-Cookie":`${galleryCookieName(event.code)}=${token}; Path=/gallery/${event.code}; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`}});
+  const token=await galleryAccessToken(event);const maxAge=Math.max(0,Math.min(2592000,Math.floor((event.expires_at-Date.now())/1000)));return new Response(null,{status:303,headers:{Location:`/gallery/${event.code}?lang=${locale}`,"Set-Cookie":`${galleryCookieName(event.code)}=${token}; Path=/gallery/${event.code}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`}});
 });
 
 galleryRoutes.get("/gallery/:code", async (c) => {
@@ -42,6 +44,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
 galleryRoutes.get("/gallery/:code/removal/:mediaId", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);
+  if (!await hasGalleryAccess(c.req.raw, event)) return c.text("Gallery PIN required", 401);
   const media = await c.env.DB.prepare("SELECT id FROM media WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(c.req.param("mediaId"), event.id).first();
   if (!media) return c.text("Media not found", 404);
   return c.html(page("Request removal", `<main class="mx-auto flex min-h-screen max-w-xl items-center p-5"><section class="w-full rounded-3xl bg-white p-7 shadow-xl">${brandMark("/",true)}<p class="mt-7 text-xs uppercase tracking-[.2em] text-[#6e4f3e]">Privacy request</p><h1 class="mt-2 text-4xl">Request photo removal</h1><p class="mt-3 text-[#625750]">Use this form if you appear in this content or believe it infringes your privacy or rights. The event owner will receive the request for review.</p><form action="/gallery/${encodeURIComponent(event.code)}/removal/${encodeURIComponent(c.req.param("mediaId"))}" method="post" class="mt-6 space-y-4"><label class="block">Email<input name="email" type="email" required maxlength="254" class="mt-1 w-full rounded-xl border px-4 py-3"></label><label class="block">Reason<textarea name="reason" required minlength="10" maxlength="1000" rows="5" class="mt-1 w-full rounded-xl border px-4 py-3"></textarea></label><button class="w-full rounded-xl bg-[#654534] px-5 py-3 text-white">Submit removal request</button></form></section></main>`));
@@ -50,6 +53,7 @@ galleryRoutes.get("/gallery/:code/removal/:mediaId", async (c) => {
 galleryRoutes.post("/gallery/:code/removal/:mediaId", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);
+  if (!await hasGalleryAccess(c.req.raw, event)) return c.text("Gallery PIN required", 401);
   const media = await c.env.DB.prepare("SELECT id FROM media WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(c.req.param("mediaId"), event.id).first();
   if (!media) return c.text("Media not found", 404);
   const body = await c.req.parseBody();
@@ -82,7 +86,7 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
       const bytes=await file.arrayBuffer();const contentHash=await sha256Bytes(bytes);if(await c.env.DB.prepare("SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL").bind(event.id,contentHash).first())continue;
       let capturedAt:number|null=null;
       if(file.type.startsWith("image/"))try{const metadata=await parseMetadata(bytes,["DateTimeOriginal","CreateDate","ModifyDate"]);const value=metadata?.DateTimeOriginal??metadata?.CreateDate??metadata?.ModifyDate;const parsed=value instanceof Date?value.getTime():new Date(value).getTime();if(Number.isFinite(parsed)&&parsed>0&&parsed<=Date.now()+86400000)capturedAt=parsed;}catch{/* No readable metadata. */}
-      await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"public, max-age=31536000, immutable"}});uploadedKeys.push(objectKey);
+      await c.env.MEDIA.put(objectKey,bytes,{httpMetadata:{contentType:file.type,cacheControl:"private, no-store"}});uploadedKeys.push(objectKey);
       await c.env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)").bind(id,event.id,objectKey,file.type.startsWith("image/")?"image":"video",file.type,uploadedBy,Date.now(),capturedAt,contentHash,file.size).run();
     }
   }catch(error){if(uploadedKeys.length)await c.env.MEDIA.delete(uploadedKeys);if(uploadedKeys.length)await c.env.DB.batch(uploadedKeys.map(key=>c.env.DB.prepare("DELETE FROM media WHERE object_key=?").bind(key)));throw error;}
@@ -95,7 +99,7 @@ galleryRoutes.get("/media/:id", async (c) => {
   if(row.gallery_pin_hash){const expected=await sha256(`gallery-access:${row.event_id}:${row.gallery_pin_hash}`);if(!constantTimeEqual(cookieValue(c.req.raw,galleryCookieName(row.code))??"",expected)){const user=await currentUser(c);if(!user||!roleCan(await getEventRole(c.env.DB,row.event_id,user.id),"view"))return c.text("Private media",401);}}
   const object = await c.env.MEDIA.get(row.object_key);
   if (!object) return c.text("Το αρχείο δεν βρέθηκε.", 404);
-  const headers = new Headers({ "Content-Type": row.content_type, "Cache-Control": "public, max-age=31536000, immutable", "ETag": object.httpEtag, "X-Content-Type-Options": "nosniff" });
+  const headers = new Headers({ "Content-Type": row.content_type, "Cache-Control": "private, no-store", "ETag": object.httpEtag, "X-Content-Type-Options": "nosniff" });
   if (c.req.query("download") === "1") {
     const extension = row.content_type.split("/")[1]?.replace("jpeg", "jpg").replace("quicktime", "mov") || (row.media_type === "image" ? "jpg" : "mp4");
     const date = new Date(row.captured_at ?? row.uploaded_at).toISOString().slice(0, 10);
