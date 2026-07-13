@@ -1,52 +1,21 @@
 import { Hono } from "hono";
-import { createAuth, sendEmail, type AuthEnv } from "./auth";
+import { createAuth, sendEmail } from "./auth";
 import { normalizeLocale, t, type Locale } from "./i18n";
+import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, TRASH_RETENTION_MS } from "./config";
+import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
+import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
 
-type Bindings = AuthEnv & { MEDIA: R2Bucket; ADMIN_PASSWORD?: string };
-type EventRow = { id: string; code: string; eventName: string; admin_token_hash: string; created_at: number; expires_at: number; status: "active" | "archived"; notes: string; updated_at: number | null; default_locale: Locale; event_start_date: string | null; event_end_date: string | null; gallery_pin_hash: string | null; deleted_at: number | null; purge_at: number | null };
-type MediaRow = { id: string; event_id: string; object_key: string; media_type: "image" | "video"; content_type: string; uploaded_by: string; uploaded_at: number; captured_at: number | null; content_hash: string | null; reported_at: number | null; size_bytes: number; title: string | null; deleted_at: number | null; purge_at: number | null };
-type EventMemberRow = { user_id: string; name: string; email: string; role: "owner" | "editor" | "viewer"; created_at: number };
-type EventInvitationRow = { id: string; email: string; role: "editor" | "viewer"; created_at: number; expires_at: number };
-
 const app = new Hono<{ Bindings: Bindings }>();
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const MAX_UPLOAD_FILES = 20;
-const MAX_UPLOAD_TOTAL_SIZE = 80 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"]);
-const ADMIN_COOKIE = "memboux_admin";
-const TRASH_RETENTION_MS = 30 * 86400000;
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   const auth = createAuth(c.env, (promise) => c.executionCtx.waitUntil(promise));
   return auth.handler(c.req.raw);
 });
 
-const esc = (value: unknown) => String(value ?? "").replace(/[&<>'\"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[ch]!));
-const randomCode = () => crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
-const sha256 = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))).map((b) => b.toString(16).padStart(2, "0")).join("");
-const sha256Bytes = async (value: ArrayBuffer) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", value))).map(byte=>byte.toString(16).padStart(2,"0")).join("");
-const cookieValue = (request: Request, name: string) => (request.headers.get("Cookie") ?? "").split(";").map(part=>part.trim()).find(part=>part.startsWith(`${name}=`))?.slice(name.length+1);
 const galleryCookieName = (code: string) => `memboux_gallery_${code.toLowerCase()}`;
 const galleryAccessToken = (event: EventRow) => sha256(`gallery-access:${event.id}:${event.gallery_pin_hash}`);
-const dateInput = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("en-GB", { day:"2-digit",month:"2-digit",year:"2-digit",timeZone:"Europe/Athens" }).format(new Date(timestamp));
-const formatDateTime = (timestamp: number, _locale: Locale) => new Intl.DateTimeFormat("en-GB", { day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23",timeZone:"Europe/Athens" }).format(new Date(timestamp));
-const formatIsoDate = (value:string) => `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(2,4)}`;
-const validEventDate = (value: unknown) => {
-  const date = String(value ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const parsed = new Date(`${date}T00:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? date : null;
-};
-const formatEventDates = (event: EventRow, locale: Locale) => {
-  if (!event.event_start_date) return locale === "el" ? "Δεν ορίστηκε ημερομηνία" : "Date not set";
-  const start = formatIsoDate(event.event_start_date);
-  if (!event.event_end_date || event.event_end_date === event.event_start_date) return start;
-  const end = formatIsoDate(event.event_end_date);
-  return `${start} – ${end}`;
-};
 
 async function adminSession(password: string) {
   return sha256(`memboux-admin-session:${password}`);
