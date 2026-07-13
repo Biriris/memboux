@@ -23,7 +23,7 @@ import {
   validEventDate,
 } from "../utils";
 import { adminLocale, adminShell } from "../views/admin";
-import { cards, lightboxMarkup } from "../views/media";
+import { bulkSelectionScript, cards, lightboxMarkup } from "../views/media";
 import { page } from "../views/shared";
 
 export const adminRoutes = new Hono<{ Bindings: Bindings }>();
@@ -167,7 +167,32 @@ adminRoutes.get("/admin/reported", async (c) => {
         `<article class="selectable-media relative overflow-hidden rounded-2xl border bg-white shadow-sm transition"><label class="media-selector absolute inset-0 z-20 hidden cursor-pointer"><input type="checkbox" class="media-select sr-only" value="${esc(item.id)}"><span class="selection-tick absolute left-3 top-3 hidden h-8 w-8 items-center justify-center rounded-full bg-[#654534] text-white shadow">✓</span></label><button type="button" class="lightbox-item block aspect-square w-full bg-[#e8ddd3]" data-src="/admin/media/${encodeURIComponent(item.id)}" data-type="${item.media_type}">${item.media_type === "image" ? `<img src="/admin/media/${encodeURIComponent(item.id)}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<video src="/admin/media/${encodeURIComponent(item.id)}" muted preload="metadata" class="h-full w-full object-cover"></video>`}</button><div class="p-4"><h2 class="truncate text-xl">${esc(item.eventName)}</h2><p class="mt-1 truncate text-xs text-[#625750]">${esc(item.requester_email ?? "")}</p><p class="mt-2 line-clamp-3 text-sm">${esc(item.reason ?? "")}</p><p class="mt-2 text-xs text-red-700">Reported ${formatDateTime(item.reported_at, "el")}</p></div></article>`,
     )
     .join("");
-  const script = `<script>const select=document.getElementById('reported-select'),restore=document.getElementById('reported-restore'),remove=document.getElementById('reported-delete'),selectors=[...document.querySelectorAll('.media-selector')],selected=()=>[...document.querySelectorAll('.media-select:checked')];let mode=false;const refresh=()=>{document.querySelectorAll('.selectable-media').forEach(card=>{const checked=card.querySelector('.media-select')?.checked;card.classList.toggle('ring-4',!!checked);card.classList.toggle('ring-[#8b6250]',!!checked);card.classList.toggle('brightness-75',!!checked);const tick=card.querySelector('.selection-tick');if(tick){tick.classList.toggle('hidden',!checked);tick.classList.toggle('flex',!!checked)}});const count=selected().length;restore.textContent='Restore selected ('+count+')';remove.textContent='Delete selected ('+count+')'};select.onclick=()=>{mode=!mode;selectors.forEach(x=>x.classList.toggle('hidden',!mode));restore.classList.toggle('hidden',!mode);remove.classList.toggle('hidden',!mode);select.textContent=mode?'Cancel':'Select';if(!mode){document.querySelectorAll('.media-select').forEach(x=>x.checked=false);refresh()}};document.querySelectorAll('.media-select').forEach(x=>x.onchange=refresh);const submit=(formId,inputId)=>{const ids=selected().map(x=>x.value);if(ids.length){document.getElementById(inputId).value=ids.join(',');document.getElementById(formId).submit()}};restore.onclick=()=>submit('reported-restore-form','reported-restore-ids');remove.onclick=()=>{if(confirm('Move selected reported media to trash?'))submit('reported-delete-form','reported-delete-ids')}<\/script>`;
+  const script = bulkSelectionScript({
+    selectButtonId: "reported-select",
+    cardSelector: ".selectable-media",
+    selectorSelector: ".media-selector",
+    checkboxSelector: ".media-select",
+    tickSelector: ".selection-tick",
+    selectText: locale === "el" ? "Επιλογή" : "Select",
+    cancelText: locale === "el" ? "Ακύρωση" : "Cancel",
+    actions: [
+      {
+        buttonId: "reported-restore",
+        label: locale === "el" ? "Επαναφορά επιλεγμένων" : "Restore selected",
+        kind: "submit",
+        formId: "reported-restore-form",
+        inputId: "reported-restore-ids",
+      },
+      {
+        buttonId: "reported-delete",
+        label: locale === "el" ? "Διαγραφή επιλεγμένων" : "Delete selected",
+        kind: "submit",
+        formId: "reported-delete-form",
+        inputId: "reported-delete-ids",
+        confirmMessage: locale === "el" ? "Μεταφορά των επιλεγμένων reported media στον κάδο;" : "Move selected reported media to trash?",
+      },
+    ],
+  });
   return c.html(
     adminShell(
       "Reported",
@@ -280,7 +305,32 @@ adminRoutes.get("/admin/trash", async (c) => {
         `<article class="trash-selectable group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"><label class="trash-selector absolute inset-0 z-20 hidden cursor-pointer"><input type="checkbox" class="trash-select sr-only" value="${esc(item.id)}"><span class="trash-tick absolute left-3 top-3 hidden h-9 w-9 items-center justify-center rounded-full bg-[#654534] text-white shadow-lg">✓</span></label><button type="button" class="lightbox-item relative block aspect-square w-full overflow-hidden bg-[#e8ddd3]" data-src="/admin/media/${encodeURIComponent(item.id)}" data-type="${item.media_type}" aria-label="${locale === "el" ? "Προεπισκόπηση διαγραμμένου αρχείου" : "Preview deleted media"}">${item.media_type === "image" ? `<img src="/admin/media/${encodeURIComponent(item.id)}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]">` : `<video src="/admin/media/${encodeURIComponent(item.id)}" muted preload="metadata" class="h-full w-full object-cover"></video>`}<span class="absolute right-3 top-3 rounded-full bg-black/65 px-3 py-1 text-xs text-white">${item.media_type === "image" ? "Image" : "Video"}</span><span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-3 pt-10 text-left text-sm text-white">${locale === "el" ? "Πάτησε για preview" : "Open preview"}</span></button><div class="p-4"><h2 class="truncate text-lg">${esc(item.eventName)}</h2><p class="mt-1 text-xs text-[#625750]">${locale === "el" ? "Διαγράφηκε" : "Deleted"} ${formatDateTime(item.deleted_at, locale)}</p><p class="mt-1 text-xs text-red-700">${locale === "el" ? "Οριστική διαγραφή" : "Permanent deletion"} ${formatDateTime(item.purge_at, locale)}</p></div></article>`,
     )
     .join("");
-  const trashScript = `<script>const select=document.getElementById('trash-select'),restore=document.getElementById('trash-restore'),remove=document.getElementById('trash-delete'),selectors=[...document.querySelectorAll('.trash-selector')],selected=()=>[...document.querySelectorAll('.trash-select:checked')];let mode=false;const refresh=()=>{document.querySelectorAll('.trash-selectable').forEach(card=>{const checked=card.querySelector('.trash-select')?.checked;card.classList.toggle('ring-4',!!checked);card.classList.toggle('ring-[#8b6250]',!!checked);card.classList.toggle('brightness-75',!!checked);const tick=card.querySelector('.trash-tick');if(tick){tick.classList.toggle('hidden',!checked);tick.classList.toggle('flex',!!checked)}});const count=selected().length;restore.textContent=${JSON.stringify(locale === "el" ? "Επαναφορά επιλεγμένων" : "Restore selected")}+' ('+count+')';remove.textContent=${JSON.stringify(locale === "el" ? "Οριστική διαγραφή" : "Delete permanently")}+' ('+count+')'};select.onclick=()=>{mode=!mode;selectors.forEach(x=>x.classList.toggle('hidden',!mode));restore.classList.toggle('hidden',!mode);remove.classList.toggle('hidden',!mode);select.textContent=mode?${JSON.stringify(locale === "el" ? "Ακύρωση" : "Cancel")}:${JSON.stringify(locale === "el" ? "Επιλογή" : "Select")};if(!mode){document.querySelectorAll('.trash-select').forEach(x=>x.checked=false);refresh()}};document.querySelectorAll('.trash-select').forEach(x=>x.onchange=refresh);const submit=(formId,inputId)=>{const ids=selected().map(x=>x.value);if(ids.length){document.getElementById(inputId).value=ids.join(',');document.getElementById(formId).submit()}};restore.onclick=()=>submit('trash-restore-form','trash-restore-ids');remove.onclick=()=>{if(confirm(${JSON.stringify(locale === "el" ? "Οριστική διαγραφή των επιλεγμένων αρχείων;" : "Permanently delete selected files?")}))submit('trash-delete-form','trash-delete-ids')}<\/script>`;
+  const trashScript = bulkSelectionScript({
+    selectButtonId: "trash-select",
+    cardSelector: ".trash-selectable",
+    selectorSelector: ".trash-selector",
+    checkboxSelector: ".trash-select",
+    tickSelector: ".trash-tick",
+    selectText: locale === "el" ? "Επιλογή" : "Select",
+    cancelText: locale === "el" ? "Ακύρωση" : "Cancel",
+    actions: [
+      {
+        buttonId: "trash-restore",
+        label: locale === "el" ? "Επαναφορά επιλεγμένων" : "Restore selected",
+        kind: "submit",
+        formId: "trash-restore-form",
+        inputId: "trash-restore-ids",
+      },
+      {
+        buttonId: "trash-delete",
+        label: locale === "el" ? "Οριστική διαγραφή" : "Delete permanently",
+        kind: "submit",
+        formId: "trash-delete-form",
+        inputId: "trash-delete-ids",
+        confirmMessage: locale === "el" ? "Οριστική διαγραφή των επιλεγμένων αρχείων;" : "Permanently delete selected files?",
+      },
+    ],
+  });
   return c.html(
     adminShell(
       locale === "el" ? "Κάδος" : "Trash",
@@ -547,7 +597,30 @@ adminRoutes.get("/admin/events/:code", async (c) => {
   if (!event) return c.text("Το event δεν βρέθηκε.", 404);
   const items = await getMedia(c.env.DB, event.id);
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
-  const adminMediaScript = `<script>const adminSelectButton=document.getElementById('admin-select-media'),adminDownloadButton=document.getElementById('admin-download-selected'),adminDeleteButton=document.getElementById('admin-delete-selected'),adminSelectors=[...document.querySelectorAll('.media-selector')],adminSelected=()=>[...document.querySelectorAll('.media-select:checked')];let adminSelectionMode=false;const adminRefresh=()=>{document.querySelectorAll('.selectable-media').forEach(card=>{const checked=card.querySelector('.media-select')?.checked;card.classList.toggle('ring-4',!!checked);card.classList.toggle('ring-[#8b6250]',!!checked);card.classList.toggle('brightness-75',!!checked);const tick=card.querySelector('.selection-tick');if(tick){tick.classList.toggle('hidden',!checked);tick.classList.toggle('flex',!!checked)}});const count=adminSelected().length;adminDownloadButton.textContent='Download selected ('+count+')';adminDeleteButton.textContent='Delete selected ('+count+')'};adminSelectButton.onclick=()=>{adminSelectionMode=!adminSelectionMode;adminSelectors.forEach(selector=>selector.classList.toggle('hidden',!adminSelectionMode));adminDownloadButton.classList.toggle('hidden',!adminSelectionMode);adminDeleteButton.classList.toggle('hidden',!adminSelectionMode);adminSelectButton.textContent=adminSelectionMode?'Cancel':'Select';if(!adminSelectionMode){document.querySelectorAll('.media-select').forEach(box=>box.checked=false);adminRefresh()}};document.querySelectorAll('.media-select').forEach(box=>box.onchange=adminRefresh);adminDownloadButton.onclick=()=>adminSelected().forEach((box,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=box.dataset.download;a.download='';a.click()},i*250));adminDeleteButton.onclick=()=>{const ids=adminSelected().map(box=>box.value);if(ids.length&&confirm('Move selected media to trash?')){document.getElementById('admin-media-ids').value=ids.join(',');document.getElementById('admin-bulk-media').submit()}}<\/script>`;
+  const adminMediaScript = bulkSelectionScript({
+    selectButtonId: "admin-select-media",
+    cardSelector: ".selectable-media",
+    selectorSelector: ".media-selector",
+    checkboxSelector: ".media-select",
+    tickSelector: ".selection-tick",
+    selectText: locale === "el" ? "Επιλογή" : "Select",
+    cancelText: locale === "el" ? "Ακύρωση" : "Cancel",
+    actions: [
+      {
+        buttonId: "admin-download-selected",
+        label: locale === "el" ? "Λήψη επιλεγμένων" : "Download selected",
+        kind: "download",
+      },
+      {
+        buttonId: "admin-delete-selected",
+        label: locale === "el" ? "Διαγραφή επιλεγμένων" : "Delete selected",
+        kind: "submit",
+        formId: "admin-bulk-media",
+        inputId: "admin-media-ids",
+        confirmMessage: locale === "el" ? "Μεταφορά των επιλεγμένων media στον κάδο;" : "Move selected media to trash?",
+      },
+    ],
+  });
   return c.html(
     adminShell(
       event.eventName,
