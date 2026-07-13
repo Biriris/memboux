@@ -49,6 +49,14 @@ async function isAdmin(c: {
   );
 }
 
+async function adminLocaleOrRedirect(c: {
+  env: Bindings;
+  req: { header(name: string): string | undefined; raw: Request };
+}) {
+  if (!(await isAdmin(c))) return null;
+  return adminLocale(c.req.raw);
+}
+
 adminRoutes.get("/admin/login", async (c) => {
   if (await isAdmin(c)) return c.redirect("/admin");
   const configured = Boolean(c.env.ADMIN_PASSWORD);
@@ -140,8 +148,8 @@ adminRoutes.get("/admin/media/:id", async (c) => {
 });
 
 adminRoutes.get("/admin/reported", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const media = await c.env.DB.prepare(
     `SELECT m.id,m.media_type,m.reported_at,e.eventName,e.code,(SELECT requester_email FROM media_removal_requests r WHERE r.media_id=m.id AND r.status='pending' ORDER BY r.created_at DESC LIMIT 1) requester_email,(SELECT reason FROM media_removal_requests r WHERE r.media_id=m.id AND r.status='pending' ORDER BY r.created_at DESC LIMIT 1) reason FROM media m JOIN events e ON e.id=m.event_id WHERE m.reported_at IS NOT NULL AND m.deleted_at IS NULL ORDER BY m.reported_at DESC`,
   ).all<{
@@ -170,8 +178,8 @@ adminRoutes.get("/admin/reported", async (c) => {
 });
 
 adminRoutes.get("/admin/privacy-requests", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const status = ["pending", "resolved", "dismissed"].includes(
     c.req.query("status") ?? "",
   )
@@ -254,8 +262,8 @@ adminRoutes.post("/admin/reported/:action{restore|trash}", async (c) => {
 });
 
 adminRoutes.get("/admin/trash", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const media = await c.env.DB.prepare(
     "SELECT m.id,m.media_type,m.deleted_at,m.purge_at,e.eventName,e.code FROM media m JOIN events e ON e.id=m.event_id WHERE m.deleted_at IS NOT NULL ORDER BY m.purge_at ASC",
   ).all<{
@@ -317,8 +325,8 @@ adminRoutes.post("/admin/events/:code/media/:id/restore", async (c) => {
 });
 
 adminRoutes.get("/admin/readiness", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const readiness = getLaunchReadiness(c.env);
   const rows = readiness.checks
     .map(
@@ -336,8 +344,8 @@ adminRoutes.get("/admin/readiness", async (c) => {
 });
 
 adminRoutes.get("/admin/professionals", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const users = await c.env.DB.prepare(
     `SELECT u.id,u.name,u.email,p.business_name,p.slug,p.bio,p.website,p.status FROM "user" u LEFT JOIN professional_profiles p ON p.user_id=u.id ORDER BY CASE WHEN p.user_id IS NULL THEN 1 ELSE 0 END,p.business_name,u.name`,
   ).all<{
@@ -419,8 +427,8 @@ adminRoutes.post("/admin/professionals/:userId", async (c) => {
 });
 
 adminRoutes.get("/admin/accounts", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const query = (c.req.query("q") ?? "").trim().slice(0, 100);
   const accounts = await c.env.DB.prepare(
     `SELECT u.id,u.name,u.email,COALESCE(ae.plan_key,'beta') plan_key,COALESCE(ae.storage_limit_bytes,21474836480) storage_limit_bytes,COALESCE(ae.event_limit,25) event_limit,COALESCE(ae.member_limit,25) member_limit,COALESCE(su.used_bytes,0) used_bytes,(SELECT COUNT(*) FROM event_members em JOIN events e ON e.id=em.event_id WHERE em.user_id=u.id AND em.role='owner' AND e.deleted_at IS NULL) event_count FROM "user" u LEFT JOIN account_entitlements ae ON ae.user_id=u.id LEFT JOIN account_storage_usage su ON su.user_id=u.id WHERE (?='' OR u.name LIKE ? OR u.email LIKE ?) ORDER BY u.createdAt DESC LIMIT 250`,
@@ -491,8 +499,8 @@ adminRoutes.post("/admin/accounts/:id/entitlement", async (c) => {
 });
 
 adminRoutes.get("/admin", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const query = (c.req.query("q") ?? "").trim().slice(0, 100);
   const status =
     c.req.query("status") === "archived"
@@ -533,8 +541,8 @@ adminRoutes.get("/admin", async (c) => {
 });
 
 adminRoutes.get("/admin/events/:code", async (c) => {
-  if (!(await isAdmin(c))) return c.redirect("/admin/login");
-  const locale = adminLocale(c.req.raw);
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Το event δεν βρέθηκε.", 404);
   const items = await getMedia(c.env.DB, event.id);
