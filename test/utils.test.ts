@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventRow } from "../src/domain";
-import { cookieValue, esc, formatDate, formatDateTime, formatEventDates, sha256, sha256Bytes, validEventDate } from "../src/utils";
+import { constantTimeEqual, cookieValue, esc, formatDate, formatDateTime, formatEventDates, secureSecretEqual, sha256, sha256Bytes, validEventDate } from "../src/utils";
 
 const event = (overrides: Partial<EventRow> = {}): EventRow => ({
   id: "event-1",
@@ -42,6 +42,17 @@ describe("cryptographic hashes", () => {
   it("hashes bytes independently of filenames", async () => {
     const bytes = new TextEncoder().encode("same media bytes").buffer;
     expect(await sha256Bytes(bytes)).toBe(await sha256("same media bytes"));
+  });
+
+  it("compares fixed-length values with the Workers timing-safe primitive", () => {
+    expect(constantTimeEqual("same-value", "same-value")).toBe(true);
+    expect(constantTimeEqual("same-value", "other-val!")).toBe(false);
+    expect(constantTimeEqual("short", "longer-value")).toBe(false);
+  });
+
+  it("compares secrets without exposing their original length", async () => {
+    expect(await secureSecretEqual("correct secret", "correct secret")).toBe(true);
+    expect(await secureSecretEqual("short", "a much longer secret")).toBe(false);
   });
 });
 

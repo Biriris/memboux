@@ -16,6 +16,19 @@ export async function sha256(value: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export function constantTimeEqual(left: string, right: string) {
+  const encoder = new TextEncoder();
+  const leftBytes = encoder.encode(left);
+  const rightBytes = encoder.encode(right);
+  if (leftBytes.byteLength !== rightBytes.byteLength) return false;
+  return crypto.subtle.timingSafeEqual(leftBytes, rightBytes);
+}
+
+export async function secureSecretEqual(left: string, right: string) {
+  const [leftHash, rightHash] = await Promise.all([sha256(left), sha256(right)]);
+  return constantTimeEqual(leftHash, rightHash);
+}
+
 export async function sha256Bytes(value: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", value);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
