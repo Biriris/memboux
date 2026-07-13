@@ -5,6 +5,7 @@ import { secureHeaders } from "hono/secure-headers";
 import type { Bindings } from "./domain";
 import { purgeExpiredTrash } from "./repositories";
 import { accountRoutes } from "./routes/account";
+import { accountTrashRoutes } from "./routes/account-trash";
 import { adminRoutes } from "./routes/admin";
 import { adminMediaRoutes } from "./routes/admin-media";
 import { adminEventRoutes } from "./routes/admin-events";
@@ -34,6 +35,7 @@ app.use("*", async (c, next) => {
 
 app.route("/", publicRoutes);
 app.route("/", accountRoutes);
+app.route("/", accountTrashRoutes);
 app.route("/", adminRoutes);
 app.route("/", adminMediaRoutes);
 app.route("/", adminEventRoutes);
