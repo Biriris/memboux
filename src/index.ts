@@ -5,6 +5,7 @@ import { normalizeLocale, t, type Locale } from "./i18n";
 import { ADMIN_COOKIE, ALLOWED_TYPES, MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, TRASH_RETENTION_MS } from "./config";
 import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow } from "./domain";
 import { getEvent, getMedia, purgeExpiredTrash } from "./repositories";
+import { acceptPendingInvitations, createOrReplaceInvitation, normalizeInviteRole } from "./invitations";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import QRCode from "qrcode";
 import { parse as parseMetadata } from "exifr";
@@ -151,10 +152,7 @@ app.get("/:locale{el|en}/account", async (c) => {
   if (!user) return c.redirect(`/${locale}/login`);
   await purgeExpiredTrash(c.env);
   const now = Date.now();
-  await c.env.DB.batch([
-    c.env.DB.prepare(`INSERT OR IGNORE INTO event_members (event_id,user_id,role,created_at) SELECT event_id,?,role,? FROM event_invitations WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(user.id,now,user.email,now),
-    c.env.DB.prepare(`UPDATE event_invitations SET accepted_at=? WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(now,user.email,now),
-  ]);
+  await acceptPendingInvitations(c.env.DB,user,now);
   const query = (c.req.query("q") ?? "").trim().slice(0,100);
   const filter = ["all","owner","shared","upcoming","past"].includes(c.req.query("filter") ?? "") ? c.req.query("filter")! : "all";
   const sort = ["date_asc","date_desc","name_asc","name_desc","created_desc"].includes(c.req.query("sort") ?? "") ? c.req.query("sort")! : "date_desc";
@@ -177,13 +175,7 @@ app.get("/:locale{el|en}/account-legacy", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   const now = Date.now();
-  await c.env.DB.batch([
-    c.env.DB.prepare(`INSERT OR IGNORE INTO event_members (event_id,user_id,role,created_at)
-      SELECT event_id, ?, role, ? FROM event_invitations
-      WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(user.id, now, user.email, now),
-    c.env.DB.prepare(`UPDATE event_invitations SET accepted_at=?
-      WHERE lower(email)=lower(?) AND accepted_at IS NULL AND expires_at>?`).bind(now, user.email, now),
-  ]);
+  await acceptPendingInvitations(c.env.DB,user,now);
   const events = await c.env.DB.prepare(`SELECT e.*, em.role, COUNT(md.id) media_count FROM event_members em JOIN events e ON e.id=em.event_id LEFT JOIN media md ON md.event_id=e.id WHERE em.user_id=? GROUP BY e.id, em.role ORDER BY e.created_at DESC`).bind(user.id).all<EventRow & { role: string; media_count: number }>();
   const list = events.results.map((event) => `<a href="/dashboard/${event.code}?lang=${locale}" class="rounded-2xl border bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><span class="rounded-full bg-[#eee4dc] px-2.5 py-1 text-xs font-medium text-[#654534]">${event.role === "owner" ? (locale === "el" ? "Ιδιοκτήτης" : "Owner") : (locale === "el" ? "Συνεργάτης" : "Collaborator")}</span></div><h2 class="mt-1 text-xl font-bold">${esc(event.eventName)}</h2><p class="mt-2 text-sm font-medium text-[#654534]">${esc(formatEventDates(event, locale))}</p><p class="mt-2 text-sm text-[#625750]">${event.media_count} uploads</p></a>`).join("");
   return c.html(page(m.dashboard, `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-3"><span class="hidden text-sm text-[#625750] md:inline">${esc(user.email)}</span><button id="logout" class="rounded-xl border px-4 py-2 text-sm font-semibold">${m.logout}</button></div></div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-[.2em] text-[#6e4f3e]">Dashboard</p><h1 class="mt-1 text-4xl font-bold">${m.dashboard}</h1></div></div><form action="/api/account/events" method="post" class="mt-8 grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-2"><input type="hidden" name="locale" value="${locale}"><label class="md:col-span-2"><span class="mb-1 block text-sm font-medium">${m.eventName}</span><input name="eventName" required maxlength="100" placeholder="${m.eventName}" class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${locale === "el" ? "Ημερομηνία έναρξης" : "Start date"}</span><input name="eventStartDate" type="date" required class="w-full rounded-xl border px-4 py-3"></label><label><span class="mb-1 block text-sm font-medium">${locale === "el" ? "Ημερομηνία λήξης (προαιρετικά)" : "End date (optional)"}</span><input name="eventEndDate" type="date" class="w-full rounded-xl border px-4 py-3"></label><button class="rounded-xl bg-[#6e4f3e] px-5 py-3 font-semibold text-white md:col-span-2">${m.createEvent}</button></form><div class="mt-6 grid gap-4 md:grid-cols-2">${list || `<div class="rounded-2xl bg-white p-10 text-center text-[#625750]">${locale === "el" ? "Δεν έχεις events ακόμη." : "You don't have any events yet."}</div>`}</div></main><script>const logoutButton=document.getElementById('logout');logoutButton.onclick=async()=>{logoutButton.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok){logoutButton.disabled=false;alert(${JSON.stringify(locale === "el" ? "Η αποσύνδεση απέτυχε. Δοκίμασε ξανά." : "Sign out failed. Please try again.")});return}location.replace('/${locale}')}<\/script>`));
@@ -512,7 +504,7 @@ app.post("/api/account/events/:code/invite", async (c) => {
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const email = String(body.email ?? "").trim().toLowerCase().slice(0, 254);
-  const role: "editor" | "viewer" = body.role === "viewer" ? "viewer" : "editor";
+  const role = normalizeInviteRole(body.role);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.text("Invalid email", 400);
   if (email === user.email.toLowerCase()) return c.text(locale === "el" ? "Είσαι ήδη ο ιδιοκτήτης αυτού του event." : "You already own this event.", 400);
   const existingUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE lower(email)=lower(?)`).bind(email).first<{ id: string }>();
@@ -522,10 +514,7 @@ app.post("/api/account/events/:code/invite", async (c) => {
   }
   const invitationId = crypto.randomUUID();
   const now = Date.now();
-  await c.env.DB.prepare(`INSERT INTO event_invitations (id,event_id,email,role,invited_by,created_at,expires_at,accepted_at)
-    VALUES (?,?,?,?,?,?,?,NULL)
-    ON CONFLICT(event_id,email) DO UPDATE SET id=excluded.id,role=excluded.role,invited_by=excluded.invited_by,created_at=excluded.created_at,expires_at=excluded.expires_at,accepted_at=NULL`)
-    .bind(invitationId, event.id, email, role, user.id, now, now + 14 * 86400000).run();
+  await createOrReplaceInvitation(c.env.DB,{id:invitationId,eventId:event.id,email,role,invitedBy:user.id,createdAt:now,expiresAt:now+14*86400000});
   const accountUrl = `https://memboux.com/${locale}/account`;
   const subject = locale === "el" ? `Πρόσκληση στο event ${event.eventName}` : `Invitation to ${event.eventName}`;
   const roleLabel=locale==="el"?(role==="editor"?"διαχειριστής":"θεατής"):(role==="editor"?"manager":"viewer");
