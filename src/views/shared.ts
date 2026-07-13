@@ -40,7 +40,24 @@ export function accountMenu(locale: Locale, user: { name: string; email: string 
     : { events: "My events", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
   const item = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-[#f6f1eb]"><span aria-hidden="true">${icon}</span>${label}</a>`;
 
-  return `<div class="group relative"><button type="button" aria-haspopup="menu" class="flex items-center gap-2 rounded-xl border px-3 py-2"><span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8ddd3] font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span><span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span><span aria-hidden="true" class="text-xs">⌄</span></button><div role="menu" class="invisible absolute right-0 z-30 mt-0 w-60 translate-y-1 rounded-2xl border bg-white p-2 opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"><p class="truncate px-3 py-2 text-xs text-[#625750]">${esc(user.email)}</p>${item(`/${locale}/account`, "▦", labels.events)}${item(`/studio?lang=${locale}`, "◆", labels.studio)}${item(`/${locale}/profile`, "○", labels.profile)}${item(`/${locale}/security`, "◇", labels.security)}${item(`/${locale}/plan`, "◈", labels.plan)}${item(`/${locale}/privacy`, "◌", labels.privacy)}${item(`/${locale}/trash`, "♲", labels.trash)}<button type="button" data-logout class="mt-1 w-full rounded-xl border-t px-3 py-3 text-left text-sm text-red-700 hover:bg-red-50">${labels.signOut}</button></div></div>`;
+  return `<details class="relative">
+    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl border px-3 py-2 outline-none transition hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[#8b6250]/30">
+      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8ddd3] font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span>
+      <span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span>
+      <span aria-hidden="true" class="text-xs">⌄</span>
+    </summary>
+    <div role="menu" class="absolute right-0 z-30 mt-2 w-60 rounded-2xl border border-[#e5d8cf] bg-white p-2 text-[#2b211d] shadow-2xl">
+      <p class="truncate px-3 py-2 text-xs text-[#625750]">${esc(user.email)}</p>
+      ${item(`/${locale}/account`, "▦", labels.events)}
+      ${item(`/studio?lang=${locale}`, "◆", labels.studio)}
+      ${item(`/${locale}/profile`, "○", labels.profile)}
+      ${item(`/${locale}/security`, "◇", labels.security)}
+      ${item(`/${locale}/plan`, "◈", labels.plan)}
+      ${item(`/${locale}/privacy`, "◌", labels.privacy)}
+      ${item(`/${locale}/trash`, "♲", labels.trash)}
+      <button type="button" data-logout class="mt-1 w-full rounded-xl border-t px-3 py-3 text-left text-sm text-red-700 hover:bg-red-50">${labels.signOut}</button>
+    </div>
+  </details>`;
 }
 
 export const logoutScript = (locale: Locale) => `<script>document.querySelectorAll('[data-logout]').forEach(button=>button.onclick=async()=>{button.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(response.ok)location.replace('/${locale}');else button.disabled=false})<\/script>`;
