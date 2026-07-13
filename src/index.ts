@@ -6,6 +6,7 @@ import type { Bindings } from "./domain";
 import { purgeExpiredTrash } from "./repositories";
 import { accountRoutes } from "./routes/account";
 import { adminRoutes } from "./routes/admin";
+import { adminMediaRoutes } from "./routes/admin-media";
 import { eventRoutes } from "./routes/events";
 import { galleryRoutes } from "./routes/gallery";
 import { publicRoutes } from "./routes/public";
@@ -31,6 +32,7 @@ app.use("*", async (c, next) => {
 app.route("/", publicRoutes);
 app.route("/", accountRoutes);
 app.route("/", adminRoutes);
+app.route("/", adminMediaRoutes);
 app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
 app.route("/", studioRoutes);
