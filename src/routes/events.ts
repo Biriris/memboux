@@ -8,7 +8,7 @@ import { normalizeLocale } from "../i18n";
 import { createOrReplaceInvitation, normalizeInviteRole } from "../invitations";
 import { getEvent, getMedia } from "../repositories";
 import { currentUser } from "../session";
-import { esc, formatDateTime, formatEventDates, sha256, validEventDate } from "../utils";
+import { constantTimeEqual, esc, formatDateTime, formatEventDates, sha256, validEventDate } from "../utils";
 import { cards, galleryFilterControls, galleryFilterScript, lightboxMarkup } from "../views/media";
 import { shareIconButtons } from "../views/share";
 import { accountMenu, brandMark, logoutScript, page } from "../views/shared";
@@ -47,7 +47,7 @@ eventRoutes.get("/dashboard/:code/manage-legacy", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text(locale === "el" ? "Το event δεν βρέθηκε." : "Event not found.", 404);
   const token = c.req.query("token") ?? "";
-  let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
+  let allowed = Boolean(token && constantTimeEqual(await sha256(token), event.admin_token_hash));
   const user = await currentUser(c);
   const membership = user ? await getEventRole(c.env.DB, event.id, user.id) : null;
   if (!allowed) allowed = Boolean(membership);
@@ -204,7 +204,7 @@ eventRoutes.get("/dashboard-legacy/:code", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
   const token = c.req.query("token") ?? "";
-  let allowed = Boolean(token && await sha256(token) === event.admin_token_hash);
+  let allowed = Boolean(token && constantTimeEqual(await sha256(token), event.admin_token_hash));
   if (!allowed) {
     const user = await currentUser(c);
     if (user) allowed = roleCan(await getEventRole(c.env.DB,event.id,user.id),"view");

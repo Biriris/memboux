@@ -36,6 +36,7 @@ describe("admin route boundaries", () => {
   it("clears the admin cookie during logout", async () => {
     const response = await SELF.fetch("https://memboux.com/admin/logout", {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       redirect: "manual",
     });
 

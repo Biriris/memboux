@@ -1,4 +1,7 @@
 import { Hono } from "hono";
+import { csrf } from "hono/csrf";
+import { HTTPException } from "hono/http-exception";
+import { secureHeaders } from "hono/secure-headers";
 import type { Bindings } from "./domain";
 import { purgeExpiredTrash } from "./repositories";
 import { accountRoutes } from "./routes/account";
@@ -9,6 +12,15 @@ import { publicRoutes } from "./routes/public";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+app.use("*", secureHeaders({
+  permissionsPolicy: {
+    camera: [],
+    geolocation: [],
+    microphone: [],
+  },
+}));
+app.use("*", csrf());
+
 app.route("/", publicRoutes);
 app.route("/", accountRoutes);
 app.route("/", adminRoutes);
@@ -16,6 +28,7 @@ app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
 
 app.onError((error, c) => {
+  if (error instanceof HTTPException) return error.getResponse();
   console.error(error);
   const host = new URL(c.req.url).hostname;
   if (host === "127.0.0.1" || host === "localhost") return c.text(error.stack ?? error.message, 500);

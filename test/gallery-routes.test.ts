@@ -89,6 +89,7 @@ describe("gallery, upload, and media routes", () => {
 
     const wrong = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/unlock`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: new URLSearchParams({ locale: "en", pin: "0000" }),
       redirect: "manual",
     });
@@ -96,6 +97,7 @@ describe("gallery, upload, and media routes", () => {
 
     const unlocked = await SELF.fetch(`https://memboux.com/gallery/${pinnedCode}/unlock`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: new URLSearchParams({ locale: "en", pin }),
       redirect: "manual",
     });
@@ -119,6 +121,7 @@ describe("gallery, upload, and media routes", () => {
     withoutConsent.set("locale", "en");
     const consentResponse = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: withoutConsent,
     });
     expect(consentResponse.status).toBe(400);
@@ -128,6 +131,7 @@ describe("gallery, upload, and media routes", () => {
     withoutFile.set("upload_confirmation", "accepted");
     const fileResponse = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: withoutFile,
     });
     expect(fileResponse.status).toBe(400);
@@ -136,6 +140,7 @@ describe("gallery, upload, and media routes", () => {
   it("blocks uploads to a PIN gallery without its cookie", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/upload/${pinnedCode}`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: new FormData(),
     });
     expect(response.status).toBe(401);
@@ -170,12 +175,14 @@ describe("gallery, upload, and media routes", () => {
 
     const invalid = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/removal/public-report-media`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: new URLSearchParams({ email: "invalid", reason: "short" }),
     });
     expect(invalid.status).toBe(400);
 
     const valid = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/removal/public-report-media`, {
       method: "POST",
+      headers: { Origin: "https://memboux.com" },
       body: new URLSearchParams({ email: "guest@example.com", reason: "I appear in this private photograph." }),
     });
     expect(valid.status).toBe(200);
