@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createAuth, sendEmail } from "./auth";
+import { sendEmail } from "./auth";
 import { getEventRole, roleCan } from "./access";
 import { normalizeLocale, t, type Locale } from "./i18n";
 import { ADMIN_COOKIE, TRASH_RETENTION_MS } from "./config";
@@ -7,10 +7,11 @@ import type { Bindings, EventInvitationRow, EventMemberRow, EventRow, MediaRow }
 import { getEvent, getMedia, purgeExpiredTrash } from "./repositories";
 import { acceptPendingInvitations, createOrReplaceInvitation, normalizeInviteRole } from "./invitations";
 import { permanentlyDeleteMedia, restoreDeletedMedia } from "./media-trash";
+import { publicRoutes } from "./routes/public";
+import { currentSession, currentUser } from "./session";
 import { safeFileExtension, uploadValidationDetails, validateUploadFiles } from "./upload-policy";
 import { cookieValue, dateInput, esc, formatDate, formatDateTime, formatEventDates, randomCode, sha256, sha256Bytes, validEventDate } from "./utils";
 import { adminLocale, adminShell } from "./views/admin";
-import { authPage } from "./views/auth";
 import { cards, galleryFilterControls, galleryFilterScript, lightboxMarkup } from "./views/media";
 import { accountMenu, brandMark, logoutScript, page } from "./views/shared";
 import QRCode from "qrcode";
@@ -18,10 +19,7 @@ import { parse as parseMetadata } from "exifr";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.on(["GET", "POST"], "/api/auth/*", (c) => {
-  const auth = createAuth(c.env, (promise) => c.executionCtx.waitUntil(promise));
-  return auth.handler(c.req.raw);
-});
+app.route("/", publicRoutes);
 
 const galleryCookieName = (code: string) => `memboux_gallery_${code.toLowerCase()}`;
 const galleryAccessToken = (event: EventRow) => sha256(`gallery-access:${event.id}:${event.gallery_pin_hash}`);
@@ -42,50 +40,6 @@ async function isAdmin(c: { env: Bindings; req: { header(name: string): string |
 
 
 
-async function currentUser(c: { env: Bindings; req: { raw: Request } }) {
-  const session = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers });
-  return session?.user ?? null;
-}
-
-app.get("/", (c) => c.redirect("/en"));
-
-const localizedHome = async (c: any) => {
-  const locale = normalizeLocale(new URL(c.req.url).pathname === "/en" ? "en" : "el");
-  const m = t(locale);
-  const user = await currentUser(c);
-  if (user) return c.redirect(`/${locale}/account`);
-  const accountActions = `<a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-[#33251f] px-4 py-2 font-semibold text-white">${m.register}</a>`;
-  return c.html(page("Memboux", `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section></main>`));
-};
-app.get("/el", localizedHome);
-app.get("/en", localizedHome);
-
-app.get("/:locale{el|en}/login", async (c) => {
-  const locale = normalizeLocale(c.req.param("locale"));
-  if (await currentUser(c)) return c.redirect(`/${locale}/account`);
-  return c.html(authPage(locale, "login"));
-});
-app.get("/:locale{el|en}/register", async (c) => {
-  const locale = normalizeLocale(c.req.param("locale"));
-  if (await currentUser(c)) return c.redirect(`/${locale}/account`);
-  return c.html(authPage(locale, "register"));
-});
-
-app.get("/:locale{el|en}/verify-email", (c) => {
-  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
-  return c.html(page(m.verifyTitle, `<main class="flex min-h-screen items-center justify-center p-5"><section class="max-w-lg rounded-3xl bg-white p-10 text-center shadow-xl"><div class="text-5xl">✉️</div><h1 class="mt-5 text-3xl font-bold">${m.verifyTitle}</h1><p class="mt-3 text-[#625750]">${m.verifyText}</p><a href="/${locale}/login" class="mt-7 inline-block rounded-xl bg-[#33251f] px-6 py-3 font-semibold text-white">${m.login}</a></section></main>`));
-});
-
-app.get("/:locale{el|en}/forgot-password", (c) => {
-  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
-  return c.html(page(m.forgotPassword, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#ddd0c6] bg-white/95 p-8 shadow-[0_24px_70px_rgba(71,50,40,.12)]"><h1 class="text-3xl font-bold">${m.forgotPassword}</h1><form id="forgot" class="mt-6 space-y-3"><input name="email" type="email" required placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700"></p><button class="w-full rounded-xl bg-[#33251f] py-3 font-semibold text-white">${locale === "el" ? "Αποστολή συνδέσμου" : "Send reset link"}</button></form></section></main><script>document.getElementById('forgot').onsubmit=async(e)=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));await fetch('/api/auth/request-password-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...v,redirectTo:'/${locale}/reset-password'})});const m=document.getElementById('message');m.textContent=${JSON.stringify(locale === "el" ? "Αν υπάρχει λογαριασμός, στάλθηκε email επαναφοράς." : "If the account exists, a reset email has been sent.")};m.classList.remove('hidden')}<\/script>`));
-});
-
-app.get("/:locale{el|en}/reset-password", (c) => {
-  const locale = normalizeLocale(c.req.param("locale")); const token = c.req.query("token") ?? "";
-  return c.html(page(locale === "el" ? "Νέος κωδικός" : "New password", `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#ddd0c6] bg-white/95 p-8 shadow-[0_24px_70px_rgba(71,50,40,.12)]"><h1 class="text-3xl font-bold">${locale === "el" ? "Όρισε νέο κωδικό" : "Choose a new password"}</h1><form id="reset" class="mt-6 space-y-3"><input name="password" type="password" required minlength="10" autocomplete="new-password" placeholder="${locale === "el" ? "Νέος κωδικός" : "New password"}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl p-3 text-sm"></p><button class="w-full rounded-xl bg-[#33251f] py-3 font-semibold text-white">${locale === "el" ? "Αποθήκευση" : "Save password"}</button></form></section></main><script>const token=${JSON.stringify(token)};document.getElementById('reset').onsubmit=async(e)=>{e.preventDefault();const password=new FormData(e.target).get('password');const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newPassword:password,token})});const m=document.getElementById('message');m.classList.remove('hidden');if(r.ok){m.classList.add('bg-emerald-50','text-emerald-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο κωδικός άλλαξε. Μπορείς να συνδεθείς." : "Password updated. You can now sign in.")};setTimeout(()=>location.href='/${locale}/login',1200)}else{m.classList.add('bg-red-50','text-red-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει." : "This link is invalid or has expired.")}}<\/script>`));
-});
-
 app.get("/:locale{el|en}/profile", async(c)=>{
   const locale=normalizeLocale(c.req.param("locale"));const user=await currentUser(c);if(!user)return c.redirect(`/${locale}/login`);
   return c.html(page(locale==="el"?"Προφίλ":"Profile",`<header class="border-b bg-white"><div class="mx-auto flex max-w-4xl items-center justify-between p-5">${brandMark(`/${locale}`,true)}${accountMenu(locale,user)}</div></header><main class="mx-auto max-w-4xl p-5 md:p-10"><a href="/${locale}/account" class="text-sm text-[#654534]">← ${locale==="el"?"Τα events μου":"My events"}</a><div class="mt-5 grid gap-6 md:grid-cols-[220px_1fr]"><aside class="rounded-3xl bg-[#33251f] p-6 text-white"><div class="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 text-3xl">${esc(user.name.slice(0,1).toUpperCase())}</div><h1 class="mt-4 text-3xl">${locale==="el"?"Προφίλ":"Profile"}</h1><p class="mt-1 break-all text-sm text-white/65">${esc(user.email)}</p></aside><section class="rounded-3xl bg-white p-6 shadow"><h2 class="text-3xl">${locale==="el"?"Προσωπικά στοιχεία":"Personal details"}</h2><p class="mt-1 text-sm text-[#625750]">${locale==="el"?"Τα στοιχεία που εμφανίζονται στον λογαριασμό σου.":"The details displayed on your account."}</p><form id="profile-form" class="mt-6 space-y-4"><label class="block text-sm font-medium">${locale==="el"?"Ονοματεπώνυμο":"Full name"}<input name="name" required maxlength="100" value="${esc(user.name)}" class="mt-1 w-full rounded-xl border px-4 py-3"></label><label class="block text-sm font-medium">Email<input value="${esc(user.email)}" disabled class="mt-1 w-full rounded-xl border bg-[#f6f1eb] px-4 py-3 text-[#625750]"></label><p id="profile-message" class="hidden rounded-xl p-3 text-sm"></p><button class="rounded-xl bg-[#654534] px-6 py-3 text-white">${locale==="el"?"Αποθήκευση αλλαγών":"Save changes"}</button></form></section></div></main><script>document.getElementById('profile-form').onsubmit=async e=>{e.preventDefault();const message=document.getElementById('profile-message');const name=new FormData(e.target).get('name');const response=await fetch('/api/auth/update-user',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});message.classList.remove('hidden');if(response.ok){message.className='rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700';message.textContent=${JSON.stringify(locale==="el"?"Το προφίλ ενημερώθηκε.":"Profile updated.")};setTimeout(()=>location.reload(),700)}else{const data=await response.json().catch(()=>({}));message.className='rounded-xl bg-red-50 p-3 text-sm text-red-700';message.textContent=data.message||${JSON.stringify(locale==="el"?"Η ενημέρωση απέτυχε.":"Update failed.")}}}<\/script>${logoutScript(locale)}`));
@@ -99,7 +53,7 @@ app.get("/:locale{el|en}/security", async(c)=>{
 });
 
 app.post("/api/account/security/revoke-other-sessions", async (c) => {
-  const session = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+  const session = await currentSession(c);
   if (!session) return c.json({ message: "Unauthorized" }, 401);
   const result = await c.env.DB.prepare("DELETE FROM session WHERE userId=? AND id<>?").bind(session.user.id, session.session.id).run();
   return c.json({ status: true, revoked: result.meta.changes });

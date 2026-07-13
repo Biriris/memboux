@@ -14,4 +14,29 @@ describe("public Worker routes", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it.each([
+    ["/en", "Every moment from your event"],
+    ["/el", "Όλες οι στιγμές του event"],
+    ["/en/login", "Continue with Google"],
+    ["/el/register", "Συνέχεια με Google"],
+    ["/en/verify-email", "Check your email"],
+    ["/el/forgot-password", "Αποστολή συνδέσμου"],
+    ["/en/reset-password?token=test-token", "Choose a new password"],
+  ])("renders public route %s", async (path, expectedText) => {
+    const response = await SELF.fetch(`https://memboux.com${path}`);
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(html).toContain(expectedText);
+    expect(html).toContain('/app.css');
+  });
+
+  it("keeps the Better Auth session endpoint mounted", async () => {
+    const response = await SELF.fetch("https://memboux.com/api/auth/get-session");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toBeNull();
+  });
 });
