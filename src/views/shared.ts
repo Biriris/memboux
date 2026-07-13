@@ -60,6 +60,15 @@ export function accountMenu(locale: Locale, user: { name: string; email: string 
   </details>`;
 }
 
+export function eventHeader(
+  locale: Locale,
+  user: { name: string; email: string },
+  primaryAction = "",
+) {
+  const otherLocale = locale === "el" ? "en" : "el";
+  return `<header class="border-b bg-white"><div class="mx-auto flex max-w-6xl items-center justify-between gap-3 p-4 sm:p-5">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2">${primaryAction}<a href="/${otherLocale}/account" class="rounded-lg border px-3 py-2 text-sm font-medium">${otherLocale.toUpperCase()}</a>${accountMenu(locale, user)}</div></div></header>`;
+}
+
 export const logoutScript = (locale: Locale) => `<script>document.querySelectorAll('[data-logout]').forEach(button=>button.onclick=async()=>{button.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(response.ok)location.replace('/${locale}');else button.disabled=false})<\/script>`;
 
 export function googleIcon() {
