@@ -35,6 +35,13 @@
       "bucket_name": "memboux-media"
     }
   ],
+  "workflows": [
+    {
+      "name": "memboux-google-drive-backups",
+      "binding": "DRIVE_BACKUP_WORKFLOW",
+      "class_name": "GoogleDriveBackupWorkflow"
+    }
+  ],
   "observability": {
     "logs": {
       "enabled": true,

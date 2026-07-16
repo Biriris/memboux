@@ -18,6 +18,9 @@ export async function buildAccountExport(db: D1Database, userId: string) {
     professionalAssignments,
     officialUploads,
     officialAlbumContributions,
+    cloudConnections,
+    cloudBackups,
+    cloudBackupItems,
   ] = await Promise.all([
     db.prepare(`SELECT id,name,email,emailVerified,image,createdAt,updatedAt FROM "user" WHERE id=?`).bind(userId).first(),
     db.prepare(`SELECT id,createdAt,updatedAt,expiresAt,ipAddress,userAgent FROM session WHERE userId=? ORDER BY createdAt DESC`).bind(userId).all(),
@@ -38,10 +41,21 @@ export async function buildAccountExport(db: D1Database, userId: string) {
     db.prepare(`SELECT o.event_id,e.code,e.eventName,o.media_id,o.position,o.created_at
       FROM official_album_items o JOIN events e ON e.id=o.event_id
       WHERE o.added_by=? ORDER BY o.created_at DESC`).bind(userId).all(),
+    db.prepare(`SELECT provider,scope,root_folder_id,created_at,updated_at
+      FROM cloud_connections WHERE user_id=? ORDER BY created_at DESC`).bind(userId).all(),
+    db.prepare(`SELECT b.id,b.event_id,e.code,e.eventName,b.provider,b.status,b.total_items,
+      b.completed_items,b.failed_items,b.total_bytes,b.completed_bytes,b.provider_folder_id,
+      b.error_message,b.created_at,b.started_at,b.completed_at,b.updated_at
+      FROM event_backups b JOIN events e ON e.id=b.event_id
+      WHERE b.user_id=? ORDER BY b.created_at DESC`).bind(userId).all(),
+    db.prepare(`SELECT i.backup_id,i.media_id,i.sequence_no,i.content_type,i.size_bytes,i.filename,
+      i.status,i.provider_file_id,i.error_message,i.completed_at,i.updated_at
+      FROM event_backup_items i JOIN event_backups b ON b.id=i.backup_id
+      WHERE b.user_id=? ORDER BY b.created_at DESC,i.sequence_no`).bind(userId).all(),
   ]);
   if (!user) throw new Error("Account not found");
   return {
-    exportVersion: "memboux-account-export-2",
+    exportVersion: "memboux-account-export-3",
     generatedAt: new Date().toISOString(),
     account: user,
     sessions: sessions.results,
@@ -52,5 +66,8 @@ export async function buildAccountExport(db: D1Database, userId: string) {
     professionalAssignments: professionalAssignments.results,
     officialUploads: officialUploads.results,
     officialAlbumContributions: officialAlbumContributions.results,
+    cloudConnections: cloudConnections.results,
+    cloudBackups: cloudBackups.results,
+    cloudBackupItems: cloudBackupItems.results,
   };
 }

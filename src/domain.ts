@@ -6,11 +6,61 @@ export type EventRole = "owner" | "editor" | "viewer";
 export type Bindings = AuthEnv & {
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
+  DRIVE_BACKUP_WORKFLOW: Workflow;
   ADMIN_PASSWORD?: string;
   BUSINESS_LEGAL_NAME?: string;
   BUSINESS_POSTAL_ADDRESS?: string;
   PRIVACY_EMAIL?: string;
   SUPPORT_EMAIL?: string;
+};
+
+export type CloudConnectionRow = {
+  id: string;
+  user_id: string;
+  provider: "google_drive";
+  encrypted_refresh_token: string;
+  token_iv: string;
+  scope: string;
+  root_folder_id: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export type EventBackupStatus = "queued" | "running" | "completed" | "failed";
+
+export type EventBackupRow = {
+  id: string;
+  event_id: string;
+  user_id: string;
+  provider: "google_drive";
+  status: EventBackupStatus;
+  workflow_instance_id: string | null;
+  provider_folder_id: string | null;
+  total_items: number;
+  completed_items: number;
+  failed_items: number;
+  total_bytes: number;
+  completed_bytes: number;
+  error_message: string | null;
+  created_at: number;
+  started_at: number | null;
+  completed_at: number | null;
+  updated_at: number;
+};
+
+export type EventBackupItemRow = {
+  backup_id: string;
+  media_id: string;
+  sequence_no: number;
+  object_key: string;
+  content_type: string;
+  size_bytes: number;
+  filename: string;
+  status: "pending" | "completed" | "failed";
+  provider_file_id: string | null;
+  error_message: string | null;
+  completed_at: number | null;
+  updated_at: number;
 };
 
 export type EventRow = {

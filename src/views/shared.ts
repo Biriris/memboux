@@ -64,6 +64,7 @@ export function accountMenu(locale: Locale, user: { name: string; email: string 
         <div class="border-t border-[#e2e8f0] p-1">
           ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
           ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
+          ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}
           ${moreItem(`/${locale}/trash`, "♲", labels.trash)}
         </div>
       </details>
@@ -110,6 +111,7 @@ export function accountMenuDark(locale: Locale, user: { name: string; email: str
         <div class="border-t border-white/10 p-1">
           ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
           ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
+          ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}
           ${moreItem(`/${locale}/trash`, "⌫", labels.trash)}
         </div>
       </details>

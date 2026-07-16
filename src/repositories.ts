@@ -12,6 +12,7 @@ export async function purgeExpiredOperationalRecords(db: D1Database, now = Date.
     db.prepare("DELETE FROM media_removal_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 365 * DAY_MS),
     db.prepare("DELETE FROM privacy_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 3 * 365 * DAY_MS),
     db.prepare("DELETE FROM email_delivery_attempts WHERE created_at<=?").bind(now - 30 * DAY_MS),
+    db.prepare("DELETE FROM cloud_oauth_states WHERE expires_at<=?").bind(now),
   ]);
   return results.reduce((total, result) => total + Number(result.meta.changes ?? 0), 0);
 }

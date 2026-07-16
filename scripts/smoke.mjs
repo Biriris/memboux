@@ -43,6 +43,12 @@ const checks = [
     status: 302,
     location: "/admin/login",
   },
+  {
+    name: "anonymous cloud backup boundary",
+    path: "/en/backups",
+    status: 302,
+    location: "/en/login",
+  },
 ];
 
 if (process.env.SMOKE_GALLERY_CODE) {

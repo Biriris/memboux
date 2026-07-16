@@ -15,6 +15,9 @@ import { eventRoutes } from "./routes/events";
 import { galleryRoutes } from "./routes/gallery";
 import { publicRoutes } from "./routes/public";
 import { studioRoutes } from "./routes/studio";
+import { backupRoutes } from "./routes/backups";
+
+export { GoogleDriveBackupWorkflow } from "./google-drive";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -44,6 +47,7 @@ app.route("/", eventMediaRoutes);
 app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
 app.route("/", studioRoutes);
+app.route("/", backupRoutes);
 
 app.onError((error, c) => {
   if (error instanceof HTTPException) return error.getResponse();

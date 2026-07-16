@@ -68,7 +68,10 @@ export const validEventDate = (value: unknown) => {
 
 const formatIsoDate = (value: string) => `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(2, 4)}`;
 
-export const formatEventDates = (event: EventRow, locale: Locale) => {
+export const formatEventDates = (
+  event: Pick<EventRow, "event_start_date" | "event_end_date">,
+  locale: Locale,
+) => {
   if (!event.event_start_date) return locale === "el" ? "Δεν ορίστηκε ημερομηνία" : "Date not set";
   const start = formatIsoDate(event.event_start_date);
   if (!event.event_end_date || event.event_end_date === event.event_start_date) return start;
