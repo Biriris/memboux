@@ -58,6 +58,17 @@ describe("public Worker routes", () => {
     expect(response.status).toBe(404);
   });
 
+  it("publishes transparent Google Drive data-use terms in both languages", async () => {
+    const englishPrivacy = await (await SELF.fetch("https://memboux.com/en/privacy-policy")).text();
+    const greekTerms = await (await SELF.fetch("https://memboux.com/el/terms")).text();
+
+    expect(englishPrivacy).toContain("Google Sign-In and personal Drive backups");
+    expect(englishPrivacy).toContain("drive.file");
+    expect(englishPrivacy).toContain("Google API Services User Data Policy");
+    expect(englishPrivacy).toContain("Limited Use requirements");
+    expect(greekTerms).toContain("Προαιρετικά Google Drive backups");
+  });
+
   it.each([
     ["/en", "Collect every moment. Keep it yours."],
     ["/el", "Συγκέντρωσε κάθε στιγμή. Κράτησέ τη δική σου."],
