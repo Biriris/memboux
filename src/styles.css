@@ -1,31 +1,36 @@
 @import "tailwindcss" source("./");
 
 :root {
-  --ivory: #f6f1eb;
-  --champagne: #c9aa91;
-  --taupe: #8b6854;
-  --espresso: #2b211d;
-  --muted: #625750;
+  --canvas: #f6f7fb;
+  --surface: #ffffff;
+  --surface-soft: #f0f2f7;
+  --line: #dde2eb;
+  --accent-soft: #c8c6ff;
+  --accent: #6d5dfc;
+  --accent-deep: #5145cd;
+  --ink: #172033;
+  --muted: #68748a;
+  --font-primary: "Manrope", sans-serif;
 }
 
-html { background: var(--ivory); }
+html { background: var(--canvas); }
 body {
-  color: var(--espresso);
-  font-family: "Noto Serif", serif;
+  color: var(--ink);
+  font-family: var(--font-primary);
   font-weight: 300;
   letter-spacing: .01em;
 }
 h1, h2, h3, .font-serif {
-  font-family: "Noto Serif", serif;
+  font-family: var(--font-primary);
   font-weight: 400;
   letter-spacing: -.015em;
 }
 strong { font-weight: 500; }
 button, input, select, textarea { font: inherit; }
 input::file-selector-button { font: inherit; }
-.gallery-upload, .gallery-upload * { font-family: "Noto Serif", serif; }
+.gallery-upload, .gallery-upload * { font-family: var(--font-primary); }
 .gallery-upload input::file-selector-button {
-  font-family: "Noto Serif", serif;
+  font-family: var(--font-primary);
   font-weight: 400;
 }
 .native-save-image {
@@ -37,26 +42,250 @@ input::file-selector-button { font: inherit; }
   pointer-events: auto;
 }
 button { letter-spacing: .025em; }
+
+/* Shared premium application shell. Route-specific Tailwind remains in place,
+   while these primitives keep every screen visually consistent. */
+.memboux-ui {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(109, 93, 252, .08), transparent 24rem),
+    radial-gradient(circle at 92% 8%, rgba(65, 185, 178, .07), transparent 28rem),
+    var(--canvas);
+}
+.memboux-ui .app-shell-header {
+  position: sticky;
+  top: 0;
+  box-shadow: 0 10px 32px rgba(23, 32, 51, .12);
+}
+.memboux-ui > header.border-b.bg-white,
+.memboux-ui > .admin-ui > header,
+.memboux-ui > div > header.bg-\[\#172033\] {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-color: rgba(255, 255, 255, .1);
+  background: rgba(23, 32, 51, .96);
+  color: #fff;
+  box-shadow: 0 10px 32px rgba(23, 32, 51, .12);
+  backdrop-filter: blur(18px);
+}
+.memboux-ui > header.border-b.bg-white > div > .brand-mark,
+.memboux-ui > .admin-ui > header .brand-mark { color: #fff; }
+.memboux-ui > header.border-b.bg-white > div > .brand-mark img { filter: brightness(0) invert(1); }
+.memboux-ui > header.border-b.bg-white > div > .account-menu > summary {
+  border-color: rgba(255, 255, 255, .16);
+  color: #fff;
+}
+.memboux-ui > header.border-b.bg-white > div > .account-menu > summary:hover { background: rgba(255, 255, 255, .1); }
+.memboux-ui .brand-mark:hover { opacity: .9; }
+.memboux-ui main:not(.home-main):not(.auth-main) { animation: page-enter .35s ease both; }
+.memboux-ui .rounded-3xl.bg-white,
+.memboux-ui .rounded-2xl.bg-white,
+.memboux-ui section.rounded-3xl,
+.memboux-ui article.rounded-3xl {
+  border-color: rgba(209, 216, 229, .9);
+  box-shadow: 0 18px 50px rgba(23, 32, 51, .075);
+}
+.memboux-ui .rounded-3xl.bg-white:hover,
+.memboux-ui article.rounded-3xl.bg-white:hover {
+  box-shadow: 0 22px 58px rgba(23, 32, 51, .105);
+}
+.memboux-ui input:not([type="checkbox"]):not([type="radio"]),
+.memboux-ui select,
+.memboux-ui textarea {
+  border-radius: .9rem;
+  border-color: var(--line);
+  background: rgba(255, 255, 255, .94);
+  min-height: 2.9rem;
+}
+.memboux-ui textarea { min-height: 7rem; }
+.memboux-ui dialog {
+  border: 1px solid rgba(221, 226, 235, .8);
+  border-radius: 1.5rem;
+  box-shadow: 0 32px 90px rgba(23, 32, 51, .28);
+}
+.memboux-ui dialog::backdrop {
+  background: rgba(13, 20, 35, .58);
+  backdrop-filter: blur(6px);
+}
+.memboux-ui table { border-collapse: separate; border-spacing: 0; }
+.memboux-ui th {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.memboux-ui tbody tr { transition: background-color .18s ease; }
+.memboux-ui tbody tr:hover { background: rgba(240, 242, 247, .7); }
+.memboux-ui .bg-\[\#4f46e5\],
+.memboux-ui .bg-\[\#4338ca\] {
+  background-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(109, 93, 252, .24);
+}
+.memboux-ui .bg-\[\#4f46e5\]:hover,
+.memboux-ui .bg-\[\#4338ca\]:hover { background-color: var(--accent-deep); }
+.memboux-ui .text-\[\#4f46e5\] { color: var(--accent-deep); }
+.memboux-ui .bg-\[\#172033\] { background-color: #172033; }
+.memboux-ui .page-kicker {
+  color: var(--accent-deep);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.memboux-ui .page-title {
+  color: var(--ink);
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -.04em;
+  line-height: 1.08;
+}
+.memboux-ui .page-subtitle { color: var(--muted); line-height: 1.75; }
+.memboux-ui .empty-state {
+  border: 1px dashed #cbd3e1;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, .68);
+  padding: clamp(2rem, 6vw, 4rem);
+  text-align: center;
+}
+.memboux-ui .gallery-upload {
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, rgba(249, 250, 253, .96), rgba(241, 243, 249, .9));
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+.memboux-ui .gallery-upload input[type="file"] {
+  border-style: dashed;
+  background: #fff;
+  padding: 1rem;
+}
+.memboux-ui .gallery-upload input::file-selector-button {
+  margin-right: .8rem;
+  border: 0;
+  border-radius: .75rem;
+  background: #172033;
+  color: #fff;
+  padding: .65rem .9rem;
+  cursor: pointer;
+}
+.memboux-ui article > .space-y-7 > section,
+.memboux-ui article > div.space-y-7 > section {
+  border-top: 1px solid var(--line);
+  padding-top: 1.7rem;
+}
+.memboux-ui article > .space-y-7 > section:first-child,
+.memboux-ui article > div.space-y-7 > section:first-child { border-top: 0; padding-top: 0; }
+.memboux-ui .lightbox-item,
+.memboux-ui [data-media-type] {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+.memboux-ui [data-gallery-filter] {
+  background: rgba(255, 255, 255, .85);
+  font-weight: 600;
+}
+.memboux-ui details > summary { -webkit-tap-highlight-color: transparent; }
+.memboux-ui main > section:first-child.rounded-3xl { overflow: hidden; }
+.memboux-ui body:has(#forgot) section,
+.memboux-ui:has(#forgot) section,
+.memboux-ui:has(#reset) section,
+.memboux-ui:has(form[action="/admin/login"]) main > section,
+.memboux-ui main.flex.min-h-screen > section.w-full.max-w-md:not(:has(.brand-mark)) {
+  position: relative;
+  overflow: hidden;
+  padding-top: 7.5rem;
+}
+.memboux-ui:has(#forgot) section::before,
+.memboux-ui:has(#reset) section::before,
+.memboux-ui:has(form[action="/admin/login"]) main > section::before,
+.memboux-ui main.flex.min-h-screen > section.w-full.max-w-md:not(:has(.brand-mark))::before {
+  content: "Memboux\A COLLECTING MOMENTS";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5rem;
+  padding: 1.1rem 2rem 0 5rem;
+  background: #172033 url('/brand/memboux-icon.png') no-repeat 1.6rem 1.05rem / 2.5rem;
+  color: #fff;
+  white-space: pre;
+  font-size: .9rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .04em;
+}
+.memboux-ui:has(#forgot) section::first-line,
+.memboux-ui:has(#reset) section::first-line { font-size: 1rem; }
+@keyframes page-enter {
+  from { transform: translateY(5px); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .memboux-ui main { animation: none !important; }
+  .memboux-ui *, .memboux-ui *::before, .memboux-ui *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 639px) {
+  .memboux-ui main { padding-left: 1rem; padding-right: 1rem; }
+  .memboux-ui main > section.rounded-3xl,
+  .memboux-ui main > article.rounded-3xl { border-radius: 1.25rem; padding: 1.25rem; }
+  .memboux-ui h1.text-4xl { font-size: 2rem; line-height: 1.15; }
+  .memboux-ui .account-menu[open] > summary::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(13, 20, 35, .22);
+    backdrop-filter: blur(2px);
+  }
+  .memboux-ui .account-menu[open] > div { z-index: 100; }
+}
+
+/* A closed native dialog must stay out of the layout. Tailwind's `flex`
+   utility otherwise overrides the browser's built-in dialog hiding rule. */
+#new-event:not([open]) {
+  display: none !important;
+}
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu > summary::marker { content: ""; }
+.account-menu > summary { -webkit-tap-highlight-color: transparent; }
+.account-menu details > summary::-webkit-details-marker { display: none; }
+.account-menu details > summary::marker { content: ""; }
+.header-primary-action > * {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  overflow: hidden;
+  padding-left: .8rem;
+  padding-right: .8rem;
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .header-primary-action > * {
+    width: auto;
+    height: auto;
+    overflow: visible;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
 a, button, input, select, textarea {
   transition: border-color .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
-.border { border-color: #d8ccc3; }
+.border { border-color: var(--line); }
 input, select, textarea {
   background-color: #fff;
-  caret-color: #654534;
+  caret-color: #4f46e5;
 }
-input:hover, select:hover, textarea:hover { border-color: #a98b78; }
+input:hover, select:hover, textarea:hover { border-color: #9d94ff; }
 input:focus, select:focus, textarea:focus {
-  border-color: #654534;
-  outline: 3px solid rgba(101, 69, 52, .18);
+  border-color: var(--accent);
+  outline: 3px solid rgba(109, 93, 252, .17);
   outline-offset: 1px;
 }
 a:focus-visible, button:focus-visible {
-  outline: 3px solid rgba(101, 69, 52, .35);
+  outline: 3px solid rgba(109, 93, 252, .32);
   outline-offset: 3px;
 }
-.shadow, .shadow-lg, .shadow-xl { box-shadow: 0 14px 38px rgba(43, 33, 29, .09); }
+.shadow, .shadow-lg, .shadow-xl { box-shadow: 0 14px 38px rgba(15, 23, 42, .09); }
 ::selection {
-  background: #ddd0c6;
-  color: #2b211d;
+  background: #ddd9ff;
+  color: #172033;
 }

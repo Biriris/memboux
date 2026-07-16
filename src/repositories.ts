@@ -11,6 +11,7 @@ export async function purgeExpiredOperationalRecords(db: D1Database, now = Date.
     db.prepare("DELETE FROM event_invitations WHERE (accepted_at IS NULL AND expires_at<=?) OR (accepted_at IS NOT NULL AND accepted_at<=?)").bind(now, now - 90 * DAY_MS),
     db.prepare("DELETE FROM media_removal_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 365 * DAY_MS),
     db.prepare("DELETE FROM privacy_requests WHERE status IN ('resolved','dismissed') AND resolved_at IS NOT NULL AND resolved_at<=?").bind(now - 3 * 365 * DAY_MS),
+    db.prepare("DELETE FROM email_delivery_attempts WHERE created_at<=?").bind(now - 30 * DAY_MS),
   ]);
   return results.reduce((total, result) => total + Number(result.meta.changes ?? 0), 0);
 }
@@ -26,6 +27,27 @@ export async function getMedia(db: D1Database, eventId: string, includeDeleted =
     .bind(eventId)
     .all<MediaRow>();
   return result.results;
+}
+
+export async function permanentlyDeleteEvent(env: Bindings, eventId: string) {
+  const usage = await env.DB.prepare(
+    "SELECT COALESCE(SUM(m.size_bytes),0) size_bytes,(SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1) owner_id FROM media m WHERE m.event_id=?",
+  ).bind(eventId, eventId).first<{ size_bytes: number; owner_id: string | null }>();
+  const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?")
+    .bind(eventId)
+    .all<{ object_key: string }>();
+  for (let index = 0; index < objects.results.length; index += 1000) {
+    await env.MEDIA.delete(
+      objects.results.slice(index, index + 1000).map((item) => item.object_key),
+    );
+  }
+  await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(eventId).run();
+  await releaseStorage(
+    env.DB,
+    usage?.owner_id ?? null,
+    Number(usage?.size_bytes ?? 0),
+  );
+  return env.DB.prepare("DELETE FROM events WHERE id=?").bind(eventId).run();
 }
 
 export async function purgeExpiredTrash(env: Bindings) {
@@ -45,14 +67,7 @@ export async function purgeExpiredTrash(env: Bindings) {
     .all<{ id: string }>();
 
   for (const event of expiredEvents.results) {
-    const usage=await env.DB.prepare("SELECT COALESCE(SUM(m.size_bytes),0) size_bytes,(SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1) owner_id FROM media m WHERE m.event_id=?").bind(event.id,event.id).first<{size_bytes:number;owner_id:string|null}>();
-    const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?")
-      .bind(event.id)
-      .all<{ object_key: string }>();
-    if (objects.results.length) await env.MEDIA.delete(objects.results.map((item) => item.object_key));
-    await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(event.id).run();
-    await releaseStorage(env.DB,usage?.owner_id??null,Number(usage?.size_bytes??0));
-    await env.DB.prepare("DELETE FROM events WHERE id=?").bind(event.id).run();
+    await permanentlyDeleteEvent(env, event.id);
   }
 
   await purgeExpiredRateLimits(env.DB, now);

@@ -17,11 +17,13 @@ const checks = [
     name: "English homepage",
     path: "/en",
     status: 200,
+    body: 'data-page="home" data-locale="en"',
   },
   {
     name: "Greek homepage",
     path: "/el",
     status: 200,
+    body: 'data-page="home" data-locale="el"',
   },
   {
     name: "anonymous Studio boundary",
@@ -76,7 +78,17 @@ for (const check of checks) {
       (!check.body || body.includes(check.body)) &&
       (!check.location || location === check.location);
     console.log(`${valid ? "PASS" : "FAIL"} ${check.name} (${response.status})`);
-    if (!valid) failed = true;
+    if (!valid) {
+      failed = true;
+      const reasons = [];
+      if (response.status !== check.status)
+        reasons.push(`expected status ${check.status}`);
+      if (check.body && !body.includes(check.body))
+        reasons.push(`missing body marker ${JSON.stringify(check.body)}`);
+      if (check.location && location !== check.location)
+        reasons.push(`expected location ${JSON.stringify(check.location)}, received ${JSON.stringify(location)}`);
+      console.error(`  ${reasons.join("; ")}`);
+    }
   } catch (error) {
     failed = true;
     console.error(`FAIL ${check.name}: ${error instanceof Error ? error.message : String(error)}`);

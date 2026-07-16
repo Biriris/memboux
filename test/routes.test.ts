@@ -39,6 +39,10 @@ describe("public Worker routes", () => {
   it("renders canonical multilingual SEO on homepages and noindex on login", async () => {
     const home = await SELF.fetch("https://memboux.com/en");
     const homeHtml = await home.text();
+    const greekHome = await SELF.fetch("https://memboux.com/el");
+    const greekHomeHtml = await greekHome.text();
+    expect(homeHtml).toContain('data-page="home" data-locale="en"');
+    expect(greekHomeHtml).toContain('data-page="home" data-locale="el"');
     expect(homeHtml).toContain('<link rel="canonical" href="https://memboux.com/en">');
     expect(homeHtml).toContain('hreflang="x-default"');
     expect(homeHtml).toContain('property="og:title"');
@@ -55,8 +59,8 @@ describe("public Worker routes", () => {
   });
 
   it.each([
-    ["/en", "Every moment from your event"],
-    ["/el", "Όλες οι στιγμές του event"],
+    ["/en", "Collect every moment. Keep it yours."],
+    ["/el", "Συγκέντρωσε κάθε στιγμή. Κράτησέ τη δική σου."],
     ["/en/login", "Continue with Google"],
     ["/el/register", "Συνέχεια με Google"],
     ["/en/verify-email", "Check your email"],
@@ -72,7 +76,7 @@ describe("public Worker routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(html).toContain(expectedText);
-    expect(html).toContain('/app.css');
+    expect(html).toContain('/app-midnight.css');
   });
 
   it("keeps the Better Auth session endpoint mounted", async () => {
@@ -80,5 +84,56 @@ describe("public Worker routes", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toBeNull();
+  });
+
+  it("renders the complete bilingual commercial homepage", async () => {
+    const response = await SELF.fetch("https://memboux.com/en");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('id="how-it-works"');
+    expect(html).toContain('id="features"');
+    expect(html).toContain('id="privacy"');
+    expect(html).toContain("No guest app required");
+    expect(html).toContain("Memboux Studio");
+    expect(html).toContain("Create your first event gallery.");
+    expect(html).toContain('/en/register');
+    expect(html).toContain('/el');
+  });
+
+  it("offers verification email resend without placing the email in the URL", async () => {
+    const response = await SELF.fetch("https://memboux.com/en/verify-email");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('id="resend-verification"');
+    expect(html).toContain("Resend verification email");
+    expect(html).toContain("membouxVerificationEmail");
+    expect(html).not.toContain("?email=");
+  });
+
+  it("renders a complete modern registration form", async () => {
+    const response = await SELF.fetch("https://memboux.com/en/register");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('autocomplete="name"');
+    expect(html).toContain('name="confirmPassword"');
+    expect(html).toContain('id="password-strength"');
+    expect(html).toContain('maxlength="128"');
+    expect(html).toContain('id="terms"');
+    expect(html).toContain('/en/privacy-policy');
+    expect(html).toContain('/en/terms');
+    expect(html).toContain("membouxRegistrationName");
+  });
+
+  it("explains the privacy-safe existing-account registration outcome", async () => {
+    const response = await SELF.fetch("https://memboux.com/en/verify-email");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Already registered or used Google?");
+    expect(html).toContain("an already verified account does not receive another verification link");
+    expect(html).toContain('/en/forgot-password');
   });
 });

@@ -8,7 +8,7 @@ describe("admin route boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain("Memboux Admin");
-    expect(html).toContain('/app.css');
+    expect(html).toContain('/app-midnight.css');
   });
 
   it.each([

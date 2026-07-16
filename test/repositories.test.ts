@@ -1,10 +1,12 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getEvent, getMedia } from "../src/repositories";
+import { getEvent, getMedia, permanentlyDeleteEvent } from "../src/repositories";
 
 beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("DROP TABLE IF EXISTS media"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_members"),
+    env.DB.prepare("DROP TABLE IF EXISTS account_storage_usage"),
     env.DB.prepare("DROP TABLE IF EXISTS events"),
     env.DB.prepare(`CREATE TABLE events (
       id TEXT PRIMARY KEY,
@@ -39,6 +41,8 @@ beforeEach(async () => {
       deleted_at INTEGER,
       purge_at INTEGER
     )`),
+    env.DB.prepare("CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT)"),
+    env.DB.prepare("CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)"),
   ]);
 });
 
@@ -54,6 +58,30 @@ describe("event repository", () => {
     expect((await getEvent(env.DB, "abc123"))?.eventName).toBe("Visible");
     expect(await getEvent(env.DB, "del123")).toBeNull();
     expect((await getEvent(env.DB, "del123", true))?.eventName).toBe("Deleted");
+  });
+
+  it("permanently removes a deleted event, its R2 objects, and storage usage", async () => {
+    await env.DB.prepare("INSERT INTO events (id,code,eventName,created_at,expires_at,deleted_at,purge_at) VALUES (?,?,?,?,?,?,?)")
+      .bind("event-delete", "DEL999", "Owner deleted", 1, 2, 10, 20)
+      .run();
+    await env.DB.prepare("INSERT INTO event_members (event_id,user_id,role) VALUES (?,?,?)")
+      .bind("event-delete", "owner-1", "owner")
+      .run();
+    await env.DB.prepare("INSERT INTO account_storage_usage (user_id,used_bytes,updated_at) VALUES (?,?,?)")
+      .bind("owner-1", 500, 1)
+      .run();
+    await env.DB.prepare("INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes) VALUES (?,?,?,?,?,?,?,?)")
+      .bind("media-delete", "event-delete", "event-delete/photo.jpg", "image", "image/jpeg", "Guest", 1, 120)
+      .run();
+    await env.MEDIA.put("event-delete/photo.jpg", new Uint8Array([1, 2, 3]));
+
+    const result = await permanentlyDeleteEvent(env, "event-delete");
+
+    expect(result.meta.changes).toBe(1);
+    expect(await getEvent(env.DB, "DEL999", true)).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM media WHERE event_id=?").bind("event-delete").first()).toBeNull();
+    expect(await env.MEDIA.get("event-delete/photo.jpg")).toBeNull();
+    expect((await env.DB.prepare("SELECT used_bytes FROM account_storage_usage WHERE user_id=?").bind("owner-1").first<{ used_bytes: number }>())?.used_bytes).toBe(380);
   });
 });
 

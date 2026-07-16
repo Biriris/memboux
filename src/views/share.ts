@@ -5,7 +5,7 @@ const icon = (body: string) =>
   `<svg viewBox="0 0 24 24" aria-hidden="true" class="h-5 w-5 fill-current">${body}</svg>`;
 
 const buttonClass =
-  "inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#654534] focus:ring-offset-2";
+  "inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#4f46e5] focus:ring-offset-2";
 
 const messengerSvg =
   '<path d="M12 2C6.4 2 2 6.1 2 11.5c0 3 1.4 5.6 3.7 7.3V22l3.2-1.8c1 .3 2 .5 3.1.5 5.6 0 10-4.1 10-9.5S17.6 2 12 2Zm1 12.8-2.5-2.6-4.9 2.6 5.4-5.7 2.5 2.6 4.9-2.6-5.4 5.7Z"/>';
@@ -33,6 +33,6 @@ export function shareIconButtons(
     ${shareButton("Messenger", "bg-gradient-to-br from-[#00b2ff] to-[#7b2cff]", messengerSvg, `data-message-app="messenger" data-title="${esc(eventName)}" data-text="${esc(shareText)}" data-url="${esc(guestUrl)}"`)}
     ${shareButton("Instagram Direct", "bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af]", instagramSvg, `data-message-app="instagram" data-title="${esc(eventName)}" data-text="${esc(shareText)}" data-url="${esc(guestUrl)}"`)}
     <button type="button" data-native-share data-title="${esc(eventName)}" data-text="${esc(shareText)}" data-url="${esc(guestUrl)}" class="${buttonClass} bg-black" aria-label="Share" title="Share">${icon('<path d="M14 3h3c.3 2 1.5 3.4 4 3.8v3.1a8.2 8.2 0 0 1-4-1.2V15a7 7 0 1 1-6-6.9v3.2a3.8 3.8 0 1 0 3 3.7V3Z"/>')}</button>
-  </div><a href="${esc(guestUrl)}/official?lang=${locale}" class="mt-4 inline-flex rounded-xl border border-[#d8c8bc] bg-white px-5 py-2 text-sm text-[#654534]">Official album</a>
+  </div><a href="${esc(guestUrl)}/official?lang=${locale}" class="mt-4 inline-flex rounded-xl border border-[#dbe2f0] bg-white px-5 py-2 text-sm text-[#4f46e5]">Official album</a>
   <script>(()=>{const nativeShare=async button=>{const payload={title:button.dataset.title,text:button.dataset.text,url:button.dataset.url};if(navigator.share){try{await navigator.share(payload);return true}catch(error){if(error?.name==='AbortError')return true}}try{await navigator.clipboard.writeText(button.dataset.text);return false}catch{return false}};const openDesktop=(app,button)=>{const url=button.dataset.url||'';if(app==='messenger'){window.open('https://www.messenger.com/new/?link='+encodeURIComponent(url),'_blank','noopener');return}window.open('https://www.instagram.com/direct/inbox/','_blank','noopener')};document.querySelectorAll('[data-native-share]').forEach(button=>button.onclick=()=>nativeShare(button));document.querySelectorAll('[data-message-app]').forEach(button=>button.onclick=async()=>{const app=button.dataset.messageApp,isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);try{await navigator.clipboard.writeText(button.dataset.text)}catch{}if(!isMobile){openDesktop(app,button);return}let hidden=false;const visibility=()=>{if(document.hidden)hidden=true};document.addEventListener('visibilitychange',visibility,{once:true});location.href=app==='instagram'?'instagram://direct-inbox':'fb-messenger://share/?link='+encodeURIComponent(button.dataset.url);setTimeout(()=>{if(!hidden)nativeShare(button)},900)})})()<\/script>`;
 }

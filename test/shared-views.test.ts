@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { accountMenu, brandMark, googleIcon, logoutScript, page } from "../src/views/shared";
+import { accountMenu, brandMark, eventHeader, googleIcon, logoutScript, page } from "../src/views/shared";
 
 describe("shared views", () => {
   it("renders the production stylesheet and escapes the page title", () => {
     const html = page(`Memboux <script>alert("x")</script>`, "<main>safe body</main>");
 
-    expect(html).toContain('<link rel="stylesheet" href="/app.css">');
+    expect(html).toContain('family=Manrope:wght@200..800&display=swap');
+    expect(html).toContain('<link rel="stylesheet" href="/app-midnight.css?v=20260713-2">');
     expect(html).toContain("Memboux &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
     expect(html).not.toContain("cdn.tailwindcss.com");
     expect(html).toContain('name="robots" content="noindex,nofollow,noarchive"');
@@ -29,9 +30,11 @@ describe("shared views", () => {
     expect(html).toContain('type="application/ld+json"');
   });
 
-  it("keeps the brand destination inside the authenticated account", () => {
-    expect(brandMark("/en")).toContain('href="/en/account"');
+  it("keeps the brand destination contextual", () => {
+    expect(brandMark("/en")).toContain('href="/en"');
+    expect(brandMark("/en/account")).toContain('href="/en/account"');
     expect(brandMark("/admin")).toContain('href="/admin"');
+    expect(eventHeader("en", { name: "Alex", email: "alex@example.com" })).toContain('href="/en/account"');
   });
 
   it("renders escaped account data and localized menu labels", () => {
@@ -41,7 +44,11 @@ describe("shared views", () => {
     expect(english).toContain("&lt;Admin&gt;");
     expect(english).toContain("a&amp;b@example.com");
     expect(english).toContain("My events");
+    expect(english).toContain("More");
+    expect(english).toContain("grid grid-cols-2");
+    expect(english).toContain("Plan & usage");
     expect(greek).toContain("Τα events μου");
+    expect(greek).toContain("Περισσότερα");
     expect(greek).toContain("Αποσύνδεση");
   });
 

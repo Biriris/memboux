@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build:css": "tailwindcss -i ./src/styles.css -o ./public/app.css --minify",
+    "build:css": "tailwindcss -i ./src/styles.css -o ./public/app-midnight.css --minify",
     "build": "npm run build:css",
     "deploy": "npm run build && wrangler deploy",
     "check": "npm run build && npm run typecheck && npm test && npm run check:types && npm run check:bundle",

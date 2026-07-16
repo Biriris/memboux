@@ -6,6 +6,7 @@ import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { currentUser } from "../session";
 import { validPrivacyEmail, validPrivacyRequestType } from "../privacy-requests";
 import { authPage } from "../views/auth";
+import { homePage } from "../views/home";
 import { privacyPolicyPage, privacyRequestPage, termsPage } from "../views/legal";
 import { brandMark, page } from "../views/shared";
 
@@ -70,6 +71,7 @@ publicRoutes.get("/sitemap.xml", (c) => {
 const authRateLimits: Record<string, { limit: number; windowMs: number }> = {
   "/api/auth/sign-in/email": { limit: 10, windowMs: 15 * 60_000 },
   "/api/auth/sign-up/email": { limit: 5, windowMs: 60 * 60_000 },
+  "/api/auth/send-verification-email": { limit: 5, windowMs: 60 * 60_000 },
   "/api/auth/request-password-reset": { limit: 5, windowMs: 60 * 60_000 },
   "/api/auth/sign-in/social": { limit: 20, windowMs: 60 * 60_000 },
 };
@@ -93,46 +95,11 @@ publicRoutes.on(["GET", "POST"], "/api/auth/*", (c) => {
 
 publicRoutes.get("/", (c) => c.redirect("/en"));
 
-const homePage = (locale: "el" | "en", body: string) => {
-  const title =
-    locale === "el"
-      ? "Memboux – Ιδιωτικά galleries φωτογραφιών και βίντεο για events"
-      : "Memboux – Private Event Photo & Video Galleries";
-  const description =
-    locale === "el"
-      ? "Συγκέντρωσε φωτογραφίες και βίντεο από κάθε event σε ένα ιδιωτικό gallery και μοιράσου τις στιγμές με ασφάλεια."
-      : "Collect photos and videos from every event in one private gallery and share every moment securely.";
-  const canonical = `https://memboux.com/${locale}`;
-  return page(title, body, {
-    locale,
-    description,
-    canonical,
-    alternates: {
-      en: "https://memboux.com/en",
-      el: "https://memboux.com/el",
-      "x-default": "https://memboux.com/en",
-    },
-    index: true,
-    structuredData: {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      name: "Memboux",
-      url: canonical,
-      applicationCategory: "PhotographyApplication",
-      operatingSystem: "Web",
-      description,
-      inLanguage: locale,
-    },
-  });
-};
-
 const localizedHome: Handler<AppEnvironment> = async (c) => {
   const locale = normalizeLocale(new URL(c.req.url).pathname === "/en" ? "en" : "el");
-  const m = t(locale);
   const user = await currentUser(c);
   if (user) return c.redirect(`/${locale}/account`);
-  const accountActions = `<a href="/${locale}/login" class="rounded-xl border px-4 py-2 font-semibold">${m.login}</a><a href="/${locale}/register" class="rounded-xl bg-[#33251f] px-4 py-2 font-semibold text-white">${m.register}</a>`;
-  return c.html(homePage(locale, `<main class="mx-auto flex min-h-screen max-w-5xl flex-col p-5"><nav class="flex items-center justify-between py-4">${brandMark(`/${locale}`, true)}<div class="flex items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}" class="px-3 py-2 text-sm font-semibold">${locale === "el" ? "EN" : "EL"}</a>${accountActions}</div></nav><section class="flex flex-1 items-center py-16"><div class="max-w-3xl"><p class="font-semibold uppercase tracking-[.25em] text-[#765440]">Collecting Moments</p><h1 class="mt-4 text-5xl font-bold leading-tight md:text-7xl">${locale === "el" ? "Όλες οι στιγμές του event σας, σε ένα μέρος." : "Every moment from your event, all together."}</h1><p class="mt-6 max-w-2xl text-xl text-[#625750]">${locale === "el" ? "Δημιουργήστε το event σας, προσκαλέστε τους καλεσμένους και συγκεντρώστε φωτογραφίες και βίντεο σε μία ιδιωτική συλλογή." : "Create your event, invite your guests, and collect every photo and video in one private gallery."}</p><a href="/${locale}/${user ? "account" : "register"}" class="mt-8 inline-block rounded-xl bg-gradient-to-r from-[#8b6250] to-[#654534] px-7 py-4 font-semibold text-white">${user ? m.dashboard : m.createEvent}</a></div></section><footer class="flex flex-wrap gap-5 border-t py-6 text-sm text-[#625750]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`));
+  return c.html(homePage(locale));
 };
 publicRoutes.get("/el", localizedHome);
 publicRoutes.get("/en", localizedHome);
@@ -173,16 +140,23 @@ publicRoutes.get("/:locale{el|en}/register", async (c) => {
 });
 
 publicRoutes.get("/:locale{el|en}/verify-email", (c) => {
-  const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
-  return c.html(page(m.verifyTitle, `<main class="flex min-h-screen items-center justify-center p-5"><section class="max-w-lg rounded-3xl bg-white p-10 text-center shadow-xl"><div class="text-5xl">✉️</div><h1 class="mt-5 text-3xl font-bold">${m.verifyTitle}</h1><p class="mt-3 text-[#625750]">${m.verifyText}</p><a href="/${locale}/login" class="mt-7 inline-block rounded-xl bg-[#33251f] px-6 py-3 font-semibold text-white">${m.login}</a></section></main>`));
+  const locale = normalizeLocale(c.req.param("locale"));
+  const el = locale === "el";
+  const sentMessage = el
+    ? "Αν το email ανήκει σε μη επιβεβαιωμένο λογαριασμό, στάλθηκε νέος σύνδεσμος. Έλεγξε Inbox, Spam και Promotions."
+    : "If this email belongs to an unverified account, a new link was sent. Check Inbox, Spam, and Promotions.";
+  const failedMessage = el
+    ? "Η αποστολή απέτυχε προσωρινά. Δοκίμασε ξανά σε λίγο."
+    : "Sending failed temporarily. Please try again shortly.";
+  return c.html(page(el ? "Έλεγξε το email σου" : "Check your email", `<main class="min-h-screen bg-[#f4f6fb] p-4 sm:p-6"><section class="mx-auto flex min-h-[calc(100vh-2rem)] max-w-5xl items-center justify-center"><div class="w-full overflow-hidden rounded-[2rem] border border-[#dbe2f0] bg-white shadow-[0_30px_100px_rgba(30,41,59,.13)]"><header class="flex items-center justify-between border-b border-[#e2e8f0] px-6 py-5 sm:px-10">${brandMark(`/${locale}`, true)}<a href="/${locale === "el" ? "en" : "el"}/verify-email" class="rounded-full border px-3 py-2 text-xs font-semibold text-[#4338ca]">${el ? "EN" : "EL"}</a></header><div class="grid lg:grid-cols-[1.05fr_.95fr]"><div class="p-7 sm:p-12"><span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef2ff] text-2xl">✉</span><p class="mt-8 text-xs font-semibold uppercase tracking-[.2em] text-[#4f46e5]">${el ? "Ένα τελευταίο βήμα" : "One last step"}</p><h1 class="mt-3 text-4xl font-medium tracking-[-.03em] text-[#111827] sm:text-5xl">${el ? "Έλεγξε το email σου" : "Check your email"}</h1><p class="mt-4 max-w-xl text-base leading-7 text-[#64748b]">${el ? "Στείλαμε τις σωστές οδηγίες για τον λογαριασμό σου. Ο σύνδεσμος επιβεβαίωσης λήγει σε μία ώρα." : "We sent the right next step for your account. Verification links expire after one hour."}</p><div id="email-summary" class="mt-6 hidden rounded-2xl bg-[#f8faff] p-4"><p class="text-xs uppercase tracking-[.15em] text-[#64748b]">Email</p><strong id="masked-email" class="mt-1 block break-all text-[#172033]"></strong></div><div class="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>${el ? "Έχεις ήδη λογαριασμό ή χρησιμοποίησες Google;" : "Already registered or used Google?"}</strong><p class="mt-1">${el ? "Συνδέσου αντί να κάνεις νέα εγγραφή. Για λόγους προστασίας προσωπικών δεδομένων η εγγραφή δείχνει την ίδια επιτυχία, αλλά ένας ήδη επιβεβαιωμένος λογαριασμός δεν λαμβάνει δεύτερο verification link." : "Sign in instead of registering again. For privacy, sign-up shows the same success state, but an already verified account does not receive another verification link."}</p><a href="/${locale}/login" class="mt-3 inline-block font-semibold text-amber-950 underline">${el ? "Μετάβαση στη σύνδεση" : "Go to sign in"}</a></div></div><aside class="border-t bg-[#f8faff] p-7 sm:p-12 lg:border-l lg:border-t-0"><h2 class="text-2xl font-medium text-[#172033]">${el ? "Δεν ήρθε email;" : "Didn't receive it?"}</h2><ol class="mt-4 space-y-2 text-sm leading-6 text-[#64748b]"><li>1. ${el ? "Έλεγξε Spam/Junk και Promotions." : "Check Spam/Junk and Promotions."}</li><li>2. ${el ? "Βεβαιώσου ότι το email γράφτηκε σωστά." : "Make sure the email address is correct."}</li><li>3. ${el ? "Περίμενε ένα λεπτό και κάνε επαναποστολή." : "Wait a minute, then resend."}</li></ol><form id="resend-verification" class="mt-7 space-y-3"><label class="block text-sm font-medium text-[#334155]">Email<input id="verification-email" name="email" type="email" required maxlength="254" autocomplete="email" class="mt-1.5 w-full rounded-2xl border border-[#cbd5e1] bg-white px-4 py-3.5 outline-none focus:border-[#6366f1] focus:ring-4 focus:ring-[#6366f1]/10"></label><button id="resend-button" class="w-full rounded-2xl bg-[#4f46e5] px-6 py-3.5 font-semibold text-white disabled:cursor-wait disabled:opacity-60">${el ? "Επαναποστολή email" : "Resend verification email"}</button><p id="resend-message" role="status" aria-live="polite" class="hidden rounded-2xl p-3.5 text-sm leading-6"></p></form><div class="mt-6 flex flex-wrap gap-4 text-sm"><a href="/${locale}/register" class="font-semibold text-[#4338ca]">${el ? "Αλλαγή email" : "Change email"}</a><a href="/${locale}/forgot-password" class="font-semibold text-[#4338ca]">${el ? "Ξέχασα τον κωδικό" : "Forgot password"}</a></div></aside></div></div></section></main><script>const emailInput=document.getElementById('verification-email'),emailSummary=document.getElementById('email-summary'),maskedEmail=document.getElementById('masked-email'),resendForm=document.getElementById('resend-verification'),resendButton=document.getElementById('resend-button'),resendMessage=document.getElementById('resend-message'),storedEmail=sessionStorage.getItem('membouxVerificationEmail')||'';const maskEmail=(email)=>{const parts=email.split('@');if(parts.length!==2)return email;const local=parts[0];return (local.length<3?local[0]+'*':local.slice(0,2)+'***'+local.slice(-1))+'@'+parts[1]};if(storedEmail){emailInput.value=storedEmail;maskedEmail.textContent=maskEmail(storedEmail);emailSummary.classList.remove('hidden')}resendForm.onsubmit=async(event)=>{event.preventDefault();if(!resendForm.reportValidity())return;resendButton.disabled=true;resendMessage.classList.add('hidden');try{const response=await fetch('/api/auth/send-verification-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:emailInput.value.trim().toLowerCase(),callbackURL:'/${locale}/account'})});resendMessage.classList.remove('hidden');resendMessage.className=response.ok?'rounded-2xl bg-emerald-50 p-3.5 text-sm leading-6 text-emerald-700':'rounded-2xl bg-red-50 p-3.5 text-sm leading-6 text-red-700';resendMessage.textContent=response.ok?${JSON.stringify(sentMessage)}:${JSON.stringify(failedMessage)}}catch{resendMessage.className='rounded-2xl bg-red-50 p-3.5 text-sm leading-6 text-red-700';resendMessage.textContent=${JSON.stringify(failedMessage)};resendMessage.classList.remove('hidden')}finally{resendButton.disabled=false}}<\/script>`));
 });
 
 publicRoutes.get("/:locale{el|en}/forgot-password", (c) => {
   const locale = normalizeLocale(c.req.param("locale")); const m = t(locale);
-  return c.html(page(m.forgotPassword, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#ddd0c6] bg-white/95 p-8 shadow-[0_24px_70px_rgba(71,50,40,.12)]"><h1 class="text-3xl font-bold">${m.forgotPassword}</h1><form id="forgot" class="mt-6 space-y-3"><input name="email" type="email" required placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700"></p><button class="w-full rounded-xl bg-[#33251f] py-3 font-semibold text-white">${locale === "el" ? "Αποστολή συνδέσμου" : "Send reset link"}</button></form></section></main><script>document.getElementById('forgot').onsubmit=async(e)=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));await fetch('/api/auth/request-password-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...v,redirectTo:'/${locale}/reset-password'})});const m=document.getElementById('message');m.textContent=${JSON.stringify(locale === "el" ? "Αν υπάρχει λογαριασμός, στάλθηκε email επαναφοράς." : "If the account exists, a reset email has been sent.")};m.classList.remove('hidden')}<\/script>`));
+  return c.html(page(m.forgotPassword, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#dbe2f0] bg-white/95 p-8 shadow-[0_24px_70px_rgba(79,70,229,.12)]"><h1 class="text-3xl font-bold">${m.forgotPassword}</h1><form id="forgot" class="mt-6 space-y-3"><input name="email" type="email" required placeholder="${m.email}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700"></p><button class="w-full rounded-xl bg-[#172033] py-3 font-semibold text-white">${locale === "el" ? "Αποστολή συνδέσμου" : "Send reset link"}</button></form></section></main><script>document.getElementById('forgot').onsubmit=async(e)=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));await fetch('/api/auth/request-password-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...v,redirectTo:'/${locale}/reset-password'})});const m=document.getElementById('message');m.textContent=${JSON.stringify(locale === "el" ? "Αν υπάρχει λογαριασμός, στάλθηκε email επαναφοράς." : "If the account exists, a reset email has been sent.")};m.classList.remove('hidden')}<\/script>`));
 });
 
 publicRoutes.get("/:locale{el|en}/reset-password", (c) => {
   const locale = normalizeLocale(c.req.param("locale")); const token = c.req.query("token") ?? "";
-  return c.html(page(locale === "el" ? "Νέος κωδικός" : "New password", `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#ddd0c6] bg-white/95 p-8 shadow-[0_24px_70px_rgba(71,50,40,.12)]"><h1 class="text-3xl font-bold">${locale === "el" ? "Όρισε νέο κωδικό" : "Choose a new password"}</h1><form id="reset" class="mt-6 space-y-3"><input name="password" type="password" required minlength="10" autocomplete="new-password" placeholder="${locale === "el" ? "Νέος κωδικός" : "New password"}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl p-3 text-sm"></p><button class="w-full rounded-xl bg-[#33251f] py-3 font-semibold text-white">${locale === "el" ? "Αποθήκευση" : "Save password"}</button></form></section></main><script>const token=${JSON.stringify(token)};document.getElementById('reset').onsubmit=async(e)=>{e.preventDefault();const password=new FormData(e.target).get('password');const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newPassword:password,token})});const m=document.getElementById('message');m.classList.remove('hidden');if(r.ok){m.classList.add('bg-emerald-50','text-emerald-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο κωδικός άλλαξε. Μπορείς να συνδεθείς." : "Password updated. You can now sign in.")};setTimeout(()=>location.href='/${locale}/login',1200)}else{m.classList.add('bg-red-50','text-red-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει." : "This link is invalid or has expired.")}}<\/script>`));
+  return c.html(page(locale === "el" ? "Νέος κωδικός" : "New password", `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl border border-[#dbe2f0] bg-white/95 p-8 shadow-[0_24px_70px_rgba(79,70,229,.12)]"><h1 class="text-3xl font-bold">${locale === "el" ? "Όρισε νέο κωδικό" : "Choose a new password"}</h1><form id="reset" class="mt-6 space-y-3"><input name="password" type="password" required minlength="10" autocomplete="new-password" placeholder="${locale === "el" ? "Νέος κωδικός" : "New password"}" class="w-full rounded-xl border px-4 py-3"><p id="message" class="hidden rounded-xl p-3 text-sm"></p><button class="w-full rounded-xl bg-[#172033] py-3 font-semibold text-white">${locale === "el" ? "Αποθήκευση" : "Save password"}</button></form></section></main><script>const token=${JSON.stringify(token)};document.getElementById('reset').onsubmit=async(e)=>{e.preventDefault();const password=new FormData(e.target).get('password');const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newPassword:password,token})});const m=document.getElementById('message');m.classList.remove('hidden');if(r.ok){m.classList.add('bg-emerald-50','text-emerald-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο κωδικός άλλαξε. Μπορείς να συνδεθείς." : "Password updated. You can now sign in.")};setTimeout(()=>location.href='/${locale}/login',1200)}else{m.classList.add('bg-red-50','text-red-700');m.textContent=${JSON.stringify(locale === "el" ? "Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει." : "This link is invalid or has expired.")}}<\/script>`));
 });
