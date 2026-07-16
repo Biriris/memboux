@@ -7,6 +7,7 @@ describe("account data rights", () => {
     await env.DB.batch([
       env.DB.prepare('DROP TABLE IF EXISTS event_backup_items'), env.DB.prepare('DROP TABLE IF EXISTS event_backups'),
       env.DB.prepare('DROP TABLE IF EXISTS cloud_connections'),
+      env.DB.prepare('DROP TABLE IF EXISTS account_payments'), env.DB.prepare('DROP TABLE IF EXISTS account_subscriptions'),
       env.DB.prepare('DROP TABLE IF EXISTS official_album_items'), env.DB.prepare('DROP TABLE IF EXISTS media'),
       env.DB.prepare('DROP TABLE IF EXISTS event_professional_assignments'), env.DB.prepare('DROP TABLE IF EXISTS professional_profiles'),
       env.DB.prepare('DROP TABLE IF EXISTS event_invitations'), env.DB.prepare('DROP TABLE IF EXISTS event_members'),
@@ -25,6 +26,8 @@ describe("account data rights", () => {
       env.DB.prepare('CREATE TABLE cloud_connections (user_id TEXT,provider TEXT,scope TEXT,root_folder_id TEXT,created_at INTEGER,updated_at INTEGER,encrypted_refresh_token TEXT,token_iv TEXT)'),
       env.DB.prepare('CREATE TABLE event_backups (id TEXT,event_id TEXT,user_id TEXT,provider TEXT,status TEXT,total_items INTEGER,completed_items INTEGER,failed_items INTEGER,total_bytes INTEGER,completed_bytes INTEGER,provider_folder_id TEXT,error_message TEXT,created_at INTEGER,started_at INTEGER,completed_at INTEGER,updated_at INTEGER)'),
       env.DB.prepare('CREATE TABLE event_backup_items (backup_id TEXT,media_id TEXT,sequence_no INTEGER,content_type TEXT,size_bytes INTEGER,filename TEXT,status TEXT,provider_file_id TEXT,error_message TEXT,completed_at INTEGER,updated_at INTEGER)'),
+      env.DB.prepare('CREATE TABLE account_subscriptions (user_id TEXT PRIMARY KEY,plan_key TEXT,status TEXT,billing_provider TEXT,billing_interval TEXT,amount_minor INTEGER,currency TEXT,external_customer_id TEXT,external_subscription_id TEXT,started_at INTEGER,current_period_end INTEGER,canceled_at INTEGER,last_payment_at INTEGER,created_at INTEGER,updated_at INTEGER)'),
+      env.DB.prepare('CREATE TABLE account_payments (id TEXT PRIMARY KEY,user_id TEXT,provider TEXT,status TEXT,amount_minor INTEGER,currency TEXT,provider_payment_id TEXT,note TEXT,paid_at INTEGER,created_at INTEGER)'),
     ]);
     await env.DB.prepare('INSERT INTO "user" VALUES (?,?,?,?,?,?,?)').bind('u1','User One','one@example.com',1,null,1,2).run();
     await env.DB.prepare('INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL)').bind('e1','ABC123','Private event',1,2,3,'active','en','2026-07-13','2026-07-14').run();
@@ -37,6 +40,8 @@ describe("account data rights", () => {
     await env.DB.prepare('INSERT INTO cloud_connections VALUES (?,?,?,?,?,?,?,?)').bind('u1','google_drive','drive.file','root-1',8,9,'encrypted-secret','secret-iv').run();
     await env.DB.prepare('INSERT INTO event_backups VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind('b1','e1','u1','google_drive','completed',1,1,0,1024,1024,'folder-1',null,10,11,12,12).run();
     await env.DB.prepare('INSERT INTO event_backup_items VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind('b1','m1',1,'image/jpeg',1024,'0001.jpg','completed','drive-file-1',null,12,12).run();
+    await env.DB.prepare('INSERT INTO account_subscriptions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind('u1','pro','active','manual','month',2900,'EUR',null,null,13,14,null,15,13,15).run();
+    await env.DB.prepare('INSERT INTO account_payments VALUES (?,?,?,?,?,?,?,?,?,?)').bind('pay1','u1','manual','paid',2900,'EUR',null,'First payment',15,15).run();
   });
 
   it("blocks deletion while the user owns an active event", async () => {
@@ -50,7 +55,7 @@ describe("account data rights", () => {
     expect(data.account).toMatchObject({ id: 'u1', email: 'one@example.com' });
     expect(data.eventMemberships).toHaveLength(1);
     expect(data.signInProviders).toEqual([{ providerId: 'google', createdAt: 1, updatedAt: 2 }]);
-    expect(data.exportVersion).toBe('memboux-account-export-3');
+    expect(data.exportVersion).toBe('memboux-account-export-4');
     expect(data.professionalProfile).toMatchObject({ business_name: 'Studio One', slug: 'studio-one' });
     expect(data.professionalAssignments).toHaveLength(1);
     expect(data.officialUploads).toHaveLength(1);
@@ -58,6 +63,8 @@ describe("account data rights", () => {
     expect(data.cloudConnections).toEqual([{ provider: 'google_drive', scope: 'drive.file', root_folder_id: 'root-1', created_at: 8, updated_at: 9 }]);
     expect(data.cloudBackups).toHaveLength(1);
     expect(data.cloudBackupItems).toHaveLength(1);
+    expect(data.subscription).toMatchObject({ plan_key: 'pro', status: 'active', amount_minor: 2900 });
+    expect(data.payments).toEqual([expect.objectContaining({ id: 'pay1', status: 'paid', amount_minor: 2900 })]);
     expect(JSON.stringify(data)).not.toContain('secret-token');
     expect(JSON.stringify(data)).not.toContain('secret-password');
     expect(JSON.stringify(data)).not.toContain('encrypted-secret');

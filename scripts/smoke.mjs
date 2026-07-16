@@ -44,6 +44,12 @@ const checks = [
     location: "/admin/login",
   },
   {
+    name: "anonymous admin users boundary",
+    path: "/admin/users",
+    status: 302,
+    location: "/admin/login",
+  },
+  {
     name: "anonymous cloud backup boundary",
     path: "/en/backups",
     status: 302,

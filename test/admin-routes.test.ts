@@ -16,6 +16,8 @@ describe("admin route boundaries", () => {
     "/admin/reported",
     "/admin/privacy-requests",
     "/admin/accounts",
+    "/admin/users",
+    "/admin/users/user-1",
     "/admin/readiness",
     "/admin/professionals",
     "/admin/trash",

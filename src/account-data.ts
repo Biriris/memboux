@@ -21,6 +21,8 @@ export async function buildAccountExport(db: D1Database, userId: string) {
     cloudConnections,
     cloudBackups,
     cloudBackupItems,
+    subscription,
+    payments,
   ] = await Promise.all([
     db.prepare(`SELECT id,name,email,emailVerified,image,createdAt,updatedAt FROM "user" WHERE id=?`).bind(userId).first(),
     db.prepare(`SELECT id,createdAt,updatedAt,expiresAt,ipAddress,userAgent FROM session WHERE userId=? ORDER BY createdAt DESC`).bind(userId).all(),
@@ -52,10 +54,15 @@ export async function buildAccountExport(db: D1Database, userId: string) {
       i.status,i.provider_file_id,i.error_message,i.completed_at,i.updated_at
       FROM event_backup_items i JOIN event_backups b ON b.id=i.backup_id
       WHERE b.user_id=? ORDER BY b.created_at DESC,i.sequence_no`).bind(userId).all(),
+    db.prepare(`SELECT plan_key,status,billing_provider,billing_interval,amount_minor,currency,
+      external_customer_id,external_subscription_id,started_at,current_period_end,canceled_at,
+      last_payment_at,created_at,updated_at FROM account_subscriptions WHERE user_id=?`).bind(userId).first(),
+    db.prepare(`SELECT id,provider,status,amount_minor,currency,provider_payment_id,note,paid_at,created_at
+      FROM account_payments WHERE user_id=? ORDER BY COALESCE(paid_at,created_at) DESC`).bind(userId).all(),
   ]);
   if (!user) throw new Error("Account not found");
   return {
-    exportVersion: "memboux-account-export-3",
+    exportVersion: "memboux-account-export-4",
     generatedAt: new Date().toISOString(),
     account: user,
     sessions: sessions.results,
@@ -69,5 +76,7 @@ export async function buildAccountExport(db: D1Database, userId: string) {
     cloudConnections: cloudConnections.results,
     cloudBackups: cloudBackups.results,
     cloudBackupItems: cloudBackupItems.results,
+    subscription,
+    payments: payments.results,
   };
 }
