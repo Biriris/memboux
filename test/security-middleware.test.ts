@@ -2,6 +2,15 @@ import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 describe("global security middleware", () => {
+  it("permanently redirects production HTTP requests to the same HTTPS URL", async () => {
+    const response = await SELF.fetch("http://memboux.com/gallery/ABC123?lang=el", {
+      redirect: "manual",
+    });
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe("https://memboux.com/gallery/ABC123?lang=el");
+  });
+
   it("adds production browser security headers to HTML responses", async () => {
     const response = await SELF.fetch("https://memboux.com/en");
 

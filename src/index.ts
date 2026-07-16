@@ -22,6 +22,16 @@ export { GoogleDriveBackupWorkflow } from "./google-drive";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  const isProductionHost = url.hostname === "memboux.com" || url.hostname === "www.memboux.com";
+  if (isProductionHost && url.protocol === "http:") {
+    url.protocol = "https:";
+    return c.redirect(url.toString(), 308);
+  }
+  await next();
+});
+
 app.use("*", secureHeaders({
   permissionsPolicy: {
     camera: [],
