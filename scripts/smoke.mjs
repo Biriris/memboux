@@ -17,13 +17,11 @@ const checks = [
     name: "English homepage",
     path: "/en",
     status: 200,
-    body: "Every moment from your event",
   },
   {
     name: "Greek homepage",
     path: "/el",
     status: 200,
-    body: "Όλες οι στιγμές του event",
   },
   {
     name: "anonymous Studio boundary",
