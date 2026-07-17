@@ -171,7 +171,19 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
   }
   if (wantsJson) {
     c.header("Cache-Control", "private, no-store");
-    return c.json({ status: true, invitationUrl, delivery: existingUser ? "notification" : "email" }, 201);
+    const invitationQrSvg = (await QRCode.toString(invitationUrl, {
+      type: "svg",
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    })).replace("<svg", '<svg class="block h-auto w-full max-w-full" aria-label="Invitation QR code"');
+    return c.json({
+      status: true,
+      invitationUrl,
+      invitationQrSvg,
+      expiresAt: now + 14 * 86_400_000,
+      delivery: existingUser ? "notification" : "email",
+    }, 201);
   }
   return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
 });

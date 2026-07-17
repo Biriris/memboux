@@ -45,6 +45,8 @@ describe("event workspace", () => {
     expect(html).toContain('id="danger"');
     expect(html).toContain('data-test="guest-qr"');
     expect(html).toContain('data-test="official-qr"');
+    expect(html).toContain("data.invitationQrSvg");
+    expect(html).toContain("dataset.invitationQr");
     expect(html).toContain(`/api/account/events/${event.code}/trash`);
     expect(html).toContain(`/gallery/${event.code}/official`);
   });
