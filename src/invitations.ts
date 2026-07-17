@@ -93,8 +93,8 @@ export async function getInvitationByToken(db: D1Database, token: string) {
 }
 
 export type InvitationResponse =
-  | { status: "accepted"; eventCode: string }
-  | { status: "declined"; eventCode: string }
+  | { status: "accepted"; eventId: string; eventCode: string }
+  | { status: "declined"; eventId: string; eventCode: string }
   | { status: "not_found" | "forbidden" | "expired" | "already_resolved" };
 
 export async function respondToInvitation(
@@ -130,7 +130,7 @@ export async function respondToInvitation(
       .bind(now, invitation.id, now)
       .run();
     return result.meta.changes
-      ? { status: "declined", eventCode: invitation.event_code }
+      ? { status: "declined", eventId: invitation.event_id, eventCode: invitation.event_code }
       : { status: "already_resolved" };
   }
 
@@ -146,6 +146,6 @@ export async function respondToInvitation(
       .bind(now, invitation.id, user.email.toLowerCase(), now),
   ]);
   return results[1].meta.changes
-    ? { status: "accepted", eventCode: invitation.event_code }
+    ? { status: "accepted", eventId: invitation.event_id, eventCode: invitation.event_code }
     : { status: "already_resolved" };
 }

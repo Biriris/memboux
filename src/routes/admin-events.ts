@@ -7,7 +7,7 @@ import { getEvent, getMedia, permanentlyDeleteEvent } from "../repositories";
 import { currentUser } from "../session";
 import { adminLocaleOrRedirect, isAdmin } from "./admin-auth";
 import { parse as parseMetadata } from "exifr";
-import { queueAutomaticGoogleDriveBackupsForEvent } from "../google-drive";
+import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { releaseOwnedEvent, releaseStorage, reserveStorageForEvent } from "../quotas";
 import { safeFileExtension, validateUploadFiles } from "../upload-policy";
 import { adminShell } from "../views/admin";
@@ -158,7 +158,7 @@ adminEventRoutes.post("/admin/events/:code/upload", async (c) => {
   }
   if (uploadedKeys.length) {
     c.executionCtx.waitUntil(
-      queueAutomaticGoogleDriveBackupsForEvent(c.env, event.id).catch((error) => {
+      queueAutomaticCloudBackupsForEvent(c.env, event.id).catch((error) => {
         console.error(JSON.stringify({
           event: "drive_admin_upload_sync_failed",
           eventId: event.id,

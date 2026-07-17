@@ -2,11 +2,15 @@ import type { AuthEnv } from "./auth";
 import type { Locale } from "./i18n";
 
 export type EventRole = "owner" | "editor" | "viewer";
+export type CloudProvider = "google_drive" | "dropbox";
 
 export type Bindings = AuthEnv & {
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
   DRIVE_BACKUP_WORKFLOW: Workflow;
+  DROPBOX_BACKUP_WORKFLOW: Workflow;
+  DROPBOX_APP_KEY?: string;
+  DROPBOX_APP_SECRET?: string;
   ADMIN_PASSWORD?: string;
   BUSINESS_LEGAL_NAME?: string;
   BUSINESS_POSTAL_ADDRESS?: string;
@@ -17,7 +21,7 @@ export type Bindings = AuthEnv & {
 export type CloudConnectionRow = {
   id: string;
   user_id: string;
-  provider: "google_drive";
+  provider: CloudProvider;
   encrypted_refresh_token: string;
   token_iv: string;
   scope: string;
@@ -32,7 +36,7 @@ export type EventBackupRow = {
   id: string;
   event_id: string;
   user_id: string;
-  provider: "google_drive";
+  provider: CloudProvider;
   status: EventBackupStatus;
   workflow_instance_id: string | null;
   provider_folder_id: string | null;

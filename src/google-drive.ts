@@ -124,7 +124,7 @@ export type GoogleDriveBackupQueueResult =
   | { status: "queued"; backupId: string }
   | { status: "active"; backupId: string }
   | { status: "up_to_date"; backupId: null }
-  | { status: "not_connected" | "not_owner"; backupId: null };
+  | { status: "not_connected" | "not_member"; backupId: null };
 
 export async function prepareGoogleDriveBackup(
   db: D1Database,
@@ -136,11 +136,11 @@ export async function prepareGoogleDriveBackup(
   ).bind(userId).first();
   if (!connection) return { status: "not_connected", backupId: null };
 
-  const owner = await db.prepare(
+  const membership = await db.prepare(
     `SELECT 1 FROM event_members em JOIN events e ON e.id=em.event_id
-     WHERE em.event_id=? AND em.user_id=? AND em.role='owner' AND e.deleted_at IS NULL`,
+     WHERE em.event_id=? AND em.user_id=? AND e.deleted_at IS NULL`,
   ).bind(eventId, userId).first();
-  if (!owner) return { status: "not_owner", backupId: null };
+  if (!membership) return { status: "not_member", backupId: null };
 
   const active = await db.prepare(
     "SELECT id FROM event_backups WHERE event_id=? AND user_id=? AND provider='google_drive' AND status IN ('queued','running')",
@@ -232,17 +232,18 @@ export async function queueGoogleDriveBackupForEvent(
 }
 
 export async function queueAutomaticGoogleDriveBackupsForEvent(env: Bindings, eventId: string) {
-  const owners = await env.DB.prepare(
+  const members = await env.DB.prepare(
     `SELECT em.user_id FROM event_members em JOIN cloud_connections cc ON cc.user_id=em.user_id
-     WHERE em.event_id=? AND em.role='owner' AND cc.provider='google_drive'`,
+     JOIN events e ON e.id=em.event_id
+     WHERE em.event_id=? AND cc.provider='google_drive' AND e.deleted_at IS NULL`,
   ).bind(eventId).all<{ user_id: string }>();
-  for (const owner of owners.results) await queueGoogleDriveBackupForEvent(env, eventId, owner.user_id);
+  for (const member of members.results) await queueGoogleDriveBackupForEvent(env, eventId, member.user_id);
 }
 
 export async function queueAllGoogleDriveBackupsForUser(env: Bindings, userId: string) {
   const events = await env.DB.prepare(
     `SELECT em.event_id FROM event_members em JOIN events e ON e.id=em.event_id
-     WHERE em.user_id=? AND em.role='owner' AND e.deleted_at IS NULL`,
+     WHERE em.user_id=? AND e.deleted_at IS NULL`,
   ).bind(userId).all<{ event_id: string }>();
   for (const event of events.results) await queueGoogleDriveBackupForEvent(env, event.event_id, userId);
 }
@@ -252,7 +253,7 @@ export async function reconcileAutomaticGoogleDriveBackups(env: Bindings) {
     `SELECT em.event_id,em.user_id FROM event_members em
      JOIN events e ON e.id=em.event_id
      JOIN cloud_connections cc ON cc.user_id=em.user_id AND cc.provider='google_drive'
-     WHERE em.role='owner' AND e.deleted_at IS NULL`,
+     WHERE e.deleted_at IS NULL`,
   ).all<{ event_id: string; user_id: string }>();
   for (const pair of pairs.results) await queueGoogleDriveBackupForEvent(env, pair.event_id, pair.user_id);
 }

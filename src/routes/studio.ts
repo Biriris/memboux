@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { parse as parseMetadata } from "exifr";
-import { queueAutomaticGoogleDriveBackupsForEvent } from "../google-drive";
+import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
@@ -394,7 +394,7 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
   }
   if (uploadedKeys.length) {
     c.executionCtx.waitUntil(
-      queueAutomaticGoogleDriveBackupsForEvent(c.env, event.id).catch((error) => {
+      queueAutomaticCloudBackupsForEvent(c.env, event.id).catch((error) => {
         console.error(JSON.stringify({
           event: "drive_studio_upload_sync_failed",
           eventId: event.id,

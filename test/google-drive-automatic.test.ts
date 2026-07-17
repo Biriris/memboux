@@ -69,9 +69,16 @@ describe("automatic Google Drive backup preparation", () => {
     expect(secondItems.results).toEqual([{ media_id: "media-3", sequence_no: 3, filename: "0003.jpg" }]);
   });
 
-  it("requires both an owner membership and a connected Drive", async () => {
+  it("requires both an event membership and a connected Drive", async () => {
     expect((await prepareGoogleDriveBackup(env.DB, "event-1", "someone-else")).status).toBe("not_connected");
     await env.DB.prepare("DELETE FROM cloud_connections").run();
     expect((await prepareGoogleDriveBackup(env.DB, "event-1", "owner-1")).status).toBe("not_connected");
+  });
+
+  it("backs up albums accepted by viewers and editors", async () => {
+    await env.DB.prepare("INSERT INTO event_members VALUES (?,?,?)").bind("event-1", "viewer-1", "viewer").run();
+    await env.DB.prepare("INSERT INTO cloud_connections VALUES (?,?)").bind("viewer-1", "google_drive").run();
+
+    expect((await prepareGoogleDriveBackup(env.DB, "event-1", "viewer-1")).status).toBe("queued");
   });
 });

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Bindings } from "../domain";
+import { queueConnectedCloudBackupsForAcceptedEvent } from "../cloud-backups";
 import { normalizeLocale } from "../i18n";
 import { getInvitationByToken, respondToInvitation } from "../invitations";
 import { currentUser } from "../session";
@@ -77,6 +78,18 @@ invitationRoutes.post("/api/account/invitations/:id/:action{accept|decline}", as
   if (result.status === "not_found") return c.text("Invitation not found", 404);
   if (result.status === "expired") return c.text("Invitation expired", 410);
   if (result.status === "already_resolved") return c.redirect(`/${locale}/account`, 303);
-  if (result.status === "accepted") return c.redirect(`/dashboard/${result.eventCode}?lang=${locale}`, 303);
+  if (result.status === "accepted") {
+    c.executionCtx.waitUntil(
+      queueConnectedCloudBackupsForAcceptedEvent(c.env, result.eventId, user.id).catch((error) => {
+        console.error(JSON.stringify({
+          event: "accepted_album_cloud_sync_failed",
+          eventId: result.eventId,
+          userId: user.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+        }));
+      }),
+    );
+    return c.redirect(`/dashboard/${result.eventCode}?lang=${locale}`, 303);
+  }
   return c.redirect(`/${locale}/account`, 303);
 });

@@ -4,7 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import type { Bindings } from "./domain";
 import { purgeExpiredTrash } from "./repositories";
-import { reconcileAutomaticGoogleDriveBackups } from "./google-drive";
+import { reconcileAutomaticCloudBackups } from "./cloud-backups";
 import { accountRoutes } from "./routes/account";
 import { accountTrashRoutes } from "./routes/account-trash";
 import { adminRoutes } from "./routes/admin";
@@ -21,6 +21,7 @@ import { backupRoutes } from "./routes/backups";
 import { invitationRoutes } from "./routes/invitations";
 
 export { GoogleDriveBackupWorkflow } from "./google-drive";
+export { DropboxBackupWorkflow } from "./dropbox";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -76,7 +77,7 @@ export default {
   scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(Promise.allSettled([
       purgeExpiredTrash(env),
-      reconcileAutomaticGoogleDriveBackups(env),
+      reconcileAutomaticCloudBackups(env),
     ]).then((results) => {
       results.forEach((result, index) => {
         if (result.status === "rejected") {

@@ -3,7 +3,7 @@ import { parse as parseMetadata } from "exifr";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
-import { queueAutomaticGoogleDriveBackupsForEvent } from "../google-drive";
+import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
@@ -310,7 +310,7 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
 
   if (uploadedKeys.length) {
     c.executionCtx.waitUntil(
-      queueAutomaticGoogleDriveBackupsForEvent(c.env, event.id).catch((error) => {
+      queueAutomaticCloudBackupsForEvent(c.env, event.id).catch((error) => {
         console.error(JSON.stringify({
           event: "drive_upload_sync_failed",
           eventId: event.id,

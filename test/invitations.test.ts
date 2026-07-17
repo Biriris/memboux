@@ -111,7 +111,7 @@ describe("explicit invitation responses", () => {
     expect((await respondToInvitation(env.DB, "invite-1", { id: "wrong", email: "wrong@example.com" }, "accept", now + 1)).status).toBe("forbidden");
 
     const response = await respondToInvitation(env.DB, "invite-1", { id: "guest-1", email: "Guest@Example.com" }, "accept", now + 2);
-    expect(response).toEqual({ status: "accepted", eventCode: "ALBUM1" });
+    expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1" });
     expect((await env.DB.prepare("SELECT role FROM event_members WHERE event_id='event-1' AND user_id='guest-1'").first<{ role: string }>())?.role).toBe("viewer");
     expect((await env.DB.prepare("SELECT accepted_at FROM event_invitations WHERE id='invite-1'").first<{ accepted_at: number }>())?.accepted_at).toBe(now + 2);
   });
@@ -119,7 +119,7 @@ describe("explicit invitation responses", () => {
   it("declines without creating membership and removes the notification", async () => {
     await createInvitation();
     expect(await respondToInvitation(env.DB, "invite-1", { id: "guest-1", email: "guest@example.com" }, "decline", now + 3))
-      .toEqual({ status: "declined", eventCode: "ALBUM1" });
+      .toEqual({ status: "declined", eventId: "event-1", eventCode: "ALBUM1" });
     expect(await env.DB.prepare("SELECT 1 FROM event_members WHERE user_id='guest-1'").first()).toBeNull();
     expect(await listPendingInvitations(env.DB, { email: "guest@example.com" }, now + 4)).toEqual([]);
   });
