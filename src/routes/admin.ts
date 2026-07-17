@@ -33,6 +33,17 @@ import {
 
 export const adminRoutes = new Hono<{ Bindings: Bindings }>();
 
+function safeAdminReturn(value: unknown, fallback: string) {
+  const target = String(value ?? "");
+  return target.startsWith("/admin/") && !target.startsWith("//")
+    ? target
+    : fallback;
+}
+
+function selected(value: string, current: string) {
+  return value === current ? " selected" : "";
+}
+
 adminRoutes.get("/admin/login", async (c) => {
   if (await isAdmin(c)) return c.redirect("/admin/users");
   const configured = Boolean(c.env.ADMIN_PASSWORD);
@@ -120,35 +131,88 @@ adminRoutes.get("/admin/readiness", async (c) => {
 adminRoutes.get("/admin/professionals", async (c) => {
   const locale = await adminLocaleOrRedirect(c);
   if (!locale) return c.redirect("/admin/login");
+  const query = (c.req.query("q") ?? "").trim().slice(0, 100);
+  const status = ["active", "suspended", "missing"].includes(
+    c.req.query("status") ?? "",
+  )
+    ? String(c.req.query("status"))
+    : "all";
+  const sort = [
+    "updated_desc",
+    "name_asc",
+    "name_desc",
+    "assignments_desc",
+    "status_asc",
+  ].includes(c.req.query("sort") ?? "")
+    ? String(c.req.query("sort"))
+    : "updated_desc";
+  const where = ["(?='' OR u.name LIKE ? OR u.email LIKE ? OR p.business_name LIKE ? OR p.slug LIKE ?)"];
+  const bindings: unknown[] = [
+    query,
+    `%${query}%`,
+    `%${query}%`,
+    `%${query}%`,
+    `%${query}%`,
+  ];
+  if (status === "missing") where.push("p.user_id IS NULL");
+  else if (status !== "all") {
+    where.push("p.status=?");
+    bindings.push(status);
+  }
+  const orderBy: Record<string, string> = {
+    updated_desc: "COALESCE(p.updated_at,0) DESC,u.createdAt DESC",
+    name_asc: "COALESCE(p.business_name,u.name) COLLATE NOCASE ASC",
+    name_desc: "COALESCE(p.business_name,u.name) COLLATE NOCASE DESC",
+    assignments_desc: "accepted_assignments DESC,total_assignments DESC",
+    status_asc: "CASE WHEN p.user_id IS NULL THEN 2 WHEN p.status='active' THEN 0 ELSE 1 END,COALESCE(p.business_name,u.name) COLLATE NOCASE",
+  };
   const users = await c.env.DB.prepare(
-    `SELECT u.id,u.name,u.email,p.business_name,p.slug,p.bio,p.website,p.status FROM "user" u LEFT JOIN professional_profiles p ON p.user_id=u.id ORDER BY CASE WHEN p.user_id IS NULL THEN 1 ELSE 0 END,p.business_name,u.name`,
-  ).all<{
+    `SELECT u.id,u.name,u.email,u.createdAt,p.business_name,p.slug,p.bio,p.website,p.status,p.updated_at,
+      (SELECT COUNT(*) FROM event_professional_assignments a WHERE a.professional_user_id=u.id AND a.status='accepted') accepted_assignments,
+      (SELECT COUNT(*) FROM event_professional_assignments a WHERE a.professional_user_id=u.id) total_assignments
+     FROM "user" u LEFT JOIN professional_profiles p ON p.user_id=u.id
+     WHERE ${where.join(" AND ")} ORDER BY ${orderBy[sort]} LIMIT 250`,
+  )
+    .bind(...bindings)
+    .all<{
     id: string;
     name: string;
     email: string;
+    createdAt: number;
     business_name: string | null;
     slug: string | null;
     bio: string | null;
     website: string | null;
     status: string | null;
+    updated_at: number | null;
+    accepted_assignments: number;
+    total_assignments: number;
   }>();
+  const currentUrl = new URL(c.req.url);
+  const returnTo = `${currentUrl.pathname}${currentUrl.search}`;
   const rows = users.results
-    .map(
-      (user) =>
-        `<article class="rounded-2xl border bg-white p-5 shadow-sm"><div><h2 class="text-xl">${esc(user.business_name ?? user.name)}</h2><p class="text-sm text-[#64748b]">${esc(user.email)}</p></div><form action="/admin/professionals/${encodeURIComponent(user.id)}" method="post" class="mt-4 grid gap-3 md:grid-cols-2"><label class="text-xs">Business name<input name="businessName" required maxlength="100" value="${esc(user.business_name ?? user.name)}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><label class="text-xs">Public slug<input name="slug" required maxlength="50" value="${esc(
-          user.slug ??
-            (user.name
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-|-$/g, "")
-              .slice(0, 50) || `studio-${user.id.slice(0, 8)}`),
-        )}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><label class="text-xs md:col-span-2">Bio<textarea name="bio" maxlength="1000" rows="3" class="mt-1 w-full rounded-xl border px-3 py-2">${esc(user.bio ?? "")}</textarea></label><label class="text-xs">Website<input name="website" type="url" maxlength="300" value="${esc(user.website ?? "")}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><label class="text-xs">Status<select name="status" class="mt-1 w-full rounded-xl border px-3 py-2"><option value="active"${user.status !== "suspended" ? " selected" : ""}>Active</option><option value="suspended"${user.status === "suspended" ? " selected" : ""}>Suspended</option></select></label><button class="rounded-xl bg-[#4f46e5] px-4 py-2 text-white md:col-span-2">${locale === "el" ? "Αποθήκευση professional profile" : "Save professional profile"}</button></form></article>`,
-    )
+    .map((user) => {
+      const profileStatus = user.status ?? "missing";
+      const statusClass =
+        profileStatus === "active"
+          ? "bg-emerald-50 text-emerald-700"
+          : profileStatus === "suspended"
+            ? "bg-amber-50 text-amber-700"
+            : "bg-slate-100 text-slate-600";
+      const slug =
+        user.slug ??
+        (user.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 50) || `studio-${user.id.slice(0, 8)}`);
+      return `<details class="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary class="grid cursor-pointer list-none gap-3 p-4 transition hover:bg-slate-50 md:grid-cols-[minmax(220px,1.5fr)_minmax(150px,1fr)_120px_110px_150px_24px] md:items-center"><div class="min-w-0"><p class="truncate font-medium text-slate-950">${esc(user.business_name ?? user.name)}</p><p class="truncate text-xs text-slate-500">${esc(user.email)}</p></div><div class="min-w-0 text-sm"><p class="truncate text-slate-700">${esc(user.name)}</p><p class="truncate text-xs text-slate-400">/${esc(slug)}</p></div><span class="w-fit rounded-full px-2.5 py-1 text-xs font-medium ${statusClass}">${esc(profileStatus)}</span><p class="text-sm text-slate-700"><strong>${user.accepted_assignments}</strong> / ${user.total_assignments}</p><p class="text-xs text-slate-500">${formatDateTime(user.updated_at ?? user.createdAt, locale)}</p><span class="text-xl text-slate-400 transition group-open:rotate-180">⌄</span></summary><div class="border-t border-slate-100 bg-slate-50/60 p-4 md:p-6"><form action="/admin/professionals/${encodeURIComponent(user.id)}" method="post" class="grid gap-4 md:grid-cols-2"><input type="hidden" name="returnTo" value="${esc(returnTo)}"><label class="text-xs font-medium text-slate-600">${locale === "el" ? "Επωνυμία" : "Business name"}<input name="businessName" required maxlength="100" value="${esc(user.business_name ?? user.name)}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><label class="text-xs font-medium text-slate-600">${locale === "el" ? "Δημόσιο slug" : "Public slug"}<input name="slug" required maxlength="50" value="${esc(slug)}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><label class="text-xs font-medium text-slate-600 md:col-span-2">Bio<textarea name="bio" maxlength="1000" rows="3" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">${esc(user.bio ?? "")}</textarea></label><label class="text-xs font-medium text-slate-600">Website<input name="website" type="url" maxlength="300" value="${esc(user.website ?? "")}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><label class="text-xs font-medium text-slate-600">Status<select name="status" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="active"${selected("active", user.status ?? "active")}>Active</option><option value="suspended"${selected("suspended", user.status ?? "active")}>Suspended</option></select></label><button class="rounded-xl bg-[#4f46e5] px-4 py-2.5 font-medium text-white md:col-span-2">${locale === "el" ? "Αποθήκευση profile" : "Save profile"}</button></form></div></details>`;
+    })
     .join("");
   return c.html(
     adminShell(
       locale === "el" ? "Επαγγελματίες" : "Professionals",
-      `<main class="mx-auto max-w-6xl p-5 md:p-10"><h1 class="text-4xl">${locale === "el" ? "Professional profiles" : "Professional profiles"}</h1><p class="mt-2 text-[#64748b]">${locale === "el" ? "Μόνο ενεργά profiles μπορούν να επιλεγούν από event owners." : "Only active profiles can be selected by event owners."}</p><div class="mt-7 grid gap-4">${rows || "<p>No users.</p>"}</div></main>`,
+      `<main class="mx-auto max-w-7xl p-5 md:p-10"><div class="flex flex-wrap items-end justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-[.2em] text-[#4f46e5]">Studio directory</p><h1 class="mt-2 text-4xl">${locale === "el" ? "Professional profiles" : "Professional profiles"}</h1><p class="mt-2 text-slate-500">${locale === "el" ? "Αναζήτηση, ταξινόμηση και επεξεργασία όλων των επαγγελματικών profiles." : "Search, sort and edit every professional profile."}</p></div><span class="rounded-full bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">${users.results.length} ${locale === "el" ? "αποτελέσματα" : "results"}</span></div><form class="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_180px_210px_auto]"><input name="q" value="${esc(query)}" placeholder="${locale === "el" ? "Όνομα, email, studio ή slug" : "Name, email, studio or slug"}" class="rounded-xl border border-slate-200 px-4 py-2.5"><select name="status" class="rounded-xl border border-slate-200 px-3 py-2.5"><option value="all"${selected("all", status)}>${locale === "el" ? "Όλα τα profiles" : "All profiles"}</option><option value="active"${selected("active", status)}>Active</option><option value="suspended"${selected("suspended", status)}>Suspended</option><option value="missing"${selected("missing", status)}>${locale === "el" ? "Χωρίς profile" : "No profile"}</option></select><select name="sort" class="rounded-xl border border-slate-200 px-3 py-2.5"><option value="updated_desc"${selected("updated_desc", sort)}>${locale === "el" ? "Πρόσφατη ενημέρωση" : "Recently updated"}</option><option value="name_asc"${selected("name_asc", sort)}>Name A–Z</option><option value="name_desc"${selected("name_desc", sort)}>Name Z–A</option><option value="assignments_desc"${selected("assignments_desc", sort)}>${locale === "el" ? "Περισσότερα events" : "Most assignments"}</option><option value="status_asc"${selected("status_asc", sort)}>Status</option></select><button class="rounded-xl bg-slate-950 px-5 py-2.5 font-medium text-white">${locale === "el" ? "Εφαρμογή" : "Apply"}</button></form><div class="mt-5 hidden grid-cols-[minmax(220px,1.5fr)_minmax(150px,1fr)_120px_110px_150px_24px] gap-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 md:grid"><span>Studio / email</span><span>User / slug</span><span>Status</span><span>Accepted / all</span><span>Updated</span><span></span></div><div class="mt-2 grid gap-2">${rows || `<p class="rounded-2xl bg-white p-8 text-center text-slate-500">${locale === "el" ? "Δεν βρέθηκαν profiles." : "No profiles found."}</p>`}</div></main>`,
       locale,
     ),
   );
@@ -197,21 +261,69 @@ adminRoutes.post("/admin/professionals/:userId", async (c) => {
       now,
     )
     .run();
-  return c.redirect("/admin/professionals", 303);
+  return c.redirect(
+    safeAdminReturn(body.returnTo, "/admin/professionals"),
+    303,
+  );
 });
 
 adminRoutes.get("/admin/accounts", async (c) => {
   const locale = await adminLocaleOrRedirect(c);
   if (!locale) return c.redirect("/admin/login");
   const query = (c.req.query("q") ?? "").trim().slice(0, 100);
-  const accounts = await c.env.DB.prepare(
-    `SELECT u.id,u.name,u.email,COALESCE(ae.plan_key,'beta') plan_key,COALESCE(ae.storage_limit_bytes,21474836480) storage_limit_bytes,COALESCE(ae.event_limit,25) event_limit,COALESCE(ae.member_limit,25) member_limit,COALESCE(su.used_bytes,0) used_bytes,(SELECT COUNT(*) FROM event_members em JOIN events e ON e.id=em.event_id WHERE em.user_id=u.id AND em.role='owner' AND e.deleted_at IS NULL) event_count FROM "user" u LEFT JOIN account_entitlements ae ON ae.user_id=u.id LEFT JOIN account_storage_usage su ON su.user_id=u.id WHERE (?='' OR u.name LIKE ? OR u.email LIKE ?) ORDER BY u.createdAt DESC LIMIT 250`,
+  const plan = ["beta", "pro", "studio", "custom"].includes(
+    c.req.query("plan") ?? "",
   )
-    .bind(query, `%${query}%`, `%${query}%`)
+    ? String(c.req.query("plan"))
+    : "all";
+  const override = ["configured", "default"].includes(
+    c.req.query("override") ?? "",
+  )
+    ? String(c.req.query("override"))
+    : "all";
+  const sort = [
+    "newest",
+    "name_asc",
+    "name_desc",
+    "storage_desc",
+    "events_desc",
+    "plan_asc",
+  ].includes(c.req.query("sort") ?? "")
+    ? String(c.req.query("sort"))
+    : "newest";
+  const where = ["(?='' OR u.name LIKE ? OR u.email LIKE ?)"];
+  const bindings: unknown[] = [query, `%${query}%`, `%${query}%`];
+  if (plan !== "all") {
+    where.push("COALESCE(ae.plan_key,'beta')=?");
+    bindings.push(plan);
+  }
+  const customLimits =
+    "ae.user_id IS NOT NULL AND (ae.plan_key<>'beta' OR ae.storage_limit_bytes<>21474836480 OR ae.event_limit<>25 OR ae.member_limit<>25)";
+  if (override === "configured") where.push(`(${customLimits})`);
+  if (override === "default") where.push(`NOT (${customLimits})`);
+  const orderBy: Record<string, string> = {
+    newest: "u.createdAt DESC",
+    name_asc: "u.name COLLATE NOCASE ASC",
+    name_desc: "u.name COLLATE NOCASE DESC",
+    storage_desc: "used_bytes DESC",
+    events_desc: "event_count DESC",
+    plan_asc: "plan_key COLLATE NOCASE ASC,u.name COLLATE NOCASE ASC",
+  };
+  const accounts = await c.env.DB.prepare(
+    `SELECT u.id,u.name,u.email,u.createdAt,ae.updated_at entitlement_updated_at,
+      COALESCE(ae.plan_key,'beta') plan_key,COALESCE(ae.storage_limit_bytes,21474836480) storage_limit_bytes,
+      COALESCE(ae.event_limit,25) event_limit,COALESCE(ae.member_limit,25) member_limit,COALESCE(su.used_bytes,0) used_bytes,
+      (SELECT COUNT(*) FROM event_members em JOIN events e ON e.id=em.event_id WHERE em.user_id=u.id AND em.role='owner' AND e.deleted_at IS NULL) event_count
+     FROM "user" u LEFT JOIN account_entitlements ae ON ae.user_id=u.id LEFT JOIN account_storage_usage su ON su.user_id=u.id
+     WHERE ${where.join(" AND ")} ORDER BY ${orderBy[sort]} LIMIT 250`,
+  )
+    .bind(...bindings)
     .all<{
       id: string;
       name: string;
       email: string;
+      createdAt: number;
+      entitlement_updated_at: number | null;
       plan_key: string;
       storage_limit_bytes: number;
       event_limit: number;
@@ -219,16 +331,26 @@ adminRoutes.get("/admin/accounts", async (c) => {
       used_bytes: number;
       event_count: number;
     }>();
+  const currentUrl = new URL(c.req.url);
+  const returnTo = `${currentUrl.pathname}${currentUrl.search}`;
   const rows = accounts.results
-    .map(
-      (item) =>
-        `<article class="rounded-2xl border bg-white p-5 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-xl">${esc(item.name)}</h2><p class="break-all text-sm text-[#64748b]">${esc(item.email)}</p></div><span class="rounded-full bg-[#eef2ff] px-3 py-1 text-xs uppercase">${esc(item.plan_key)}</span></div><p class="mt-4 text-sm">${formatBytes(item.used_bytes)} / ${formatBytes(item.storage_limit_bytes)} · ${item.event_count} / ${item.event_limit} events</p><form action="/admin/accounts/${encodeURIComponent(item.id)}/entitlement" method="post" class="mt-4 grid gap-2 sm:grid-cols-4"><select name="planKey" class="rounded-xl border px-3 py-2"><option value="beta"${item.plan_key === "beta" ? " selected" : ""}>Beta</option><option value="pro"${item.plan_key === "pro" ? " selected" : ""}>Pro</option><option value="studio"${item.plan_key === "studio" ? " selected" : ""}>Studio</option><option value="custom"${item.plan_key === "custom" ? " selected" : ""}>Custom</option></select><label class="text-xs">Storage GB<input name="storageGb" type="number" min="1" max="10240" required value="${Math.round(item.storage_limit_bytes / 1073741824)}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><label class="text-xs">Events<input name="eventLimit" type="number" min="1" max="10000" required value="${item.event_limit}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><label class="text-xs">Members/event<input name="memberLimit" type="number" min="1" max="1000" required value="${item.member_limit}" class="mt-1 w-full rounded-xl border px-3 py-2"></label><button class="rounded-xl bg-[#4f46e5] px-4 py-2 text-white sm:col-span-4">${locale === "el" ? "Αποθήκευση ορίων" : "Save limits"}</button></form></article>`,
-    )
+    .map((item) => {
+      const storagePercent = Math.min(
+        100,
+        Math.round((item.used_bytes / item.storage_limit_bytes) * 100),
+      );
+      const hasOverride =
+        item.plan_key !== "beta" ||
+        item.storage_limit_bytes !== 21474836480 ||
+        item.event_limit !== 25 ||
+        item.member_limit !== 25;
+      return `<details class="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary class="grid cursor-pointer list-none gap-3 p-4 transition hover:bg-slate-50 md:grid-cols-[minmax(220px,1.4fr)_100px_minmax(170px,1fr)_110px_110px_150px_24px] md:items-center"><div class="min-w-0"><p class="truncate font-medium text-slate-950">${esc(item.name)}</p><p class="truncate text-xs text-slate-500">${esc(item.email)}</p></div><span class="w-fit rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold uppercase text-indigo-700">${esc(item.plan_key)}</span><div><p class="text-sm text-slate-700">${formatBytes(item.used_bytes)} / ${formatBytes(item.storage_limit_bytes)}</p><div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><span class="block h-full rounded-full bg-[#4f46e5]" style="width:${storagePercent}%"></span></div></div><p class="text-sm text-slate-700"><strong>${item.event_count}</strong> / ${item.event_limit}</p><p class="text-sm text-slate-700">${item.member_limit}</p><div><p class="text-xs text-slate-500">${formatDateTime(item.entitlement_updated_at ?? item.createdAt, locale)}</p><p class="mt-1 text-[11px] text-slate-400">${hasOverride ? "Override" : locale === "el" ? "Προεπιλογή" : "Default"}</p></div><span class="text-xl text-slate-400 transition group-open:rotate-180">⌄</span></summary><div class="border-t border-slate-100 bg-slate-50/60 p-4 md:p-6"><form action="/admin/accounts/${encodeURIComponent(item.id)}/entitlement" method="post" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><input type="hidden" name="returnTo" value="${esc(returnTo)}"><label class="text-xs font-medium text-slate-600">Plan<select name="planKey" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"><option value="beta"${selected("beta", item.plan_key)}>Beta</option><option value="pro"${selected("pro", item.plan_key)}>Pro</option><option value="studio"${selected("studio", item.plan_key)}>Studio</option><option value="custom"${selected("custom", item.plan_key)}>Custom</option></select></label><label class="text-xs font-medium text-slate-600">Storage GB<input name="storageGb" type="number" min="1" max="10240" required value="${Math.round(item.storage_limit_bytes / 1073741824)}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><label class="text-xs font-medium text-slate-600">Events<input name="eventLimit" type="number" min="1" max="10000" required value="${item.event_limit}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><label class="text-xs font-medium text-slate-600">${locale === "el" ? "Μέλη ανά event" : "Members per event"}<input name="memberLimit" type="number" min="1" max="1000" required value="${item.member_limit}" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"></label><button class="rounded-xl bg-[#4f46e5] px-4 py-2.5 font-medium text-white sm:col-span-2 lg:col-span-4">${locale === "el" ? "Αποθήκευση ορίων" : "Save limits"}</button></form></div></details>`;
+    })
     .join("");
   return c.html(
     adminShell(
       locale === "el" ? "Plans χρηστών" : "Account plans",
-      `<main class="mx-auto max-w-6xl p-5 md:p-10"><h1 class="text-4xl">${locale === "el" ? "Plans και quotas" : "Plans and quotas"}</h1><p class="mt-2 text-[#64748b]">${locale === "el" ? "Τα overrides εφαρμόζονται άμεσα χωρίς πληρωμή." : "Overrides apply immediately without billing."}</p><form class="mt-6"><input name="q" value="${esc(query)}" placeholder="Search name or email" class="w-full rounded-xl border bg-white px-4 py-3"></form><div class="mt-6 grid gap-4">${rows || "<p>No accounts found.</p>"}</div></main>`,
+      `<main class="mx-auto max-w-7xl p-5 md:p-10"><div class="flex flex-wrap items-end justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-[.2em] text-[#4f46e5]">Commercial controls</p><h1 class="mt-2 text-4xl">${locale === "el" ? "Plans και overrides" : "Plans and overrides"}</h1><p class="mt-2 text-slate-500">${locale === "el" ? "Λεπτομερής διαχείριση plan, αποθηκευτικού χώρου και ορίων λογαριασμού." : "Detailed plan, storage and account-limit management."}</p></div><span class="rounded-full bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">${accounts.results.length} ${locale === "el" ? "αποτελέσματα" : "results"}</span></div><form class="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_150px_160px_190px_auto]"><input name="q" value="${esc(query)}" placeholder="${locale === "el" ? "Όνομα ή email" : "Name or email"}" class="rounded-xl border border-slate-200 px-4 py-2.5"><select name="plan" class="rounded-xl border border-slate-200 px-3 py-2.5"><option value="all"${selected("all", plan)}>${locale === "el" ? "Όλα τα plans" : "All plans"}</option><option value="beta"${selected("beta", plan)}>Beta</option><option value="pro"${selected("pro", plan)}>Pro</option><option value="studio"${selected("studio", plan)}>Studio</option><option value="custom"${selected("custom", plan)}>Custom</option></select><select name="override" class="rounded-xl border border-slate-200 px-3 py-2.5"><option value="all"${selected("all", override)}>${locale === "el" ? "Όλα τα όρια" : "All limits"}</option><option value="configured"${selected("configured", override)}>Overrides</option><option value="default"${selected("default", override)}>Defaults</option></select><select name="sort" class="rounded-xl border border-slate-200 px-3 py-2.5"><option value="newest"${selected("newest", sort)}>${locale === "el" ? "Νεότεροι χρήστες" : "Newest users"}</option><option value="name_asc"${selected("name_asc", sort)}>Name A–Z</option><option value="name_desc"${selected("name_desc", sort)}>Name Z–A</option><option value="storage_desc"${selected("storage_desc", sort)}>${locale === "el" ? "Χρήση χώρου" : "Storage used"}</option><option value="events_desc"${selected("events_desc", sort)}>${locale === "el" ? "Περισσότερα events" : "Most events"}</option><option value="plan_asc"${selected("plan_asc", sort)}>Plan</option></select><button class="rounded-xl bg-slate-950 px-5 py-2.5 font-medium text-white">${locale === "el" ? "Εφαρμογή" : "Apply"}</button></form><div class="mt-5 hidden grid-cols-[minmax(220px,1.4fr)_100px_minmax(170px,1fr)_110px_110px_150px_24px] gap-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 md:grid"><span>User</span><span>Plan</span><span>Storage</span><span>Events</span><span>Members</span><span>Updated</span><span></span></div><div class="mt-2 grid gap-2">${rows || `<p class="rounded-2xl bg-white p-8 text-center text-slate-500">${locale === "el" ? "Δεν βρέθηκαν λογαριασμοί." : "No accounts found."}</p>`}</div></main>`,
       locale,
     ),
   );
@@ -269,7 +391,7 @@ adminRoutes.post("/admin/accounts/:id/entitlement", async (c) => {
       Date.now(),
     )
     .run();
-  return c.redirect("/admin/accounts", 303);
+  return c.redirect(safeAdminReturn(body.returnTo, "/admin/accounts"), 303);
 });
 
 export function adminEventCard(

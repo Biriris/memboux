@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MediaRow } from "../src/domain";
-import { cards, galleryFilterControls, galleryFilterScript, lightboxMarkup } from "../src/views/media";
+import { bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, lightboxMarkup } from "../src/views/media";
 
 const media = (overrides: Partial<MediaRow> = {}): MediaRow => ({
   id: "11111111-1111-4111-8111-111111111111",
@@ -41,6 +41,25 @@ describe("media views", () => {
     expect(html).toContain("media-selector");
     expect(html).toContain("media-select sr-only");
     expect(html).toContain("?download=1");
+  });
+
+  it("renders an executable, guarded bulk-selection script", () => {
+    const html = bulkSelectionScript({
+      selectButtonId: "select-media",
+      cardSelector: ".selectable-media",
+      selectorSelector: ".media-selector",
+      checkboxSelector: ".media-select",
+      tickSelector: ".selection-tick",
+      selectText: "Select",
+      cancelText: "Cancel",
+      actions: [{ buttonId: "download-selected", label: "Download selected", kind: "download" }],
+    });
+
+    expect(html.endsWith("</script>")).toBe(true);
+    expect(html).toContain("if(!selectButton)return");
+    expect(html).toContain("aria-selected");
+    expect(html).toContain("navigator.canShare");
+    expect(html).toContain("form.requestSubmit?form.requestSubmit():form.submit()");
   });
 
   it("shows localized filter labels with accurate counts", () => {
