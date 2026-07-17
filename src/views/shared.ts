@@ -39,42 +39,69 @@ export function brandMark(href: string, compact = false, light = false) {
   return `<a href="${href}" class="brand-mark inline-flex shrink-0 items-center gap-2 sm:gap-3 ${light ? "text-white" : "text-[#24304a]"}" aria-label="Memboux"><img src="/brand/memboux-icon.png" alt="" width="48" height="48" class="${compact ? "h-9 w-9" : "h-11 w-11"} shrink-0 object-contain ${light ? "brightness-0 invert" : ""}"><span class="leading-none"><strong class="block font-serif ${compact ? "text-lg sm:text-xl" : "text-2xl"} tracking-wide">Memboux</strong><span class="mt-1 hidden text-[9px] font-semibold uppercase tracking-[.22em] opacity-70 sm:block">Collecting Moments</span></span></a>`;
 }
 
-const accountMenuBehavior = `<script>(()=>{document.querySelectorAll('[data-account-menu]').forEach(menu=>{if(menu.dataset.ready)return;menu.dataset.ready='1';const trigger=menu.querySelector('[data-account-menu-trigger]');let timer;const desktop=()=>matchMedia('(hover:hover) and (pointer:fine)').matches;const sync=()=>trigger?.setAttribute('aria-expanded',String(menu.open));menu.addEventListener('toggle',sync);menu.addEventListener('mouseenter',()=>{if(!desktop())return;clearTimeout(timer);menu.open=true;sync()});menu.addEventListener('mouseleave',()=>{if(!desktop())return;clearTimeout(timer);timer=setTimeout(()=>{menu.open=false;sync()},300)});sync()});if(!window.__membouxAccountMenuOutside){window.__membouxAccountMenuOutside=true;document.addEventListener('pointerdown',event=>{document.querySelectorAll('[data-account-menu][open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false})})}})()<\/script>`;
+const accountMenuBehavior = `<script>(()=>{document.querySelectorAll('[data-account-menu]').forEach(menu=>{if(menu.dataset.ready)return;menu.dataset.ready='1';const trigger=menu.querySelector('[data-account-menu-trigger]'),links=menu.querySelectorAll('[data-account-menu-link]');let timer;const desktop=()=>matchMedia('(hover:hover) and (pointer:fine)').matches,clear=()=>clearTimeout(timer),sync=()=>trigger?.setAttribute('aria-expanded',String(menu.open)),open=()=>{clear();menu.open=true;sync()},close=(delay=0)=>{clear();timer=setTimeout(()=>{if(!menu.matches(':focus-within')){menu.open=false;sync()}},delay)};menu.addEventListener('toggle',sync);menu.addEventListener('mouseenter',()=>{if(desktop())open()});menu.addEventListener('mouseleave',()=>{if(desktop())close(500)});menu.addEventListener('focusin',open);menu.addEventListener('focusout',()=>close(120));trigger?.addEventListener('click',event=>{if(desktop()&&event.detail>0){event.preventDefault();open()}});menu.addEventListener('keydown',event=>{if(event.key==='Escape'){trigger?.focus();menu.open=false;sync()}});links.forEach(link=>{const url=new URL(link.href,location.href),current=location.pathname.replace(/\/$/,'')||'/',sameHash=url.hash?url.hash===location.hash:!location.hash;if((url.pathname.replace(/\/$/,'')||'/')===current&&sameHash){link.setAttribute('aria-current','page');link.classList.add('bg-[#eef2ff]','text-[#3730a3]')}link.addEventListener('click',()=>{menu.open=false;sync()})});sync()});if(!window.__membouxAccountMenuOutside){window.__membouxAccountMenuOutside=true;document.addEventListener('pointerdown',event=>{document.querySelectorAll('[data-account-menu][open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false})})}})()<\/script>`;
 
-export function accountMenu(locale: Locale, user: { name: string; email: string }) {
-  const labels = locale === "el"
-    ? { events: "Τα events μου", invitations: "Προσκλήσεις", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
-    : { events: "My events", invitations: "Invitations", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
-  const quickItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex min-w-0 items-center gap-2 rounded-xl border bg-white p-2 text-xs font-medium hover:border-[#a5b4fc] hover:bg-[#eef2ff]"><span aria-hidden="true" class="text-base text-[#4f46e5]">${icon}</span><span class="truncate">${label}</span></a>`;
-  const moreItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-[#eef2ff]"><span aria-hidden="true" class="text-[#4f46e5]">${icon}</span>${label}</a>`;
+type AccountMenuIcon = "events" | "invitations" | "studio" | "security" | "plan" | "privacy" | "backups" | "trash" | "signout" | "chevron";
 
-  return `<details data-account-menu class="account-menu relative z-50 shrink-0">
-    <summary data-account-menu-trigger aria-label="Account menu" aria-haspopup="menu" class="flex h-11 w-11 touch-manipulation select-none cursor-pointer list-none items-center justify-center gap-2 rounded-xl border p-0 outline-none transition hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[#7c3aed]/30 sm:h-auto sm:w-auto sm:justify-start sm:px-3 sm:py-2">
-      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8edff] font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span>
-      <span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span>
-      <span aria-hidden="true" class="hidden text-xs sm:inline">⌄</span>
+function accountMenuIcon(icon: AccountMenuIcon, className = "h-5 w-5") {
+  const paths: Record<AccountMenuIcon, string> = {
+    events: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 2v4M16 2v4M3 9h18M8 13h2M14 13h2M8 17h2"/>',
+    invitations: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/>',
+    studio: '<circle cx="12" cy="12" r="3.25"/><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>',
+    security: '<path d="M12 3 5 6v5c0 4.7 2.8 8.1 7 10 4.2-1.9 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>',
+    plan: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h3"/>',
+    privacy: '<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
+    backups: '<path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.3 8.1 5 5 0 0 0 7 18Z"/><path d="m9 13 3-3 3 3M12 10v7"/>',
+    trash: '<path d="M4 7h16M9 3h6l1 4H8l1-4ZM7 7l1 14h8l1-14M10 11v6M14 11v6"/>',
+    signout: '<path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M9 12h9"/>',
+    chevron: '<path d="m9 18 6-6-6-6"/>',
+  };
+  return `<svg aria-hidden="true" viewBox="0 0 24 24" class="${className}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[icon]}</svg>`;
+}
+
+function renderAccountMenu(
+  locale: Locale,
+  user: { name: string; email: string },
+  darkTrigger: boolean,
+  notificationCount = 0,
+) {
+  const el = locale === "el";
+  const labels = el
+    ? { menu: "Μενού λογαριασμού", profile: "Προβολή προφίλ", workspace: "Χώρος εργασίας", events: "Τα events μου", invitations: "Προσκλήσεις", studio: "Memboux Studio", cloud: "Cloud & συνδρομή", backups: "Αντίγραφα ασφαλείας", plan: "Πλάνο & χρήση", account: "Λογαριασμός", security: "Ασφάλεια", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
+    : { menu: "Account menu", profile: "View profile", workspace: "Workspace", events: "My events", invitations: "Invitations", studio: "Memboux Studio", cloud: "Cloud & plan", backups: "Cloud backups", plan: "Plan & usage", account: "Account", security: "Security", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
+  const initial = esc((user.name.trim().slice(0, 1) || "M").toUpperCase());
+  const triggerClass = darkTrigger
+    ? "border-white/15 bg-white/5 text-white hover:bg-white/10 focus-visible:ring-white/40"
+    : "border-[#d8deea] bg-white/70 text-[#172033] hover:bg-white focus-visible:ring-[#6366f1]/35";
+  const section = (label: string, content: string) => `<section class="border-t border-[#e7eaf1] px-2 py-2.5 first:border-t-0"><h2 class="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-[.16em] text-[#7b8497]">${esc(label)}</h2><div class="space-y-0.5">${content}</div></section>`;
+  const item = (href: string, icon: AccountMenuIcon, label: string, badge = 0) => `<a data-account-menu-link href="${href}" class="group flex min-h-11 items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium text-[#263146] outline-none transition hover:bg-[#f2f4f9] focus-visible:bg-[#eef2ff] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#818cf8]"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#e4e8f1] bg-white text-[#59657b] shadow-sm transition group-hover:border-[#cfd5e2] group-hover:text-[#3730a3]">${accountMenuIcon(icon)}</span><span class="min-w-0 flex-1 truncate">${esc(label)}</span>${badge > 0 ? `<span class="flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#e9653b] px-1.5 text-[10px] font-bold text-white">${badge > 99 ? "99+" : badge}</span>` : accountMenuIcon("chevron", "h-4 w-4 text-[#a1a9b8] transition group-hover:translate-x-0.5")}</a>`;
+
+  return `<details data-account-menu class="account-menu group/account relative z-50 shrink-0">
+    <summary data-account-menu-trigger aria-label="${labels.menu}" aria-expanded="false" class="flex h-11 w-11 touch-manipulation cursor-pointer list-none select-none items-center justify-center gap-2 rounded-xl border p-0 outline-none transition focus-visible:ring-2 sm:h-auto sm:w-auto sm:justify-start sm:px-2.5 sm:py-1.5 ${triggerClass}">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${darkTrigger ? "bg-white/15" : "bg-[#e8edff] text-[#3730a3]"} text-sm font-semibold">${initial}</span>
+      <span class="hidden max-w-32 truncate text-sm font-medium md:block">${esc(user.name)}</span>
+      <svg aria-hidden="true" viewBox="0 0 20 20" class="hidden h-4 w-4 opacity-65 transition group-open/account:rotate-180 sm:block" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 8 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </summary>
-    <div role="menu" class="fixed inset-x-3 top-[4.5rem] z-[100] rounded-2xl border border-[#dbe2f0] bg-white p-2 text-[#111827] shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-64">
-      <div class="flex min-w-0 items-center gap-2 rounded-xl bg-[#f5f7ff] p-2"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4f46e5] font-semibold text-white">${esc(user.name.slice(0, 1).toUpperCase())}</span><span class="min-w-0"><strong class="block truncate text-sm">${esc(user.name)}</strong><span class="block truncate text-xs text-[#64748b]">${esc(user.email)}</span></span></div>
-      <div class="mt-2 grid grid-cols-2 gap-2">
-        ${quickItem(`/${locale}/account`, "▦", labels.events)}
-        ${quickItem(`/studio?lang=${locale}`, "◆", labels.studio)}
-        ${quickItem(`/${locale}/profile`, "○", labels.profile)}
-        ${quickItem(`/${locale}/security`, "◇", labels.security)}
+    <div data-account-menu-panel class="fixed inset-x-3 top-[4.75rem] z-[100] max-h-[calc(100dvh-5.5rem)] overflow-y-auto overscroll-contain rounded-3xl border border-[#dfe3ec] bg-white p-1.5 text-[#172033] shadow-[0_24px_70px_rgba(15,23,42,.24)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem]">
+      <nav aria-label="${labels.menu}">
+        <a data-account-menu-link href="/${locale}/profile" class="group flex min-w-0 items-center gap-3 rounded-[1.15rem] bg-[#f5f6fa] p-3 outline-none transition hover:bg-[#eef1f7] focus-visible:ring-2 focus-visible:ring-[#818cf8]">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#373f51] font-semibold text-white shadow-sm">${initial}</span>
+          <span class="min-w-0 flex-1"><strong class="block truncate text-sm font-semibold text-[#172033]">${esc(user.name)}</strong><span class="block truncate text-xs text-[#6f788a]">${esc(user.email)}</span><span class="mt-0.5 block text-[11px] font-semibold text-[#4f46e5]">${esc(labels.profile)}</span></span>
+          ${accountMenuIcon("chevron", "h-4 w-4 shrink-0 text-[#929bad] transition group-hover:translate-x-0.5")}
+        </a>
+        ${section(labels.workspace, `${item(`/${locale}/account`, "events", labels.events)}${item(`/${locale}/account#invitations`, "invitations", labels.invitations, notificationCount)}${item(`/studio?lang=${locale}`, "studio", labels.studio)}`)}
+        ${section(labels.cloud, `${item(`/${locale}/backups`, "backups", labels.backups)}${item(`/${locale}/plan`, "plan", labels.plan)}`)}
+        ${section(labels.account, `${item(`/${locale}/security`, "security", labels.security)}${item(`/${locale}/privacy`, "privacy", labels.privacy)}${item(`/${locale}/trash`, "trash", labels.trash)}`)}
+      </nav>
+      <div class="border-t border-[#e7eaf1] p-2">
+        <button type="button" data-logout class="group flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#4b5567] outline-none transition hover:bg-[#f2f4f9] hover:text-[#172033] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#818cf8]"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#e4e8f1] bg-white text-[#687386] shadow-sm">${accountMenuIcon("signout")}</span><span class="flex-1">${esc(labels.signOut)}</span>${accountMenuIcon("chevron", "h-4 w-4 text-[#a1a9b8]")}</button>
       </div>
-      <details class="mt-2 rounded-xl border border-[#e2e8f0] bg-[#f8faff]">
-        <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[.12em] text-[#64748b]"><span>${locale === "el" ? "Περισσότερα" : "More"}</span><span aria-hidden="true">＋</span></summary>
-        <div class="border-t border-[#e2e8f0] p-1">
-          ${moreItem(`/${locale}/account#invitations`, "◇", labels.invitations)}
-          ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
-          ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
-          ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}
-          ${moreItem(`/${locale}/trash`, "♲", labels.trash)}
-        </div>
-      </details>
-      <button type="button" data-logout class="mt-2 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><span>${labels.signOut}</span><span aria-hidden="true">↗</span></button>
     </div>
   </details>${accountMenuBehavior}`;
+}
+
+export function accountMenu(locale: Locale, user: { name: string; email: string }, notificationCount = 0) {
+  return renderAccountMenu(locale, user, false, notificationCount);
 }
 
 export function eventHeader(
@@ -88,46 +115,15 @@ export function eventHeader(
   const notificationBadge = notificationCount > 0
     ? `<span class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#f97316] px-1 text-[10px] font-bold text-white">${notificationCount > 99 ? "99+" : notificationCount}</span>`
     : "";
-  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${locale}/account#invitations" aria-label="${notificationLabel}" title="${notificationLabel}" class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>${notificationBadge}</a><a href="/${otherLocale}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user)}</div></div></header>`;
+  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${locale}/account#invitations" aria-label="${notificationLabel}" title="${notificationLabel}" class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>${notificationBadge}</a><a href="/${otherLocale}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user, notificationCount)}</div></div></header>`;
 }
 
 export function accountHeader(locale: Locale, user: { name: string; email: string }) {
   return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><a href="/${locale === "el" ? "en" : "el"}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${locale === "el" ? "EN" : "EL"}</a>${accountMenuDark(locale, user)}</div></div></header>`;
 }
 
-export function accountMenuDark(locale: Locale, user: { name: string; email: string }) {
-  const labels = locale === "el"
-    ? { events: "Τα events μου", invitations: "Προσκλήσεις", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
-    : { events: "My events", invitations: "Invitations", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
-  const quickItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2 text-xs font-medium text-white hover:border-[#818cf8] hover:bg-white/10"><span aria-hidden="true" class="text-base text-[#a5b4fc]">${icon}</span><span class="truncate">${label}</span></a>`;
-  const moreItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/90 hover:bg-white/10"><span aria-hidden="true" class="text-[#a5b4fc]">${icon}</span>${label}</a>`;
-  return `<details data-account-menu class="account-menu relative z-50 shrink-0">
-    <summary data-account-menu-trigger aria-label="Account menu" aria-haspopup="menu" class="flex h-11 w-11 touch-manipulation select-none cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 p-0 text-white outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/30 sm:h-auto sm:w-auto sm:justify-start sm:px-3 sm:py-2">
-      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 font-medium">${esc(user.name.slice(0, 1).toUpperCase())}</span>
-      <span class="hidden max-w-36 truncate text-sm md:block">${esc(user.name)}</span>
-      <span aria-hidden="true" class="hidden text-xs opacity-70 sm:inline">⌄</span>
-    </summary>
-    <div role="menu" class="fixed inset-x-3 top-[4.5rem] z-[100] rounded-2xl border border-white/15 bg-[#172033] p-2 text-white shadow-2xl shadow-black/30 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-64">
-      <div class="flex min-w-0 items-center gap-2 rounded-xl bg-white/5 p-2"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#4f46e5] font-semibold text-white">${esc(user.name.slice(0, 1).toUpperCase())}</span><span class="min-w-0"><strong class="block truncate text-sm">${esc(user.name)}</strong><span class="block truncate text-xs text-white/60">${esc(user.email)}</span></span></div>
-      <div class="mt-2 grid grid-cols-2 gap-2">
-        ${quickItem(`/${locale}/account`, "▦", labels.events)}
-        ${quickItem(`/studio?lang=${locale}`, "◆", labels.studio)}
-        ${quickItem(`/${locale}/profile`, "○", labels.profile)}
-        ${quickItem(`/${locale}/security`, "◇", labels.security)}
-      </div>
-      <details class="mt-2 rounded-xl border border-white/10 bg-white/5">
-        <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[.12em] text-white/60"><span>${locale === "el" ? "Περισσότερα" : "More"}</span><span aria-hidden="true">＋</span></summary>
-        <div class="border-t border-white/10 p-1">
-          ${moreItem(`/${locale}/account#invitations`, "◇", labels.invitations)}
-          ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
-          ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
-          ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}
-          ${moreItem(`/${locale}/trash`, "⌫", labels.trash)}
-        </div>
-      </details>
-      <button type="button" data-logout class="mt-2 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-red-200 hover:bg-white/10"><span>${labels.signOut}</span><span aria-hidden="true">↗</span></button>
-    </div>
-  </details>${accountMenuBehavior}`;
+export function accountMenuDark(locale: Locale, user: { name: string; email: string }, notificationCount = 0) {
+  return renderAccountMenu(locale, user, true, notificationCount);
 }
 
 export const logoutScript = (locale: Locale) => `<script>document.querySelectorAll('[data-logout]').forEach(button=>button.onclick=async()=>{button.disabled=true;const response=await fetch('/api/auth/sign-out',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'});if(response.ok)location.replace('/${locale}');else button.disabled=false})<\/script>`;

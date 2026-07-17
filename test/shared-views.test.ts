@@ -52,12 +52,25 @@ describe("shared views", () => {
     expect(english).toContain("&lt;Admin&gt;");
     expect(english).toContain("a&amp;b@example.com");
     expect(english).toContain("My events");
-    expect(english).toContain("More");
-    expect(english).toContain("grid grid-cols-2");
-    expect(english).toContain("Plan & usage");
+    expect(english).toContain("Workspace");
+    expect(english).toContain("Cloud &amp; plan");
+    expect(english).toContain("Plan &amp; usage");
+    expect(english).toContain('aria-label="Account menu"');
+    expect(english).not.toContain('role="menu"');
+    expect(english).not.toContain("▦");
     expect(greek).toContain("Τα events μου");
-    expect(greek).toContain("Περισσότερα");
+    expect(greek).toContain("Χώρος εργασίας");
+    expect(greek).toContain("Αντίγραφα ασφαλείας");
     expect(greek).toContain("Αποσύνδεση");
+  });
+
+  it("shows invitation count inside the organized account navigation", () => {
+    const html = accountMenu("en", { name: "Alex", email: "alex@example.com" }, 12);
+
+    expect(html).toContain('href="/en/account#invitations"');
+    expect(html).toContain(">12</span>");
+    expect(html).toContain('href="/en/backups"');
+    expect(html).toContain('href="/en/security"');
   });
 
   it("keeps the sign-out request credentialed and locale-aware", () => {
