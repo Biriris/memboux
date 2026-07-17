@@ -263,5 +263,5 @@ adminEventRoutes.post("/admin/events/:code/delete", async (c) => {
       await releaseOwnedEvent(c.env.DB, owner.user_id);
   }
 
-  return c.redirect("/admin", 303);
+  return c.redirect("/admin/events", 303);
 });

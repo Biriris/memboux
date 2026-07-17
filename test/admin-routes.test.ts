@@ -13,6 +13,7 @@ describe("admin route boundaries", () => {
 
   it.each([
     "/admin",
+    "/admin/events",
     "/admin/reported",
     "/admin/privacy-requests",
     "/admin/accounts",

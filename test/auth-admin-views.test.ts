@@ -45,12 +45,15 @@ describe("authentication and admin views", () => {
   });
 
   it("renders localized admin navigation and preserves supplied content", () => {
-    const english = adminShell("Library", "<main>content</main>", "en");
+    const english = adminShell("Library", '<main><a href="/admin">content</a></main>', "en");
     const greek = adminShell("Βιβλιοθήκη", "<main>περιεχόμενο</main>", "el");
 
     expect(english).toContain("Event library");
+    expect(english).toContain('href="/admin/users"');
+    expect(english).toContain('href="/admin/events"');
+    expect(english.indexOf("Registered users")).toBeLessThan(english.indexOf("Event library"));
     expect(english).toContain("Reported media");
-    expect(english).toContain("<main>content</main>");
+    expect(english).toContain('<main><a href="/admin/events">content</a></main>');
     expect(greek).toContain("Βιβλιοθήκη events");
     expect(greek).toContain("Κάδος φωτογραφιών");
   });

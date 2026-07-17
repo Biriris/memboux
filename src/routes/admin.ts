@@ -34,7 +34,7 @@ import {
 export const adminRoutes = new Hono<{ Bindings: Bindings }>();
 
 adminRoutes.get("/admin/login", async (c) => {
-  if (await isAdmin(c)) return c.redirect("/admin");
+  if (await isAdmin(c)) return c.redirect("/admin/users");
   const configured = Boolean(c.env.ADMIN_PASSWORD);
   return c.html(
     page(
@@ -72,7 +72,7 @@ adminRoutes.post("/admin/login", async (c) => {
       401,
     );
   c.header("Set-Cookie", await createAdminSessionCookie(configured));
-  return c.redirect("/admin", 303);
+  return c.redirect("/admin/users", 303);
 });
 
 adminRoutes.post("/admin/logout", (c) => {
@@ -95,7 +95,7 @@ adminRoutes.get("/admin/language/:locale{el|en}", (c) => {
     )
       return c.redirect(url.pathname, 303);
   }
-  return c.redirect("/admin", 303);
+  return c.redirect("/admin/users", 303);
 });
 
 adminRoutes.get("/admin/readiness", async (c) => {
@@ -316,6 +316,12 @@ export function adminEventCard(
 }
 
 adminRoutes.get("/admin", async (c) => {
+  const locale = await adminLocaleOrRedirect(c);
+  if (!locale) return c.redirect("/admin/login");
+  return c.redirect("/admin/users");
+});
+
+adminRoutes.get("/admin/events", async (c) => {
   const locale = await adminLocaleOrRedirect(c);
   if (!locale) return c.redirect("/admin/login");
   const query = (c.req.query("q") ?? "").trim().slice(0, 100);
