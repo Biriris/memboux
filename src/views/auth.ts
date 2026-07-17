@@ -1,10 +1,15 @@
 import { t, type Locale } from "../i18n";
 import { brandMark, googleIcon, page } from "./shared";
 
-export function authPage(locale: Locale, mode: "login" | "register") {
+export function authPage(locale: Locale, mode: "login" | "register", requestedRedirect = "") {
   const m = t(locale);
   const isRegister = mode === "register";
   const el = locale === "el";
+  const defaultRedirect = `/${locale}/account`;
+  const redirectTo = /^\/(?!\/)[^\\\r\n]*$/.test(requestedRedirect)
+    ? requestedRedirect
+    : defaultRedirect;
+  const redirectQuery = redirectTo === defaultRedirect ? "" : `?redirect=${encodeURIComponent(redirectTo)}`;
   const copy = {
     eyebrow: isRegister ? (el ? "Δημιούργησε τον χώρο σου" : "Create your space") : (el ? "Καλώς ήρθες ξανά" : "Welcome back"),
     title: isRegister ? (el ? "Ξεκίνα να συλλέγεις στιγμές" : "Start collecting moments") : m.login,
@@ -43,7 +48,7 @@ export function authPage(locale: Locale, mode: "login" | "register") {
           <ul class="relative mt-12 space-y-6">${feature("◇", copy.secure, copy.secureText)}${feature("＋", copy.simple, copy.simpleText)}${feature("✦", copy.together, copy.togetherText)}</ul>
         </aside>
         <div class="flex flex-col p-6 sm:p-10 lg:p-14">
-          <div class="flex items-center justify-between lg:justify-end"><div class="lg:hidden">${brandMark(`/${locale}`, true)}</div><a href="/${locale === "el" ? "en" : "el"}/${mode}" class="rounded-full border border-[#dbe2f0] px-3 py-2 text-xs font-semibold text-[#4338ca]">${locale === "el" ? "EN" : "EL"}</a></div>
+          <div class="flex items-center justify-between lg:justify-end"><div class="lg:hidden">${brandMark(`/${locale}`, true)}</div><a href="/${locale === "el" ? "en" : "el"}/${mode}${redirectQuery}" class="rounded-full border border-[#dbe2f0] px-3 py-2 text-xs font-semibold text-[#4338ca]">${locale === "el" ? "EN" : "EL"}</a></div>
           <div class="mx-auto my-auto w-full max-w-md py-8">
             <p class="text-xs font-semibold uppercase tracking-[.2em] text-[#4f46e5]">${copy.eyebrow}</p>
             <h1 class="mt-3 text-4xl font-medium tracking-[-.03em] text-[#111827] sm:text-5xl">${copy.title}</h1>
@@ -60,19 +65,19 @@ export function authPage(locale: Locale, mode: "login" | "register") {
               <button id="submit-auth" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#172033] px-5 py-4 font-semibold text-white transition hover:bg-[#27334a] disabled:cursor-wait disabled:opacity-65"><span>${isRegister ? m.register : m.login}</span><span aria-hidden="true">→</span></button>
             </form>
             ${!isRegister ? `<a href="/${locale}/forgot-password" class="mt-4 block text-center text-sm font-semibold text-[#4338ca]">${m.forgotPassword}</a>` : ""}
-            <p class="mt-7 text-center text-sm text-[#64748b]">${isRegister ? m.hasAccount : m.noAccount} <a class="font-semibold text-[#4338ca]" href="/${locale}/${isRegister ? "login" : "register"}">${isRegister ? m.login : m.register}</a></p>
+            <p class="mt-7 text-center text-sm text-[#64748b]">${isRegister ? m.hasAccount : m.noAccount} <a class="font-semibold text-[#4338ca]" href="/${locale}/${isRegister ? "login" : "register"}${redirectQuery}">${isRegister ? m.login : m.register}</a></p>
           </div>
         </div>
       </section>
     </main>
     <script>
-      const locale=${JSON.stringify(locale)},isRegister=${JSON.stringify(isRegister)},errorBox=document.getElementById('error'),authForm=document.getElementById('authForm'),submitButton=document.getElementById('submit-auth'),googleButton=document.getElementById('google'),passwordInput=document.getElementById('password'),togglePassword=document.getElementById('toggle-password');
+      const locale=${JSON.stringify(locale)},isRegister=${JSON.stringify(isRegister)},postAuthRedirect=${JSON.stringify(redirectTo)},errorBox=document.getElementById('error'),authForm=document.getElementById('authForm'),submitButton=document.getElementById('submit-auth'),googleButton=document.getElementById('google'),passwordInput=document.getElementById('password'),togglePassword=document.getElementById('toggle-password');
       const showError=(message)=>{errorBox.textContent=message;errorBox.classList.remove('hidden')};
       const setBusy=(button,busy)=>{button.disabled=busy;button.setAttribute('aria-busy',String(busy))};
       togglePassword.onclick=()=>{const show=passwordInput.type==='password';passwordInput.type=show?'text':'password';const confirmInput=document.getElementById('confirm-password');if(confirmInput)confirmInput.type=show?'text':'password';togglePassword.textContent=show?${JSON.stringify(copy.hide)}:${JSON.stringify(copy.show)}};
       if(isRegister){const strength=document.getElementById('password-strength'),hint=document.getElementById('password-hint');passwordInput.addEventListener('input',()=>{const value=passwordInput.value;let score=0;if(value.length>=10)score++;if(value.length>=14)score++;if(/[a-z]/i.test(value)&&/\d/.test(value))score++;if(/[^a-z0-9]/i.test(value))score++;strength.style.width=(score*25)+'%';strength.style.background=score<2?'#ef4444':score<4?'#f59e0b':'#10b981';hint.textContent=value.length<10?${JSON.stringify(copy.passwordHint)}:(score<3?${JSON.stringify(el ? "Καλός κωδικός — μπορείς να τον ενισχύσεις." : "Good password — you can make it stronger.")}:${JSON.stringify(el ? "Ισχυρός κωδικός." : "Strong password.")})})}
-      googleButton.onclick=async()=>{errorBox.classList.add('hidden');setBusy(googleButton,true);try{const response=await fetch('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL:'/'+locale+'/account'})});const data=await response.json().catch(()=>({}));if(data.url){location.href=data.url;return}showError(data.message||${JSON.stringify(m.genericError)})}catch{showError(${JSON.stringify(m.genericError)})}finally{setBusy(googleButton,false)}};
-      authForm.onsubmit=async(event)=>{event.preventDefault();errorBox.classList.add('hidden');if(!authForm.reportValidity())return;const form=new FormData(authForm),email=String(form.get('email')||'').trim().toLowerCase(),password=String(form.get('password')||'');if(isRegister&&password!==String(form.get('confirmPassword')||'')){showError(${JSON.stringify(copy.passwordMismatch)});document.getElementById('confirm-password').focus();return}setBusy(submitButton,true);try{const payload={email,password,callbackURL:'/'+locale+'/account'};if(isRegister)payload.name=String(form.get('name')||'').trim();const response=await fetch('/api/auth/'+(isRegister?'sign-up':'sign-in')+'/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json().catch(()=>({}));if(response.ok){if(isRegister){sessionStorage.setItem('membouxVerificationEmail',email);sessionStorage.setItem('membouxRegistrationName',String(payload.name||''));location.href='/'+locale+'/verify-email?source=signup'}else{location.href='/'+locale+'/account'}return}if(!isRegister&&response.status===403&&data.code==='EMAIL_NOT_VERIFIED'){sessionStorage.setItem('membouxVerificationEmail',email);location.href='/'+locale+'/verify-email?source=signin';return}showError(response.status===429?${JSON.stringify(copy.rateLimit)}:(data.message||${JSON.stringify(m.genericError)}))}catch{showError(${JSON.stringify(m.genericError)})}finally{setBusy(submitButton,false)}};
+      googleButton.onclick=async()=>{errorBox.classList.add('hidden');setBusy(googleButton,true);try{const response=await fetch('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL:postAuthRedirect})});const data=await response.json().catch(()=>({}));if(data.url){location.href=data.url;return}showError(data.message||${JSON.stringify(m.genericError)})}catch{showError(${JSON.stringify(m.genericError)})}finally{setBusy(googleButton,false)}};
+      authForm.onsubmit=async(event)=>{event.preventDefault();errorBox.classList.add('hidden');if(!authForm.reportValidity())return;const form=new FormData(authForm),email=String(form.get('email')||'').trim().toLowerCase(),password=String(form.get('password')||'');if(isRegister&&password!==String(form.get('confirmPassword')||'')){showError(${JSON.stringify(copy.passwordMismatch)});document.getElementById('confirm-password').focus();return}setBusy(submitButton,true);try{const payload={email,password,callbackURL:postAuthRedirect};if(isRegister)payload.name=String(form.get('name')||'').trim();const response=await fetch('/api/auth/'+(isRegister?'sign-up':'sign-in')+'/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json().catch(()=>({}));if(response.ok){if(isRegister){sessionStorage.setItem('membouxVerificationEmail',email);sessionStorage.setItem('membouxRegistrationName',String(payload.name||''));sessionStorage.setItem('membouxPostAuthRedirect',postAuthRedirect);location.href='/'+locale+'/verify-email?source=signup'}else{location.href=postAuthRedirect}return}if(!isRegister&&response.status===403&&data.code==='EMAIL_NOT_VERIFIED'){sessionStorage.setItem('membouxVerificationEmail',email);sessionStorage.setItem('membouxPostAuthRedirect',postAuthRedirect);location.href='/'+locale+'/verify-email?source=signin';return}showError(response.status===429?${JSON.stringify(copy.rateLimit)}:(data.message||${JSON.stringify(m.genericError)}))}catch{showError(${JSON.stringify(m.genericError)})}finally{setBusy(submitButton,false)}};
     <\/script>`,
   );
 }

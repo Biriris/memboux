@@ -59,7 +59,7 @@ export async function canInviteToEvent(db: D1Database, eventId: string) {
   if (!entitlement) return { allowed:true,entitlement:null,used:0 };
   const row = await db.prepare(`SELECT
     (SELECT COUNT(*) FROM event_members WHERE event_id=? AND role!='owner')+
-    (SELECT COUNT(*) FROM event_invitations WHERE event_id=? AND accepted_at IS NULL AND expires_at>?) total`).bind(eventId,eventId,Date.now()).first<{total:number}>();
+    (SELECT COUNT(*) FROM event_invitations WHERE event_id=? AND accepted_at IS NULL AND declined_at IS NULL AND expires_at>?) total`).bind(eventId,eventId,Date.now()).first<{total:number}>();
   const used=Number(row?.total??0);
   return { allowed:used<entitlement.memberLimit,entitlement,used };
 }

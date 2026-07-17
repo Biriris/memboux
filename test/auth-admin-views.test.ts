@@ -19,8 +19,19 @@ describe("authentication and admin views", () => {
     const html = authPage("el", "login");
 
     expect(html).toContain("provider:'google'");
-    expect(html).toContain("callbackURL:'/'+locale+'/account'");
+    expect(html).toContain('postAuthRedirect="/el/account"');
+    expect(html).toContain("callbackURL:postAuthRedirect");
     expect(html).toContain('href="/en/login"');
+  });
+
+  it("preserves safe invitation redirects and rejects external redirects", () => {
+    const invitation = authPage("en", "login", "/invite/secure-token?lang=en");
+    const external = authPage("en", "login", "//phishing.example/path");
+
+    expect(invitation).toContain('postAuthRedirect="/invite/secure-token?lang=en"');
+    expect(invitation).toContain("redirect=%2Finvite%2Fsecure-token%3Flang%3Den");
+    expect(external).toContain('postAuthRedirect="/en/account"');
+    expect(external).not.toContain("phishing.example");
   });
 
   it("reads a valid admin locale cookie and defaults to English", () => {

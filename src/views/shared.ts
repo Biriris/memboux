@@ -13,6 +13,8 @@ export type PageOptions = {
 
 const eventCreationBehavior = `<script>(()=>{const form=document.querySelector('form[action="/api/account/events"]');if(!form)return;form.addEventListener('submit',async event=>{event.preventDefault();if(form.dataset.submitting==='1')return;const button=form.querySelector('button[type="submit"],button:not([type])');let message=form.querySelector('[data-create-event-error]');if(!message){message=document.createElement('p');message.dataset.createEventError='1';message.className='hidden rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2';button?.before(message)}form.dataset.submitting='1';if(button){button.disabled=true;button.classList.add('opacity-70')}let succeeded=false;try{const response=await fetch(form.action,{method:'POST',credentials:'include',headers:{Accept:'application/json'},body:new FormData(form)});const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{data={message:raw}}if(!response.ok){message.textContent=data.message||'Could not create the event. Please try again.';message.classList.remove('hidden');return}succeeded=true;location.assign(data.redirect||'/en/account')}catch{message.textContent='Could not create the event. Check your connection and try again.';message.classList.remove('hidden')}finally{if(!succeeded){form.dataset.submitting='0';if(button){button.disabled=false;button.classList.remove('opacity-70')}}}})})()<\/script>`;
 
+const albumInvitationBehavior = `<script>(()=>{const form=document.querySelector('form[action$="/invite"]');if(!form||form.dataset.invitationReady)return;form.dataset.invitationReady='1';form.addEventListener('submit',async event=>{event.preventDefault();if(form.dataset.submitting==='1')return;const button=form.querySelector('button[type="submit"],button:not([type])'),locale=String(new FormData(form).get('locale')||'en');let result=form.nextElementSibling;if(!result||!result.matches('[data-invitation-result]')){result=document.createElement('div');result.dataset.invitationResult='1';result.className='mt-4 hidden rounded-2xl border p-4';form.after(result)}form.dataset.submitting='1';if(button)button.disabled=true;try{const response=await fetch(form.action,{method:'POST',credentials:'include',headers:{Accept:'application/json'},body:new FormData(form)});const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{data={message:raw}}result.replaceChildren();result.classList.remove('hidden','border-red-200','bg-red-50','text-red-700');if(!response.ok){result.classList.add('border-red-200','bg-red-50','text-red-700');result.textContent=data.message||raw||(locale==='el'?'Η πρόσκληση απέτυχε.':'Could not create the invitation.');return}result.classList.add('border-[#c7d2fe]','bg-[#f8faff]');const message=document.createElement('p');message.className='text-sm font-medium';message.textContent=data.delivery==='notification'?(locale==='el'?'Η πρόσκληση εμφανίστηκε στις ειδοποιήσεις του χρήστη.':'The invitation is now in the user’s notifications.'):(locale==='el'?'Το email στάλθηκε. Μπορείς επίσης να αντιγράψεις το προσωπικό link.':'Email sent. You can also copy the personal link.');const row=document.createElement('div');row.className='mt-3 flex flex-col gap-2 sm:flex-row';const input=document.createElement('input');input.readOnly=true;input.value=data.invitationUrl;input.className='min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-xs';const copy=document.createElement('button');copy.type='button';copy.className='rounded-xl bg-[#172033] px-4 py-2 text-sm text-white';copy.textContent=locale==='el'?'Αντιγραφή link':'Copy link';copy.onclick=async()=>{await navigator.clipboard.writeText(input.value);copy.textContent=locale==='el'?'Αντιγράφηκε':'Copied'};row.append(input,copy);result.append(message,row);form.reset()}catch{result.classList.remove('hidden');result.classList.add('border-red-200','bg-red-50','text-red-700');result.textContent=locale==='el'?'Έλεγξε τη σύνδεσή σου και δοκίμασε ξανά.':'Check your connection and try again.'}finally{form.dataset.submitting='0';if(button)button.disabled=false}})})()<\/script>`;
+
 export function page(title: string, body: string, options: PageOptions = {}) {
   const locale = options.locale ?? "en";
   const description = options.description ?? "Memboux – Collecting Moments";
@@ -29,7 +31,8 @@ export function page(title: string, body: string, options: PageOptions = {}) {
     : "";
   const keywords = "event gallery, private gallery, photo sharing, video sharing, event memories, memboux";
   const creationBehavior = body.includes('action="/api/account/events"') ? eventCreationBehavior : "";
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#172033"><meta name="application-name" content="Memboux"><meta name="apple-mobile-web-app-title" content="Memboux"><meta name="keywords" content="${keywords}"><meta name="description" content="${esc(description)}"><meta name="robots" content="${robots}">${canonical}${alternates}${social}${structuredData}<link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet"><title>${esc(title)}</title><link rel="stylesheet" href="/app-midnight.css?v=20260713-2"></head><body class="memboux-ui min-h-screen bg-[#f6f7fb] text-[#172033]">${body}${creationBehavior}</body></html>`;
+  const invitationBehavior = body.includes('action="/api/account/events/') && body.includes('/invite"') ? albumInvitationBehavior : "";
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#172033"><meta name="application-name" content="Memboux"><meta name="apple-mobile-web-app-title" content="Memboux"><meta name="keywords" content="${keywords}"><meta name="description" content="${esc(description)}"><meta name="robots" content="${robots}">${canonical}${alternates}${social}${structuredData}<link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet"><title>${esc(title)}</title><link rel="stylesheet" href="/app-midnight.css?v=20260713-2"></head><body class="memboux-ui min-h-screen bg-[#f6f7fb] text-[#172033]">${body}${creationBehavior}${invitationBehavior}</body></html>`;
 }
 
 export function brandMark(href: string, compact = false, light = false) {
@@ -40,8 +43,8 @@ const accountMenuBehavior = `<script>(()=>{document.querySelectorAll('[data-acco
 
 export function accountMenu(locale: Locale, user: { name: string; email: string }) {
   const labels = locale === "el"
-    ? { events: "Τα events μου", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
-    : { events: "My events", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
+    ? { events: "Τα events μου", invitations: "Προσκλήσεις", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
+    : { events: "My events", invitations: "Invitations", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
   const quickItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex min-w-0 items-center gap-2 rounded-xl border bg-white p-2 text-xs font-medium hover:border-[#a5b4fc] hover:bg-[#eef2ff]"><span aria-hidden="true" class="text-base text-[#4f46e5]">${icon}</span><span class="truncate">${label}</span></a>`;
   const moreItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-[#eef2ff]"><span aria-hidden="true" class="text-[#4f46e5]">${icon}</span>${label}</a>`;
 
@@ -62,6 +65,7 @@ export function accountMenu(locale: Locale, user: { name: string; email: string 
       <details class="mt-2 rounded-xl border border-[#e2e8f0] bg-[#f8faff]">
         <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[.12em] text-[#64748b]"><span>${locale === "el" ? "Περισσότερα" : "More"}</span><span aria-hidden="true">＋</span></summary>
         <div class="border-t border-[#e2e8f0] p-1">
+          ${moreItem(`/${locale}/account#invitations`, "◇", labels.invitations)}
           ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
           ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
           ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}
@@ -77,9 +81,14 @@ export function eventHeader(
   locale: Locale,
   user: { name: string; email: string },
   primaryAction = "",
+  notificationCount = 0,
 ) {
   const otherLocale = locale === "el" ? "en" : "el";
-  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${otherLocale}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user)}</div></div></header>`;
+  const notificationLabel = locale === "el" ? "Προσκλήσεις" : "Invitations";
+  const notificationBadge = notificationCount > 0
+    ? `<span class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#f97316] px-1 text-[10px] font-bold text-white">${notificationCount > 99 ? "99+" : notificationCount}</span>`
+    : "";
+  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${locale}/account#invitations" aria-label="${notificationLabel}" title="${notificationLabel}" class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>${notificationBadge}</a><a href="/${otherLocale}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user)}</div></div></header>`;
 }
 
 export function accountHeader(locale: Locale, user: { name: string; email: string }) {
@@ -88,8 +97,8 @@ export function accountHeader(locale: Locale, user: { name: string; email: strin
 
 export function accountMenuDark(locale: Locale, user: { name: string; email: string }) {
   const labels = locale === "el"
-    ? { events: "Τα events μου", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
-    : { events: "My events", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
+    ? { events: "Τα events μου", invitations: "Προσκλήσεις", studio: "Memboux Studio", profile: "Προφίλ", security: "Ασφάλεια", plan: "Plan & χρήση", privacy: "Απόρρητο & δεδομένα", trash: "Κάδος", signOut: "Αποσύνδεση" }
+    : { events: "My events", invitations: "Invitations", studio: "Memboux Studio", profile: "Profile", security: "Security", plan: "Plan & usage", privacy: "Privacy & data", trash: "Trash", signOut: "Sign out" };
   const quickItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2 text-xs font-medium text-white hover:border-[#818cf8] hover:bg-white/10"><span aria-hidden="true" class="text-base text-[#a5b4fc]">${icon}</span><span class="truncate">${label}</span></a>`;
   const moreItem = (href: string, icon: string, label: string) => `<a href="${href}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/90 hover:bg-white/10"><span aria-hidden="true" class="text-[#a5b4fc]">${icon}</span>${label}</a>`;
   return `<details data-account-menu class="account-menu relative z-50 shrink-0">
@@ -109,6 +118,7 @@ export function accountMenuDark(locale: Locale, user: { name: string; email: str
       <details class="mt-2 rounded-xl border border-white/10 bg-white/5">
         <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[.12em] text-white/60"><span>${locale === "el" ? "Περισσότερα" : "More"}</span><span aria-hidden="true">＋</span></summary>
         <div class="border-t border-white/10 p-1">
+          ${moreItem(`/${locale}/account#invitations`, "◇", labels.invitations)}
           ${moreItem(`/${locale}/plan`, "◈", labels.plan)}
           ${moreItem(`/${locale}/privacy`, "◌", labels.privacy)}
           ${moreItem(`/${locale}/backups`, "☁", locale === "el" ? "Αντίγραφα ασφαλείας" : "Cloud backups")}

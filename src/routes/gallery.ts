@@ -3,6 +3,7 @@ import { parse as parseMetadata } from "exifr";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
+import { queueAutomaticGoogleDriveBackupsForEvent } from "../google-drive";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
@@ -305,6 +306,18 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
     if (error instanceof Error && error.message.includes("storage_quota_exceeded"))
       return c.text(locale === "el" ? "Το όριο χώρου του event συμπληρώθηκε." : "The event storage quota was reached.", 413);
     throw error;
+  }
+
+  if (uploadedKeys.length) {
+    c.executionCtx.waitUntil(
+      queueAutomaticGoogleDriveBackupsForEvent(c.env, event.id).catch((error) => {
+        console.error(JSON.stringify({
+          event: "drive_upload_sync_failed",
+          eventId: event.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+        }));
+      }),
+    );
   }
 
   return c.redirect(`/gallery/${event.code}?lang=${locale}`, 303);

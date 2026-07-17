@@ -4,6 +4,7 @@ import type {
   CloudConnectionRow,
   EventBackupItemRow,
   EventBackupRow,
+  MediaRow,
 } from "./domain";
 
 export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -117,6 +118,143 @@ export function driveExportFilename(sequence: number, contentType: string, objec
   const objectExtension = objectKey.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
   const extension = mimeExtensions[contentType.toLowerCase()] ?? objectExtension ?? "bin";
   return `${String(sequence).padStart(4, "0")}.${extension}`;
+}
+
+export type GoogleDriveBackupQueueResult =
+  | { status: "queued"; backupId: string }
+  | { status: "active"; backupId: string }
+  | { status: "up_to_date"; backupId: null }
+  | { status: "not_connected" | "not_owner"; backupId: null };
+
+export async function prepareGoogleDriveBackup(
+  db: D1Database,
+  eventId: string,
+  userId: string,
+): Promise<GoogleDriveBackupQueueResult> {
+  const connection = await db.prepare(
+    "SELECT 1 FROM cloud_connections WHERE user_id=? AND provider='google_drive'",
+  ).bind(userId).first();
+  if (!connection) return { status: "not_connected", backupId: null };
+
+  const owner = await db.prepare(
+    `SELECT 1 FROM event_members em JOIN events e ON e.id=em.event_id
+     WHERE em.event_id=? AND em.user_id=? AND em.role='owner' AND e.deleted_at IS NULL`,
+  ).bind(eventId, userId).first();
+  if (!owner) return { status: "not_owner", backupId: null };
+
+  const active = await db.prepare(
+    "SELECT id FROM event_backups WHERE event_id=? AND user_id=? AND provider='google_drive' AND status IN ('queued','running')",
+  ).bind(eventId, userId).first<{ id: string }>();
+  if (active) return { status: "active", backupId: active.id };
+
+  const media = await db.prepare(
+    `SELECT m.* FROM media m
+     WHERE m.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM event_backup_items i JOIN event_backups b ON b.id=i.backup_id
+         WHERE i.media_id=m.id AND i.status='completed' AND b.event_id=m.event_id
+           AND b.user_id=? AND b.provider='google_drive'
+       )
+     ORDER BY COALESCE(m.captured_at,m.uploaded_at),m.uploaded_at,m.id`,
+  ).bind(eventId, userId).all<MediaRow>();
+  if (!media.results.length) return { status: "up_to_date", backupId: null };
+
+  const previous = await db.prepare(
+    `SELECT COUNT(DISTINCT i.media_id) total FROM event_backup_items i
+     JOIN event_backups b ON b.id=i.backup_id
+     WHERE b.event_id=? AND b.user_id=? AND b.provider='google_drive' AND i.status='completed'`,
+  ).bind(eventId, userId).first<{ total: number }>();
+  const sequenceStart = Number(previous?.total ?? 0);
+  const backupId = crypto.randomUUID();
+  const now = Date.now();
+  const totalBytes = media.results.reduce((sum, item) => sum + Number(item.size_bytes), 0);
+
+  try {
+    await db.prepare(
+      `INSERT INTO event_backups (id,event_id,user_id,provider,status,total_items,total_bytes,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+    ).bind(backupId, eventId, userId, "google_drive", "queued", media.results.length, totalBytes, now, now).run();
+    for (let offset = 0; offset < media.results.length; offset += 50) {
+      const chunk = media.results.slice(offset, offset + 50);
+      await db.batch(chunk.map((item, index) => {
+        const sequence = sequenceStart + offset + index + 1;
+        return db.prepare(
+          `INSERT INTO event_backup_items (backup_id,media_id,sequence_no,object_key,content_type,size_bytes,filename,status,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+        ).bind(
+          backupId,
+          item.id,
+          sequence,
+          item.object_key,
+          item.content_type,
+          item.size_bytes,
+          driveExportFilename(sequence, item.content_type, item.object_key),
+          "pending",
+          now,
+        );
+      }));
+    }
+  } catch (error) {
+    await db.prepare("DELETE FROM event_backups WHERE id=?").bind(backupId).run().catch(() => undefined);
+    const concurrent = await db.prepare(
+      "SELECT id FROM event_backups WHERE event_id=? AND user_id=? AND provider='google_drive' AND status IN ('queued','running')",
+    ).bind(eventId, userId).first<{ id: string }>();
+    if (concurrent) return { status: "active", backupId: concurrent.id };
+    throw error;
+  }
+  return { status: "queued", backupId };
+}
+
+export async function queueGoogleDriveBackupForEvent(
+  env: Bindings,
+  eventId: string,
+  userId: string,
+) {
+  const prepared = await prepareGoogleDriveBackup(env.DB, eventId, userId);
+  if (prepared.status !== "queued") return prepared;
+  try {
+    const instance = await env.DRIVE_BACKUP_WORKFLOW.create({
+      id: prepared.backupId,
+      params: { backupId: prepared.backupId },
+      retention: { successRetention: "7 days", errorRetention: "14 days" },
+    });
+    await env.DB.prepare(
+      "UPDATE event_backups SET workflow_instance_id=?,updated_at=? WHERE id=?",
+    ).bind(instance.id, Date.now(), prepared.backupId).run();
+  } catch (error) {
+    const now = Date.now();
+    await env.DB.prepare(
+      "UPDATE event_backups SET status='failed',error_message=?,completed_at=?,updated_at=? WHERE id=?",
+    ).bind("The automatic backup could not be queued", now, now, prepared.backupId).run();
+    console.error(JSON.stringify({ event: "drive_backup_queue_failed", backupId: prepared.backupId, error: safeError(error) }));
+  }
+  return prepared;
+}
+
+export async function queueAutomaticGoogleDriveBackupsForEvent(env: Bindings, eventId: string) {
+  const owners = await env.DB.prepare(
+    `SELECT em.user_id FROM event_members em JOIN cloud_connections cc ON cc.user_id=em.user_id
+     WHERE em.event_id=? AND em.role='owner' AND cc.provider='google_drive'`,
+  ).bind(eventId).all<{ user_id: string }>();
+  for (const owner of owners.results) await queueGoogleDriveBackupForEvent(env, eventId, owner.user_id);
+}
+
+export async function queueAllGoogleDriveBackupsForUser(env: Bindings, userId: string) {
+  const events = await env.DB.prepare(
+    `SELECT em.event_id FROM event_members em JOIN events e ON e.id=em.event_id
+     WHERE em.user_id=? AND em.role='owner' AND e.deleted_at IS NULL`,
+  ).bind(userId).all<{ event_id: string }>();
+  for (const event of events.results) await queueGoogleDriveBackupForEvent(env, event.event_id, userId);
+}
+
+export async function reconcileAutomaticGoogleDriveBackups(env: Bindings) {
+  const pairs = await env.DB.prepare(
+    `SELECT em.event_id,em.user_id FROM event_members em
+     JOIN events e ON e.id=em.event_id
+     JOIN cloud_connections cc ON cc.user_id=em.user_id AND cc.provider='google_drive'
+     WHERE em.role='owner' AND e.deleted_at IS NULL`,
+  ).all<{ event_id: string; user_id: string }>();
+  for (const pair of pairs.results) await queueGoogleDriveBackupForEvent(env, pair.event_id, pair.user_id);
 }
 
 async function tokenRequest(body: URLSearchParams) {
@@ -251,7 +389,7 @@ async function ensureBackupFolder(env: Bindings, backupId: string) {
   const folderQuery = [
     "mimeType='application/vnd.google-apps.folder'",
     `'${driveQuery(rootFolderId)}' in parents`,
-    `appProperties has { key='membouxBackupId' and value='${driveQuery(backup.id)}' }`,
+    `appProperties has { key='membouxEventId' and value='${driveQuery(backup.event_id)}' }`,
   ].join(" and ");
   const existingFolder = await findDriveFile(accessToken, folderQuery);
   const dateSuffix = backup.event_start_date
@@ -347,7 +485,6 @@ async function uploadBackupItem(env: Bindings, backupId: string, mediaId: string
 
   const existing = await findDriveFile(accessToken, [
     `'${driveQuery(backup.provider_folder_id)}' in parents`,
-    `appProperties has { key='membouxBackupId' and value='${driveQuery(backupId)}' }`,
     `appProperties has { key='membouxMediaId' and value='${driveQuery(mediaId)}' }`,
   ].join(" and "));
   const uploaded = existing ?? await (async () => {

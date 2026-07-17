@@ -130,13 +130,17 @@ publicRoutes.post("/api/privacy/requests", async (c) => {
 
 publicRoutes.get("/:locale{el|en}/login", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
-  if (await currentUser(c)) return c.redirect(`/${locale}/account`);
-  return c.html(authPage(locale, "login"));
+  const requestedRedirect = c.req.query("redirect") ?? "";
+  const redirectTo = /^\/(?!\/)[^\\\r\n]*$/.test(requestedRedirect) ? requestedRedirect : `/${locale}/account`;
+  if (await currentUser(c)) return c.redirect(redirectTo);
+  return c.html(authPage(locale, "login", redirectTo));
 });
 publicRoutes.get("/:locale{el|en}/register", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
-  if (await currentUser(c)) return c.redirect(`/${locale}/account`);
-  return c.html(authPage(locale, "register"));
+  const requestedRedirect = c.req.query("redirect") ?? "";
+  const redirectTo = /^\/(?!\/)[^\\\r\n]*$/.test(requestedRedirect) ? requestedRedirect : `/${locale}/account`;
+  if (await currentUser(c)) return c.redirect(redirectTo);
+  return c.html(authPage(locale, "register", redirectTo));
 });
 
 publicRoutes.get("/:locale{el|en}/verify-email", (c) => {

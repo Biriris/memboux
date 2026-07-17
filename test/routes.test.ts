@@ -138,6 +138,15 @@ describe("public Worker routes", () => {
     expect(html).toContain("membouxRegistrationName");
   });
 
+  it("returns users to a safe album invitation after authentication", async () => {
+    const response = await SELF.fetch("https://memboux.com/en/login?redirect=%2Finvite%2Fsafe-token%3Flang%3Den");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('postAuthRedirect="/invite/safe-token?lang=en"');
+    expect(html).not.toContain("https://phishing.example");
+  });
+
   it("explains the privacy-safe existing-account registration outcome", async () => {
     const response = await SELF.fetch("https://memboux.com/en/verify-email");
     const html = await response.text();

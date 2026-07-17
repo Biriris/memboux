@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import type { Bindings } from "./domain";
 import { purgeExpiredTrash } from "./repositories";
+import { reconcileAutomaticGoogleDriveBackups } from "./google-drive";
 import { accountRoutes } from "./routes/account";
 import { accountTrashRoutes } from "./routes/account-trash";
 import { adminRoutes } from "./routes/admin";
@@ -17,6 +18,7 @@ import { galleryRoutes } from "./routes/gallery";
 import { publicRoutes } from "./routes/public";
 import { studioRoutes } from "./routes/studio";
 import { backupRoutes } from "./routes/backups";
+import { invitationRoutes } from "./routes/invitations";
 
 export { GoogleDriveBackupWorkflow } from "./google-drive";
 
@@ -60,6 +62,7 @@ app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
 app.route("/", studioRoutes);
 app.route("/", backupRoutes);
+app.route("/", invitationRoutes);
 
 app.onError((error, c) => {
   if (error instanceof HTTPException) return error.getResponse();
@@ -71,6 +74,18 @@ app.onError((error, c) => {
 export default {
   fetch: app.fetch,
   scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-    ctx.waitUntil(purgeExpiredTrash(env));
+    ctx.waitUntil(Promise.allSettled([
+      purgeExpiredTrash(env),
+      reconcileAutomaticGoogleDriveBackups(env),
+    ]).then((results) => {
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(JSON.stringify({
+            event: index === 0 ? "trash_reconciliation_failed" : "drive_reconciliation_failed",
+            error: result.reason instanceof Error ? result.reason.message.slice(0, 300) : "unknown",
+          }));
+        }
+      });
+    }));
   },
 };

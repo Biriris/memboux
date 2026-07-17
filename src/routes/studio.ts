@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { parse as parseMetadata } from "exifr";
+import { queueAutomaticGoogleDriveBackupsForEvent } from "../google-drive";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow, MediaRow } from "../domain";
 import { normalizeLocale } from "../i18n";
@@ -390,6 +391,17 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
     )
       return c.text("Event storage quota exceeded", 413);
     throw error;
+  }
+  if (uploadedKeys.length) {
+    c.executionCtx.waitUntil(
+      queueAutomaticGoogleDriveBackupsForEvent(c.env, event.id).catch((error) => {
+        console.error(JSON.stringify({
+          event: "drive_studio_upload_sync_failed",
+          eventId: event.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+        }));
+      }),
+    );
   }
   return c.redirect(`/studio/events/${event.code}?lang=${locale}`, 303);
 });

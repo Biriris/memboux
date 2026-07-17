@@ -1,12 +1,13 @@
 import { Hono } from "hono";
-import type { Bindings, CloudConnectionRow, EventBackupRow, MediaRow } from "../domain";
+import type { Bindings, CloudConnectionRow, EventBackupRow } from "../domain";
 import {
   decryptDriveRefreshToken,
-  driveExportFilename,
   encryptDriveRefreshToken,
   exchangeGoogleDriveCode,
   GOOGLE_DRIVE_SCOPE,
   googleDriveAuthorizationUrl,
+  queueAllGoogleDriveBackupsForUser,
+  queueGoogleDriveBackupForEvent,
   randomOAuthState,
 } from "../google-drive";
 import { normalizeLocale, type Locale } from "../i18n";
@@ -39,41 +40,41 @@ type BackupEventRow = {
 const labels = (locale: Locale) => locale === "el" ? {
   title: "Αντίγραφα ασφαλείας",
   eyebrow: "Cloud archive",
-  intro: "Αποθήκευσε ένα ασφαλές αντίγραφο των event σου στον προσωπικό σου χώρο Google Drive.",
-  connected: "Το Google Drive είναι συνδεδεμένο",
+  intro: "Σύνδεσε το προσωπικό σου Google Drive και το Memboux θα συγχρονίζει αυτόματα κάθε νέο αρχείο των event σου.",
+  connected: "Το αυτόματο Google Drive backup είναι ενεργό",
   disconnected: "Σύνδεσε το Google Drive",
   connectHelp: "Το Memboux χρησιμοποιεί μόνο την περιορισμένη άδεια drive.file και διαχειρίζεται αποκλειστικά τα αρχεία και τους φακέλους που δημιουργεί το ίδιο.",
   connect: "Σύνδεση Google Drive",
   disconnect: "Αποσύνδεση",
   events: "Τα event μου",
-  backup: "Δημιουργία backup",
-  again: "Νέο backup",
+  backup: "Συγχρονισμός τώρα",
+  again: "Συγχρονισμός τώρα",
   queued: "Σε αναμονή",
   running: "Αντιγραφή σε εξέλιξη",
   completed: "Ολοκληρώθηκε",
   failed: "Χρειάζεται προσοχή",
   empty: "Δεν υπάρχουν ενεργά αρχεία σε αυτό το event.",
   openDrive: "Άνοιγμα στο Drive",
-  privacy: "Τα πρωτότυπα παραμένουν στο Memboux. Δεν γίνεται αυτόματη διαγραφή μετά το backup.",
+  privacy: "Τα πρωτότυπα παραμένουν ασφαλή στο Memboux. Το Drive λειτουργεί ως δεύτερο, αυτόματο προσωπικό αντίγραφο και η αποσύνδεση σταματά τους νέους συγχρονισμούς.",
 } : {
   title: "Cloud backups",
   eyebrow: "Cloud archive",
-  intro: "Keep a secure copy of your events in your personal Google Drive storage.",
-  connected: "Google Drive is connected",
+  intro: "Connect your personal Google Drive and Memboux will automatically sync every new file from your events.",
+  connected: "Automatic Google Drive backup is on",
   disconnected: "Connect Google Drive",
   connectHelp: "Memboux uses the limited drive.file permission and can only manage files and folders it creates itself.",
   connect: "Connect Google Drive",
   disconnect: "Disconnect",
   events: "My events",
-  backup: "Create backup",
-  again: "Create new backup",
+  backup: "Sync now",
+  again: "Sync now",
   queued: "Queued",
   running: "Backup in progress",
   completed: "Completed",
   failed: "Needs attention",
   empty: "This event has no active files.",
   openDrive: "Open in Drive",
-  privacy: "Originals remain in Memboux. A completed backup never deletes them automatically.",
+  privacy: "Originals remain safely stored in Memboux. Drive is a second, automatic personal copy; disconnecting stops future syncs.",
 };
 
 function backupStatusMarkup(event: BackupEventRow, locale: Locale) {
@@ -200,6 +201,15 @@ backupRoutes.get("/api/cloud/google/callback", async (c) => {
       existing?.id ?? crypto.randomUUID(), user.id, "google_drive", encryptedToken, tokenIv,
       token.scope ?? GOOGLE_DRIVE_SCOPE, existing?.root_folder_id ?? null, existing?.created_at ?? now, now,
     ).run();
+    c.executionCtx.waitUntil(
+      queueAllGoogleDriveBackupsForUser(c.env, user.id).catch((error) => {
+        console.error(JSON.stringify({
+          event: "drive_initial_sync_failed",
+          userId: user.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+        }));
+      }),
+    );
     return c.redirect(`/${locale}/backups?connected=1`);
   } catch (error) {
     console.error("Google Drive OAuth callback failed", error instanceof Error ? error.message : "unknown");
@@ -248,46 +258,7 @@ backupRoutes.post("/api/account/events/:code/backups/google", async (c) => {
   if (!connection) return c.text("Connect Google Drive before creating a backup", 409);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const active = await c.env.DB.prepare(
-    "SELECT id FROM event_backups WHERE event_id=? AND user_id=? AND provider='google_drive' AND status IN ('queued','running')",
-  ).bind(event.id, user.id).first<{ id: string }>();
-  if (active) return c.redirect(`/${locale}/backups`, 303);
-
-  const media = await c.env.DB.prepare(
-    `SELECT * FROM media WHERE event_id=? AND deleted_at IS NULL AND reported_at IS NULL
-     ORDER BY COALESCE(captured_at,uploaded_at),uploaded_at,id`,
-  ).bind(event.id).all<MediaRow>();
-  const backupId = crypto.randomUUID();
-  const now = Date.now();
-  const totalBytes = media.results.reduce((sum, item) => sum + Number(item.size_bytes), 0);
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT INTO event_backups (id,event_id,user_id,provider,status,total_items,total_bytes,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-    ).bind(backupId, event.id, user.id, "google_drive", "queued", media.results.length, totalBytes, now, now),
-    ...media.results.map((item, index) => c.env.DB.prepare(
-      `INSERT INTO event_backup_items (backup_id,media_id,sequence_no,object_key,content_type,size_bytes,filename,status,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-    ).bind(
-      backupId, item.id, index + 1, item.object_key, item.content_type, item.size_bytes,
-      driveExportFilename(index + 1, item.content_type, item.object_key), "pending", now,
-    )),
-  ]);
-  try {
-    const instance = await c.env.DRIVE_BACKUP_WORKFLOW.create({
-      id: backupId,
-      params: { backupId },
-      retention: { successRetention: "7 days", errorRetention: "14 days" },
-    });
-    await c.env.DB.prepare(
-      "UPDATE event_backups SET workflow_instance_id=?,updated_at=? WHERE id=?",
-    ).bind(instance.id, Date.now(), backupId).run();
-  } catch (error) {
-    await c.env.DB.prepare(
-      "UPDATE event_backups SET status='failed',error_message=?,completed_at=?,updated_at=? WHERE id=?",
-    ).bind("The backup could not be queued", Date.now(), Date.now(), backupId).run();
-    console.error("Drive backup workflow creation failed", error instanceof Error ? error.message : "unknown");
-  }
+  await queueGoogleDriveBackupForEvent(c.env, event.id, user.id);
   return c.redirect(`/${locale}/backups`, 303);
 });
 

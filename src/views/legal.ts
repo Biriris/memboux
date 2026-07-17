@@ -92,14 +92,14 @@ export function termsPage(locale: Locale) {
       ${section(
         el ? "Περιεχόμενο" : "Content",
         `<p>${el
-          ? "Κρατάς τα δικαιώματά σου στο περιεχόμενο. Μας δίνεις μόνο την τεχνικά αναγκαία άδεια αποθήκευσης, επεξεργασίας, προβολής και, όταν το ζητάς, αντιγραφής του στο προσωπικό σου cloud backup. Δεν επιτρέπεται παράνομο, παραπλανητικό, κακόβουλο ή παραβιαστικό περιεχόμενο. Reported media κρύβεται άμεσα μέχρι admin review."
-          : "You retain rights in your content. You grant only the technically necessary permission to store, process, display and, when you request it, copy content to your personal cloud backup. Illegal, deceptive, malicious or infringing content is prohibited. Reported media is hidden immediately pending admin review."}</p>`,
+          ? "Κρατάς τα δικαιώματά σου στο περιεχόμενο. Μας δίνεις μόνο την τεχνικά αναγκαία άδεια αποθήκευσης, επεξεργασίας, προβολής και, όταν συνδέεις προσωπικό cloud λογαριασμό, αυτόματης αντιγραφής του για backup. Δεν επιτρέπεται παράνομο, παραπλανητικό, κακόβουλο ή παραβιαστικό περιεχόμενο. Reported media κρύβεται άμεσα μέχρι admin review."
+          : "You retain rights in your content. You grant only the technically necessary permission to store, process, display and, when you connect a personal cloud account, automatically copy content there for backup. Illegal, deceptive, malicious or infringing content is prohibited. Reported media is hidden immediately pending admin review."}</p>`,
       )}
       ${section(
         el ? "Προαιρετικά Google Drive backups" : "Optional Google Drive backups",
         `<p>${el
-          ? "Η σύνδεση Google Drive και κάθε backup ξεκινούν μόνο με δική σου επιλογή. Τα αντίγραφα αποθηκεύονται στον προσωπικό χώρο Google Drive που συνδέεις και υπόκεινται στα όρια, τη διαθεσιμότητα και τους όρους της Google. Το Memboux εμφανίζει την κατάσταση του backup, αλλά ο χρήστης πρέπει να επιβεβαιώνει ότι τα σημαντικά αρχεία έχουν μεταφερθεί και παραμένουν διαθέσιμα. Μπορείς να ανακαλέσεις την πρόσβαση οποτεδήποτε, χωρίς αυτόματη διαγραφή των αντιγράφων που βρίσκονται ήδη στο Drive σου."
-          : "Connecting Google Drive and starting each backup occur only at your direction. Copies are stored in the personal Google Drive account you connect and are subject to Google's quotas, availability and terms. Memboux displays backup status, but users should verify that important files were transferred and remain available. You may revoke access at any time without automatically deleting copies already stored in your Drive."}</p>`,
+          ? "Η σύνδεση Google Drive γίνεται μόνο με δική σου επιλογή και ενεργοποιεί αυτόματα αρχικό και συνεχή συγχρονισμό των owned event σου. Τα αντίγραφα αποθηκεύονται στον προσωπικό χώρο Google Drive που συνδέεις και υπόκεινται στα όρια, τη διαθεσιμότητα και τους όρους της Google. Το Memboux εμφανίζει την κατάσταση του backup, αλλά πρέπει να επιβεβαιώνεις ότι τα σημαντικά αρχεία έχουν μεταφερθεί. Μπορείς να ανακαλέσεις την πρόσβαση οποτεδήποτε· αυτό σταματά τους νέους συγχρονισμούς χωρίς να διαγράφει αυτόματα τα αντίγραφα που βρίσκονται ήδη στο Drive σου."
+          : "Connecting Google Drive is optional and automatically enables an initial and continuous sync of your owned events. Copies are stored in the personal Google Drive account you connect and remain subject to Google's quotas, availability and terms. Memboux displays backup status, but you should verify that important files transferred successfully. You may revoke access at any time; this stops future syncs without automatically deleting copies already stored in your Drive."}</p>`,
       )}
       ${section(
         el ? "Διαγραφή και διαθεσιμότητα" : "Deletion and availability",

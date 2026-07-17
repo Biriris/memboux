@@ -37,6 +37,14 @@ describe("shared views", () => {
     expect(eventHeader("en", { name: "Alex", email: "alex@example.com" })).toContain('href="/en/account"');
   });
 
+  it("shows pending album invitations in the dashboard header", () => {
+    const html = eventHeader("en", { name: "Alex", email: "alex@example.com" }, "", 3);
+
+    expect(html).toContain('href="/en/account#invitations"');
+    expect(html).toContain('aria-label="Invitations"');
+    expect(html).toContain(">3</span>");
+  });
+
   it("renders escaped account data and localized menu labels", () => {
     const english = accountMenu("en", { name: `<Admin>`, email: `a&b@example.com` });
     const greek = accountMenu("el", { name: "Κώστας", email: "user@example.com" });
