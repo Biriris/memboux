@@ -68,7 +68,9 @@ describe("media views", () => {
     expect(galleryFilterControls(items, "owner", "el")).toContain("Εικόνες (1)");
     expect(galleryFilterControls(items, "guest", "en")).toContain("Images (1)");
     expect(galleryFilterControls(items, "guest", "en")).toContain("Videos (1)");
+    expect(galleryFilterControls(items, "guest", "en")).toContain('data-type="image" aria-pressed="true"');
     expect(galleryFilterScript(items, "guest")).toContain("apply('image')");
+    expect(galleryFilterScript(items, "guest")).toContain("setAttribute('aria-pressed',String(active))");
   });
 
   it("keeps keyboard, backdrop close, and touch-following swipe behavior", () => {

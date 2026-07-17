@@ -182,7 +182,19 @@ button { letter-spacing: .025em; }
 }
 .memboux-ui [data-gallery-filter] {
   background: rgba(255, 255, 255, .85);
+  border-color: var(--line);
+  color: #354057;
   font-weight: 600;
+}
+.memboux-ui [data-gallery-filter][aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(109, 93, 252, .24);
+}
+.memboux-ui [data-gallery-filter][aria-pressed="true"]:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
 }
 .memboux-ui details > summary { -webkit-tap-highlight-color: transparent; }
 .memboux-ui main > section:first-child.rounded-3xl { overflow: hidden; }
