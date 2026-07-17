@@ -109,13 +109,14 @@ export function eventHeader(
   user: { name: string; email: string },
   primaryAction = "",
   notificationCount = 0,
+  localeHref?: string,
 ) {
   const otherLocale = locale === "el" ? "en" : "el";
   const notificationLabel = locale === "el" ? "Προσκλήσεις" : "Invitations";
   const notificationBadge = notificationCount > 0
     ? `<span class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#f97316] px-1 text-[10px] font-bold text-white">${notificationCount > 99 ? "99+" : notificationCount}</span>`
     : "";
-  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${locale}/account#invitations" aria-label="${notificationLabel}" title="${notificationLabel}" class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>${notificationBadge}</a><a href="/${otherLocale}/account" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user, notificationCount)}</div></div></header>`;
+  return `<header class="app-shell-header relative z-40 border-b border-white/10 bg-[#172033]/95 text-white backdrop-blur-xl"><div class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">${brandMark(`/${locale}/account`, true, true)}<div class="flex shrink-0 items-center gap-2"><span class="header-primary-action">${primaryAction}</span><a href="/${locale}/account#invitations" aria-label="${notificationLabel}" title="${notificationLabel}" class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>${notificationBadge}</a><a href="${localeHref ?? `/${otherLocale}/account`}" class="flex h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-semibold text-white hover:bg-white/10">${otherLocale.toUpperCase()}</a>${accountMenuDark(locale, user, notificationCount)}</div></div></header>`;
 }
 
 export function accountHeader(locale: Locale, user: { name: string; email: string }) {
