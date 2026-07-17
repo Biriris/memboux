@@ -30,7 +30,10 @@ export async function getMedia(db: D1Database, eventId: string, includeDeleted =
   return result.results;
 }
 
-export async function permanentlyDeleteEvent(env: Bindings, eventId: string) {
+export async function permanentlyDeleteEvent(
+  env: Pick<Bindings, "DB" | "MEDIA">,
+  eventId: string,
+) {
   const usage = await env.DB.prepare(
     "SELECT COALESCE(SUM(m.size_bytes),0) size_bytes,(SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1) owner_id FROM media m WHERE m.event_id=?",
   ).bind(eventId, eventId).first<{ size_bytes: number; owner_id: string | null }>();

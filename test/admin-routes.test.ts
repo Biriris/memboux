@@ -40,6 +40,24 @@ describe("admin route boundaries", () => {
     expect(response.status).toBe(401);
   });
 
+  it("does not allow anonymous user deletion", async () => {
+    const response = await SELF.fetch(
+      "https://memboux.com/admin/users/user-1/delete",
+      {
+        method: "POST",
+        headers: {
+          Origin: "https://memboux.com",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "confirmEmail=user%40example.com",
+        redirect: "manual",
+      },
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/admin/login");
+  });
+
   it("clears the admin cookie during logout", async () => {
     const response = await SELF.fetch("https://memboux.com/admin/logout", {
       method: "POST",
