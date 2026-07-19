@@ -115,18 +115,21 @@ export async function deleteWeddingPortrait(
 }
 
 /**
- * Returns a map of slot -> media object key for quick template rendering.
+ * Returns a map of slot -> media id for safe template URLs.
+ *
+ * Object keys are deliberately kept inside the Worker and never embedded in
+ * public markup. The media route performs access checks and image transforms.
  */
 export async function getWeddingPortraitMap(
   db: D1Database,
   eventId: string,
 ): Promise<Record<string, string | null>> {
   const rows = await db.prepare(`
-    SELECT p.slot, wm.object_key
+    SELECT p.slot, wm.id AS media_id
     FROM event_wedding_portrait_assignments p
     JOIN event_wedding_media wm ON wm.id = p.media_id
     WHERE p.event_id = ?
-  `).bind(eventId).all<{ slot: string; object_key: string }>();
+  `).bind(eventId).all<{ slot: string; media_id: string }>();
 
   const map: Record<string, string | null> = {
     hero: null,
@@ -136,7 +139,7 @@ export async function getWeddingPortraitMap(
     divider_3: null,
   };
   for (const row of rows.results) {
-    map[row.slot] = row.object_key;
+    map[row.slot] = row.media_id;
   }
   return map;
 }

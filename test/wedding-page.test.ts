@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventRow } from "../src/domain";
+import type { WeddingMediaRow } from "../src/wedding-portraits";
 import { renderWeddingPage, type PublicWeddingProfile } from "../src/views/wedding-page";
 
 const event: EventRow = {
@@ -41,6 +42,17 @@ const profile: PublicWeddingProfile = {
   template_key: "nocturne",
   accent_color: "#aabbcc",
 };
+
+const preWeddingMedia: WeddingMediaRow[] = ["hero-photo", "story-photo", "gallery-photo", "gallery-photo-2"].map((id, index) => ({
+  id,
+  event_id: event.id,
+  object_key: `wedding-media/event-1/${id}.jpg`,
+  media_type: "image",
+  content_type: "image/jpeg",
+  size_bytes: 1024,
+  uploaded_at: index + 1,
+  uploaded_by_user_id: "user-1",
+}));
 
 describe("wedding event page", () => {
   it("renders the selected template, cover and enabled experiences", () => {
@@ -96,6 +108,26 @@ describe("wedding event page", () => {
       expect(html).toContain(`data-wedding-layout="${layout}"`);
       expect(html).toContain(`data-wedding-font="${font}"`);
     }
+  });
+
+  it("turns pre-wedding uploads into a slideshow and an editorial photo story", () => {
+    const html = renderWeddingPage({
+      event,
+      profile,
+      locale: "en",
+      selectedFeatures: [],
+      coverUpdatedAt: 42,
+      portraitMap: { hero: "hero-photo", story: "story-photo" },
+      preWeddingMedia,
+    });
+    expect(html).toContain("data-w-hero-slideshow");
+    expect(html).toContain('data-slide-count="3"');
+    expect(html).toContain("/wedding-media/hero-photo?variant=preview");
+    expect(html).toContain("/wedding-media/story-photo?variant=preview");
+    expect(html).toContain('id="prewedding"');
+    expect(html).toContain('data-photo-count="4"');
+    expect(html).toContain("/wedding-media/gallery-photo?variant=thumb");
+    expect(html).not.toContain("/gallery/ABC123/media/hero-photo");
   });
 
   it("shows an optional wedding menu and uses locked map coordinates", () => {

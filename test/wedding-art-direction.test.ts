@@ -33,4 +33,12 @@ describe("wedding template art direction", () => {
     expect(weddingArtDirectionStyles).toContain("--w-title-size:clamp(2.2rem,4.7vw,4.5rem)");
     expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="poster"] .w-hero h1{font-size:var(--w-hero-size)}');
   });
+
+  it("gives pre-wedding media a responsive photo-led composition", () => {
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-hero-slide.is-active");
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-story-portrait");
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-photo-grid");
+    expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(1)');
+    expect(weddingArtDirectionStyles).toContain("grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:dense");
+  });
 });

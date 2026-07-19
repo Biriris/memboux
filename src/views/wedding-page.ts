@@ -3,6 +3,7 @@ import { localeNames, supportedLocales, type Locale } from "../i18n";
 import { weddingThemeFor, type WeddingThemeKey } from "../wedding-themes";
 import { esc } from "../utils";
 import type { WeddingMenuRow } from "../wedding-menu";
+import type { WeddingMediaRow } from "../wedding-portraits";
 import { brandMark, page } from "./shared";
 import { weddingArtDirectionStyles } from "./wedding-art-direction";
 import { weddingLuxuryStyles } from "./wedding-luxury-style";
@@ -66,8 +67,9 @@ export function renderWeddingPage(input: {
   experienceHtml?: string;
   experienceScripts?: string;
   portraitMap?: Record<string, string | null>;
+  preWeddingMedia?: readonly WeddingMediaRow[];
 }) {
-  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, experienceHtml = "", experienceScripts = "", portraitMap = {} } = input;
+  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, experienceHtml = "", experienceScripts = "", portraitMap = {}, preWeddingMedia = [] } = input;
   const theme = weddingThemeFor(profile.template_key);
   const accent = profile.accent_color ?? theme.defaultAccent;
   const names = [profile.partner_one_name, profile.partner_two_name].filter(Boolean).join(" & ") || event.eventName;
@@ -83,6 +85,15 @@ export function renderWeddingPage(input: {
   const hasSchedule = Boolean(ceremony || reception || profile.ceremony_location || profile.reception_location || profile.dress_code);
   const hasGuestInfo = Boolean(profile.travel_notes || profile.accommodation_notes || profile.gift_message || profile.gift_url || profile.contact_name || profile.contact_email || profile.contact_phone);
   const hasMenu = Boolean(menu);
+  const distinctMediaIds = (values: Array<string | null | undefined>) => [...new Set(values.filter((value): value is string => Boolean(value)))];
+  const assignedPhotoIds = distinctMediaIds([portraitMap.hero, portraitMap.story, portraitMap.divider_1, portraitMap.divider_2, portraitMap.divider_3]);
+  const galleryPhotoIds = distinctMediaIds([
+    ...assignedPhotoIds,
+    ...preWeddingMedia.filter((item) => item.media_type === "image").map((item) => item.id),
+  ]).slice(0, 12);
+  const heroPhotoIds = distinctMediaIds([portraitMap.hero, ...galleryPhotoIds]).slice(0, 3);
+  const hasPreWeddingGallery = galleryPhotoIds.length >= 2;
+  const weddingMediaUrl = (mediaId: string, variant: "thumb" | "preview") => `/wedding-media/${encodeURIComponent(mediaId)}?variant=${variant}`;
   const experienceCards = [
     features.has("rsvp") ? { href: experienceHtml ? "#participate" : `/gallery/${event.code}?lang=${locale}#participate`, title: "RSVP", copy: t(locale, "Confirm your attendance in a few seconds.", "Επιβεβαίωσε την παρουσία σου σε λίγα δευτερόλεπτα.", "Confirmez votre présence en quelques secondes.", "Bestätige deine Teilnahme in wenigen Sekunden.", "Confirma tu asistencia en segundos.", "Conferma la tua presenza in pochi secondi.") } : null,
     features.has("guestbook") ? { href: experienceHtml ? "#participate" : `/gallery/${event.code}?lang=${locale}#participate`, title: t(locale, "Guestbook", "Ευχολόγιο", "Livre d’or", "Gästebuch", "Libro de visitas", "Guestbook"), copy: t(locale, "Leave a message for the couple.", "Άφησε μια ευχή για το ζευγάρι.", "Laissez un message au couple.", "Hinterlasse dem Paar eine Nachricht.", "Deja un mensaje para la pareja.", "Lascia un messaggio alla coppia.") } : null,
@@ -91,6 +102,7 @@ export function renderWeddingPage(input: {
   const nav = [
     hasStory ? ["story", t(locale, "Our story", "Η ιστορία μας", "Notre histoire", "Unsere Geschichte", "Nuestra historia", "La nostra storia")] : null,
     hasSchedule ? ["schedule", t(locale, "The day", "Η ημέρα", "La journée", "Der Tag", "El día", "Il giorno")] : null,
+    hasPreWeddingGallery ? ["prewedding", t(locale, "Photos", "Φωτογραφίες", "Photos", "Fotos", "Fotos", "Foto")] : null,
     hasMenu ? ["menu", t(locale, "Menu", "Menu", "Menu", "Menü", "Menú", "Menu")] : null,
     hasGuestInfo ? ["details", t(locale, "Guest guide", "Οδηγός καλεσμένων", "Guide invités", "Gäste-Guide", "Guía", "Guida ospiti")] : null,
     ["moments", t(locale, "Moments", "Στιγμές", "Moments", "Momente", "Momentos", "Momenti")],
@@ -99,13 +111,22 @@ export function renderWeddingPage(input: {
     experienceHtml && features.has("live_slideshow") ? ["live", "Live"] : null,
   ].filter((item): item is string[] => Boolean(item));
   const languagePicker = `<label class="sr-only" for="wedding-language">Language</label><select id="wedding-language" aria-label="Language" onchange="location.href=this.value">${supportedLocales.map((value) => `<option value="/wedding/${encodeURIComponent(event.code)}?lang=${value}${preview ? "&preview=1" : ""}" ${value === locale ? "selected" : ""}>${esc(localeNames[value])}</option>`).join("")}</select>`;
-  const heroPortrait = portraitMap.hero ? `<img class="w-cover" src="/gallery/${encodeURIComponent(event.code)}/media/${encodeURIComponent(portraitMap.hero)}" alt="" loading="eager">` : "";
-  const cover = coverUpdatedAt ? `<img class="w-cover" src="/gallery/${encodeURIComponent(event.code)}/cover?v=${coverUpdatedAt}" alt="">` : "";
-  const heroImage = heroPortrait || cover;
-  const storyPortrait = portraitMap.story ? `<img class="w-story-image" src="/gallery/${encodeURIComponent(event.code)}/media/${encodeURIComponent(portraitMap.story)}" alt="" loading="lazy">` : "";
-  const divider1 = portraitMap.divider_1 ? `<section class="w-section w-divider"><img class="w-divider-image" src="/gallery/${encodeURIComponent(event.code)}/media/${encodeURIComponent(portraitMap.divider_1)}" alt="" loading="lazy"></section>` : "";
-  const divider2 = portraitMap.divider_2 ? `<section class="w-section w-divider"><img class="w-divider-image" src="/gallery/${encodeURIComponent(event.code)}/media/${encodeURIComponent(portraitMap.divider_2)}" alt="" loading="lazy"></section>` : "";
-  const divider3 = portraitMap.divider_3 ? `<section class="w-section w-divider"><img class="w-divider-image" src="/gallery/${encodeURIComponent(event.code)}/media/${encodeURIComponent(portraitMap.divider_3)}" alt="" loading="lazy"></section>` : "";
+  const heroImage = heroPhotoIds.length
+    ? `<div class="w-hero-media" data-w-hero-slideshow data-slide-count="${heroPhotoIds.length}">${heroPhotoIds.map((mediaId, index) => `<img class="w-cover w-hero-slide ${index === 0 ? "is-active" : ""}" src="${weddingMediaUrl(mediaId, "preview")}" alt="" ${index === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-w-slide="${index}">`).join("")}</div>`
+    : coverUpdatedAt
+      ? `<div class="w-hero-media"><img class="w-cover w-hero-slide is-active" src="/gallery/${encodeURIComponent(event.code)}/cover?v=${coverUpdatedAt}" alt="" loading="eager" fetchpriority="high"></div>`
+      : "";
+  const storyPhotoId = portraitMap.story ?? galleryPhotoIds.find((mediaId) => mediaId !== heroPhotoIds[0]) ?? null;
+  const storyPortrait = storyPhotoId ? `<figure class="w-story-portrait"><img class="w-story-image" src="${weddingMediaUrl(storyPhotoId, "preview")}" alt="" loading="lazy"><span aria-hidden="true">${esc(monogram)}</span></figure>` : "";
+  const divider = (mediaId: string | null | undefined, position: number) => mediaId
+    ? `<section class="w-section w-divider" data-divider="${position}"><img class="w-divider-image" src="${weddingMediaUrl(mediaId, "preview")}" alt="" loading="lazy"><span class="w-divider-mark" aria-hidden="true">${String(position).padStart(2, "0")}</span></section>`
+    : "";
+  const divider1 = divider(portraitMap.divider_1, 1);
+  const divider2 = divider(portraitMap.divider_2, 2);
+  const divider3 = divider(portraitMap.divider_3, 3);
+  const preWeddingGallery = hasPreWeddingGallery
+    ? `<section id="prewedding" class="w-section w-prewedding"><div class="w-inner"><header class="w-photo-head" data-reveal><div><p class="w-eyebrow">${esc(t(locale, "Before the day", "Πριν από τη μεγάλη μέρα", "Avant le grand jour", "Vor dem großen Tag", "Antes del gran día", "Prima del grande giorno"))}</p><h2>${esc(t(locale, "Our photographs", "Οι φωτογραφίες μας", "Nos photographies", "Unsere Fotografien", "Nuestras fotografías", "Le nostre fotografie"))}</h2></div><p>${esc(t(locale, "A few frames from the story that brought us here.", "Μερικά καρέ από την ιστορία που μας έφερε ως εδώ.", "Quelques images de l’histoire qui nous a menés jusqu’ici.", "Einige Bilder aus der Geschichte, die uns hierhergeführt hat.", "Algunas imágenes de la historia que nos trajo hasta aquí.", "Alcuni scatti della storia che ci ha portati fin qui."))}</p></header><div class="w-photo-grid" data-photo-count="${galleryPhotoIds.length}" data-reveal>${galleryPhotoIds.map((mediaId, index) => `<figure class="w-photo-card" data-photo-index="${index + 1}"><img src="${weddingMediaUrl(mediaId, index < 2 ? "preview" : "thumb")}" alt="" loading="${index < 2 ? "eager" : "lazy"}"><span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span></figure>`).join("")}</div></div></section>`
+    : "";
   const draftBanner = preview ? `<aside class="w-preview"><strong>${esc(t(locale, "Private preview", "Ιδιωτική προεπισκόπηση", "Aperçu privé", "Private Vorschau", "Vista previa privada", "Anteprima privata"))}</strong><a href="/dashboard/${event.code}/wedding/setup?lang=${locale}&step=1">${esc(t(locale, "Edit website", "Επεξεργασία website", "Modifier le site", "Website bearbeiten", "Editar sitio", "Modifica sito"))}</a></aside>` : "";
 
   const scheduleCards = [
@@ -138,11 +159,12 @@ export function renderWeddingPage(input: {
   ${divider1}
   ${hasSchedule ? `<section id="schedule" class="w-section"><div class="w-inner" data-reveal><p class="w-eyebrow">${esc(t(locale, "Save the date", "Κράτησε την ημερομηνία", "Réservez la date", "Save the Date", "Reserva la fecha", "Segna la data"))}</p><h2>${esc(t(locale, "The celebration", "Η γιορτή", "La célébration", "Die Feier", "La celebración", "La celebrazione"))}</h2><div class="w-schedule-grid">${scheduleCards}</div>${profile.dress_code ? `<p class="w-hero-message" style="color:inherit;text-align:center">${esc(profile.dress_code)}</p>` : ""}</div></section>` : ""}
   ${divider2}
+  ${preWeddingGallery}
   ${menuSection}
   ${divider3}
   ${hasGuestInfo ? `<section id="details" class="w-section w-story"><div class="w-inner" data-reveal><p class="w-eyebrow">${esc(t(locale, "Everything in one place", "Όλα σε ένα σημείο", "Tout au même endroit", "Alles an einem Ort", "Todo en un lugar", "Tutto in un unico posto"))}</p><h2>${esc(t(locale, "Guest guide", "Οδηγός καλεσμένων", "Guide des invités", "Gäste-Guide", "Guía para invitados", "Guida per gli ospiti"))}</h2><div class="w-detail-grid">${detailCards}</div></div></section>` : ""}
   <section id="moments" class="w-section w-moments"><div class="w-inner" data-reveal><p class="w-eyebrow">Memboux · Collecting Moments</p><h2>${esc(t(locale, "Be part of the story", "Γίνε μέρος της ιστορίας", "Faites partie de l’histoire", "Werde Teil der Geschichte", "Sé parte de la historia", "Entra nella storia"))}</h2><p class="w-story-copy">${esc(t(locale, "See the shared album, add the moments you captured and celebrate together.", "Δες το κοινό album, πρόσθεσε τις στιγμές που κατέγραψες και γιόρτασε μαζί μας.", "Découvrez l’album partagé et ajoutez vos moments.", "Entdecke das gemeinsame Album und füge deine Momente hinzu.", "Descubre el álbum compartido y añade tus momentos.", "Scopri l’album condiviso e aggiungi i tuoi momenti."))}</p>${experienceCards.length ? `<div class="w-experience-grid">${experienceCards.map((card) => `<a class="w-experience-card" href="${esc(card.href)}"><h3>${esc(card.title)}</h3><p>${esc(card.copy)}</p><span>→</span></a>`).join("")}</div>` : ""}<div class="w-actions"><a class="w-button primary" href="/gallery/${event.code}?lang=${locale}">${esc(t(locale, "Open shared album", "Άνοιγμα κοινού album", "Ouvrir l’album", "Album öffnen", "Abrir álbum", "Apri album"))}</a><a class="w-button" href="/gallery/${event.code}/official?lang=${locale}">${esc(t(locale, "Official album", "Επίσημο album", "Album officiel", "Offizielles Album", "Álbum oficial", "Album ufficiale"))}</a></div></div></section>
-  <footer class="w-footer">Memboux · Collecting Moments</footer></div><script>(()=>{const items=[...document.querySelectorAll('[data-reveal]')];if(!('IntersectionObserver'in window)||matchMedia('(prefers-reduced-motion:reduce)').matches){items.forEach(item=>item.classList.add('is-visible'));return}const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}}),{threshold:.12});items.forEach(item=>observer.observe(item))})()<\/script>`;
+  <footer class="w-footer">Memboux · Collecting Moments</footer></div><script>(()=>{const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches,items=[...document.querySelectorAll('[data-reveal]')];if(!('IntersectionObserver'in window)||reduced)items.forEach(item=>item.classList.add('is-visible'));else{const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}}),{threshold:.12});items.forEach(item=>observer.observe(item))}document.querySelectorAll('[data-w-hero-slideshow]').forEach(show=>{const slides=[...show.querySelectorAll('[data-w-slide]')];if(reduced||slides.length<2)return;let active=0;window.setInterval(()=>{if(document.hidden)return;slides[active].classList.remove('is-active');active=(active+1)%slides.length;slides[active].classList.add('is-active')},6500)})})()<\/script>`;
 
   const renderedBody = experienceHtml
     ? body

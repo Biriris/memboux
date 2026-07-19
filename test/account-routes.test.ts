@@ -444,7 +444,10 @@ describe("account route boundaries", () => {
     const portraitHtml = await portraitWizard.text();
     expect(portraitHtml).toContain('id="portrait-upload-slot"');
     expect(portraitHtml).toContain('name="slot"');
+    expect(portraitHtml).toContain('name="file" type="file" required multiple');
     expect(portraitHtml).toContain('data-slot="hero"');
+    expect(portraitHtml).toContain("Hero slideshow");
+    expect(portraitHtml).toContain("editorial gallery");
 
     const portraitUploadForm = new FormData();
     portraitUploadForm.set("locale", "en");
@@ -460,6 +463,14 @@ describe("account route boundaries", () => {
     const weddingMediaEvent = await env.DB.prepare("SELECT id FROM events WHERE code=?").bind(weddingBody.code).first<{ id: string }>();
     expect(await env.DB.prepare("SELECT slot FROM event_wedding_portrait_assignments WHERE event_id=?").bind(weddingMediaEvent!.id).first())
       .toEqual({ slot: "hero" });
+    const uploadedWeddingMedia = await env.DB.prepare("SELECT id FROM event_wedding_media WHERE event_id=?").bind(weddingMediaEvent!.id).first<{ id: string }>();
+    const anonymousDraftMedia = await SELF.fetch(`https://memboux.com/wedding-media/${uploadedWeddingMedia!.id}`);
+    expect(anonymousDraftMedia.status).toBe(404);
+    const ownerDraftMedia = await SELF.fetch(`https://memboux.com/wedding-media/${uploadedWeddingMedia!.id}`, {
+      headers: { Cookie: cookieHeader },
+    });
+    expect(ownerDraftMedia.status).toBe(200);
+    expect(ownerDraftMedia.headers.get("content-type")).toBe("image/jpeg");
 
     const savePortraits = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/setup/2`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",

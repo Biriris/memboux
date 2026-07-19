@@ -9,6 +9,7 @@ import {
   getOfficialMediaWithLikes,
   mediaLikeActorKey,
 } from "../media-likes";
+import { getOrCreateMediaVariant, parseMediaVariant } from "../media-variants";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { hasGalleryAccess } from "../gallery-access";
@@ -163,10 +164,42 @@ weddingRoutes.get("/wedding-media/:id", async (c) => {
     "SELECT wm.object_key,wm.content_type,wm.media_type,wm.event_id FROM event_wedding_media wm WHERE wm.id=?"
   ).bind(c.req.param("id")).first<{ object_key: string; content_type: string; media_type: string; event_id: string }>();
   if (!row) return c.text("Not found", 404);
-  const object = await c.env.MEDIA.get(row.object_key);
+  const [event, profile] = await Promise.all([
+    c.env.DB.prepare("SELECT * FROM events WHERE id=? AND deleted_at IS NULL").bind(row.event_id).first<EventRow>(),
+    c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+      .bind(row.event_id).first<{ publish_status: "draft" | "published" }>(),
+  ]);
+  if (!event || !profile) return c.text("Not found", 404);
+
+  let manager = false;
+  if (profile.publish_status !== "published" || event.gallery_pin_hash) {
+    const user = await currentUser(c);
+    manager = Boolean(user && roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event"));
+  }
+  if (profile.publish_status !== "published" && !manager) return c.text("Not found", 404);
+  if (!manager && !(await hasGalleryAccess(c.req.raw, event))) return c.text("Private media", 401);
+
+  const variant = row.media_type === "image" ? parseMediaVariant(c.req.query("variant")) : null;
+  let object: R2ObjectBody | null = null;
+  let transformed = false;
+  if (variant) {
+    try {
+      const result = await getOrCreateMediaVariant(c.env, row.object_key, variant);
+      object = result?.object ?? null;
+      transformed = Boolean(object && object.key !== row.object_key);
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "wedding_image_variant_failed",
+        mediaId: c.req.param("id"),
+        variant,
+        error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+      }));
+    }
+  }
+  object ??= await c.env.MEDIA.get(row.object_key);
   if (!object) return c.text("Not found", 404);
   const headers = new Headers({
-    "Content-Type": row.content_type,
+    "Content-Type": transformed ? "image/webp" : row.content_type,
     "Cache-Control": "private, max-age=31536000, immutable",
     ETag: object.httpEtag,
     "X-Content-Type-Options": "nosniff",
@@ -204,7 +237,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
   const guestUrl = `${new URL(c.req.url).origin}/wedding/${encodeURIComponent(event.code)}`;
-  const [featureRows, cover, allMedia, officialMedia, guestQrRaw, guestbook, experienceSettings, curator, menu, portraitMap] = await Promise.all([
+  const [featureRows, cover, allMedia, officialMedia, guestQrRaw, guestbook, experienceSettings, curator, menu, portraitMap, preWeddingMedia] = await Promise.all([
     c.env.DB.prepare("SELECT feature_key FROM event_wedding_features WHERE event_id=? AND enabled=1").bind(event.id).all<{ feature_key: string }>(),
     c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?").bind(event.id).first<{ updated_at: number }>(),
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
@@ -221,6 +254,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     c.env.DB.prepare("SELECT * FROM event_wedding_menus WHERE event_id=?")
       .bind(event.id).first<WeddingMenuRow>().catch(() => null),
     getWeddingPortraitMap(c.env.DB, event.id),
+    getWeddingMedia(c.env.DB, event.id),
   ]);
   const selectedFeatureKeys = featureRows.results.map((row) => row.feature_key);
   const settings: WeddingExperienceSettings = experienceSettings ?? {
@@ -255,6 +289,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     experienceHtml: experience.html,
     experienceScripts: experience.scripts,
     portraitMap,
+    preWeddingMedia,
   }));
 });
 
@@ -333,27 +368,34 @@ weddingRoutes.get("/dashboard/:code/wedding/setup", async (c) => {
 
     const portraitSlots = ["hero", "story", "divider_1", "divider_2", "divider_3"] as const;
     const slotLabels: Record<string, string> = {
-      hero: localized(locale, "Hero background", "Hero φόντο", "Fond du héros", "Hero-Hintergrund", "Fondo del héroe", "Sfondo hero"),
-      story: localized(locale, "Story image", "Εικόνα ιστορίας", "Image de l’histoire", "Story-Bild", "Imagen de la historia", "Immagine storia"),
-      divider_1: localized(locale, "Divider 1", "Διαχωριστικό 1", "Séparateur 1", "Trenner 1", "Separador 1", "Divisore 1"),
-      divider_2: localized(locale, "Divider 2", "Διαχωριστικό 2", "Séparateur 2", "Trenner 2", "Separador 2", "Divisore 2"),
-      divider_3: localized(locale, "Divider 3", "Διαχωριστικό 3", "Séparateur 3", "Trenner 3", "Separador 3", "Divisore 3"),
+      hero: localized(locale, "Hero slideshow", "Hero slideshow", "Diaporama principal", "Hero-Slideshow", "Presentación principal", "Slideshow principale"),
+      story: localized(locale, "Couple portrait", "Πορτρέτο ζευγαριού", "Portrait du couple", "Paarporträt", "Retrato de pareja", "Ritratto della coppia"),
+      divider_1: localized(locale, "Opening portrait", "Εναρκτήριο πορτρέτο", "Portrait d’ouverture", "Eröffnungsporträt", "Retrato de apertura", "Ritratto di apertura"),
+      divider_2: localized(locale, "Celebration transition", "Μετάβαση γιορτής", "Transition célébration", "Feier-Übergang", "Transición de celebración", "Transizione celebrazione"),
+      divider_3: localized(locale, "Guest experience transition", "Μετάβαση εμπειρίας καλεσμένων", "Transition expérience invités", "Gästeerlebnis-Übergang", "Transición de invitados", "Transizione esperienza ospiti"),
+    };
+    const slotDescriptions: Record<string, string> = {
+      hero: localized(locale, "Leads the opening slideshow; more gallery photos rotate automatically.", "Ξεκινά το slideshow της αρχικής· περισσότερες gallery φωτογραφίες εναλλάσσονται αυτόματα.", "Ouvre le diaporama; d’autres photos alternent automatiquement.", "Startet die Slideshow; weitere Fotos wechseln automatisch.", "Abre la presentación; más fotos rotan automáticamente.", "Apre lo slideshow; altre foto ruotano automaticamente."),
+      story: localized(locale, "Appears beside your story in an editorial portrait layout.", "Εμφανίζεται δίπλα στην ιστορία σας σε editorial σύνθεση.", "Apparaît près de votre histoire dans une mise en page éditoriale.", "Erscheint neben eurer Geschichte im Editorial-Layout.", "Aparece junto a vuestra historia en un diseño editorial.", "Appare accanto alla vostra storia in un layout editoriale."),
+      divider_1: localized(locale, "A full-width photograph between your story and the schedule.", "Φωτογραφία πλήρους πλάτους ανάμεσα στην ιστορία και το πρόγραμμα.", "Une photo pleine largeur entre l’histoire et le programme.", "Ein Vollbildfoto zwischen Geschichte und Ablauf.", "Una foto a todo ancho entre la historia y el programa.", "Una foto a tutta larghezza tra storia e programma."),
+      divider_2: localized(locale, "A cinematic pause before the pre-wedding photo story.", "Μια κινηματογραφική παύση πριν από το pre-wedding photo story.", "Une pause cinématographique avant le récit photo.", "Eine filmische Pause vor der Fotostrecke.", "Una pausa cinematográfica antes del relato fotográfico.", "Una pausa cinematografica prima del racconto fotografico."),
+      divider_3: localized(locale, "Connects the wedding details with the guest experience.", "Συνδέει τις πληροφορίες του γάμου με την εμπειρία καλεσμένων.", "Relie les détails du mariage à l’expérience des invités.", "Verbindet Hochzeitsdetails und Gästeerlebnis.", "Conecta los detalles de la boda con la experiencia de invitados.", "Collega i dettagli del matrimonio all’esperienza ospiti."),
     };
     const galleryHtml = weddingMedia.filter((m) => m.media_type === "image").map((m) => {
       const assignedTo = Object.entries(portraitMap).find(([, v]) => v === m.object_key)?.[0];
       return `<button type="button" class="gallery-pick group relative h-28 w-28 overflow-hidden rounded-xl border-2 ${assignedTo ? "border-[#2f6b5b]" : "border-transparent"} bg-[#e7f1ed] hover:border-[#2f6b5b] transition" data-media-id="${esc(m.id)}" data-object-key="${esc(m.object_key)}"><img src="/wedding-media/${encodeURIComponent(m.id)}" alt="" class="h-full w-full object-cover" loading="lazy">${assignedTo ? `<span class="absolute bottom-0 left-0 right-0 bg-[#2f6b5b] px-1 py-0.5 text-[9px] font-bold text-white text-center">${esc(slotLabels[assignedTo])}</span>` : ""}</button>`;
     }).join("");
-    const modal = `<div id="portrait-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" style="display:none" role="dialog" aria-modal="true"><div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h3 id="portrait-modal-title" class="text-xl font-bold text-[#183c33]"></h3><button type="button" id="portrait-modal-close" class="rounded-full p-2 text-[#687a74] hover:bg-[#f3f7f5]" aria-label="${esc(localized(locale, "Close", "Κλείσιμο", "Fermer", "Schließen", "Cerrar", "Chiudi"))}">✕</button></div><div class="mt-4"><form id="portrait-upload-form" action="/api/account/events/${encodeURIComponent(event.code)}/wedding/media/upload" method="post" enctype="multipart/form-data" class="flex flex-col gap-3 rounded-2xl border-2 border-dashed border-[#d6e0dc] p-4 sm:flex-row sm:items-end"><input type="hidden" name="locale" value="${locale}"><input id="portrait-upload-slot" type="hidden" name="slot" value=""><label class="min-w-0 flex-1 cursor-pointer text-sm font-semibold text-[#344941]">${esc(localized(locale, "Upload and use a new photo", "Ανέβασε και χρησιμοποίησε νέα φωτογραφία", "Télécharger et utiliser une nouvelle photo", "Neues Foto hochladen und verwenden", "Subir y usar una foto nueva", "Carica e usa una nuova foto"))}<input name="file" type="file" required accept="image/jpeg,image/png,image/webp,image/gif" class="mt-2 block w-full cursor-pointer rounded-xl border border-[#d6e0dc] bg-white px-3 py-2 text-sm"></label><button data-portrait-upload-submit class="rounded-xl bg-[#183c33] px-5 py-3 font-semibold text-white disabled:cursor-wait disabled:opacity-60">${esc(localized(locale, "Upload & place", "Ανέβασμα & τοποθέτηση", "Télécharger et placer", "Hochladen & einsetzen", "Subir y colocar", "Carica e inserisci"))}</button></form><p id="portrait-action-error" class="mt-2 hidden rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert"></p></div>${weddingMedia.length ? `<div class="mt-4"><p class="text-xs font-semibold text-[#344941]">${esc(localized(locale, "Or choose from gallery", "Ή επίλεξε από το gallery", "Ou choisissez dans la galerie", "Oder aus der Galerie wählen", "O elige de la galería", "Oppure scegli dalla galleria"))}</p><div class="mt-2 flex flex-wrap gap-3">${galleryHtml}</div></div>` : `<div class="mt-6 rounded-xl border-2 border-dashed border-[#d6e0dc] p-6 text-center text-sm text-[#687a74]">${esc(localized(locale, "Upload a photo above and it will be placed in this slot automatically.", "Ανέβασε μια φωτογραφία και θα τοποθετηθεί αυτόματα σε αυτό το πεδίο.", "Téléchargez une photo et elle sera placée automatiquement.", "Lade ein Foto hoch; es wird automatisch eingesetzt.", "Sube una foto y se colocará automáticamente.", "Carica una foto e verrà inserita automaticamente."))}</div>`}</div></div>`;
+    const modal = `<div id="portrait-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" style="display:none" role="dialog" aria-modal="true"><div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"><div class="flex items-center justify-between"><h3 id="portrait-modal-title" class="text-xl font-bold text-[#183c33]"></h3><button type="button" id="portrait-modal-close" class="rounded-full p-2 text-[#687a74] hover:bg-[#f3f7f5]" aria-label="${esc(localized(locale, "Close", "Κλείσιμο", "Fermer", "Schließen", "Cerrar", "Chiudi"))}">✕</button></div><div class="mt-4"><form id="portrait-upload-form" action="/api/account/events/${encodeURIComponent(event.code)}/wedding/media/upload" method="post" enctype="multipart/form-data" class="flex flex-col gap-3 rounded-2xl border-2 border-dashed border-[#d6e0dc] p-4 sm:flex-row sm:items-end"><input type="hidden" name="locale" value="${locale}"><input id="portrait-upload-slot" type="hidden" name="slot" value=""><label class="min-w-0 flex-1 cursor-pointer text-sm font-semibold text-[#344941]">${esc(localized(locale, "Upload new photos", "Ανέβασε νέες φωτογραφίες", "Télécharger de nouvelles photos", "Neue Fotos hochladen", "Subir nuevas fotos", "Carica nuove foto"))}<input name="file" type="file" required multiple accept="image/jpeg,image/png,image/webp,image/gif" class="mt-2 block w-full cursor-pointer rounded-xl border border-[#d6e0dc] bg-white px-3 py-2 text-sm"><small class="mt-2 block font-normal leading-5 text-[#687a74]">${esc(localized(locale, "The first photo fills this position. Every additional photo joins the pre-wedding gallery and the template can use it automatically.", "Η πρώτη φωτογραφία γεμίζει αυτή τη θέση. Κάθε επιπλέον φωτογραφία μπαίνει στο pre-wedding gallery και το template μπορεί να τη χρησιμοποιήσει αυτόματα.", "La première photo remplit cet emplacement; les autres rejoignent la galerie pré-mariage.", "Das erste Foto füllt diese Position; weitere kommen in die Pre-Wedding-Galerie.", "La primera foto ocupa esta posición; las demás se añaden a la galería pre-boda.", "La prima foto riempie questa posizione; le altre entrano nella galleria pre-matrimonio."))}</small></label><button data-portrait-upload-submit class="rounded-xl bg-[#183c33] px-5 py-3 font-semibold text-white disabled:cursor-wait disabled:opacity-60">${esc(localized(locale, "Upload & place", "Ανέβασμα & τοποθέτηση", "Télécharger et placer", "Hochladen & einsetzen", "Subir y colocar", "Carica e inserisci"))}</button></form><p id="portrait-action-error" class="mt-2 hidden rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert"></p></div>${weddingMedia.length ? `<div class="mt-4"><p class="text-xs font-semibold text-[#344941]">${esc(localized(locale, "Or choose from gallery", "Ή επίλεξε από το gallery", "Ou choisissez dans la galerie", "Oder aus der Galerie wählen", "O elige de la galería", "Oppure scegli dalla galleria"))}</p><div class="mt-2 flex flex-wrap gap-3">${galleryHtml}</div></div>` : `<div class="mt-6 rounded-xl border-2 border-dashed border-[#d6e0dc] p-6 text-center text-sm text-[#687a74]">${esc(localized(locale, "Upload one or more photos above. The first fills this position and the rest build your photo story.", "Ανέβασε μία ή περισσότερες φωτογραφίες. Η πρώτη γεμίζει τη θέση και οι υπόλοιπες χτίζουν το photo story σας.", "Ajoutez une ou plusieurs photos; la première remplit cet emplacement.", "Lade ein oder mehrere Fotos hoch; das erste füllt diese Position.", "Sube una o varias fotos; la primera ocupa esta posición.", "Carica una o più foto; la prima riempie questa posizione."))}</div>`}</div></div>`;
     const portraitSection = `<div class="mt-4 grid gap-3 sm:grid-cols-2">${portraitSlots.map((slot) => {
       const assigned = portraitMap[slot];
       const assignedMediaId = portraitMediaIds[slot];
       const label = slotLabels[slot];
-      return `<div class="rounded-xl border border-[#d9e5e0] bg-white p-3"><div class="flex items-center justify-between gap-2"><strong class="text-sm text-[#183c33]">${esc(label)}</strong>${assigned ? `<button type="button" class="portrait-remove-btn text-xs font-semibold text-red-600 hover:text-red-800" data-slot="${slot}">${esc(localized(locale, "Remove", "Αφαίρεση", "Supprimer", "Entfernen", "Eliminar", "Rimuovi"))}</button>` : ""}</div>${assigned ? `<button type="button" class="slot-pick-btn block w-full" data-slot="${slot}"><img src="/wedding-media/${encodeURIComponent(assignedMediaId ?? "")}" alt="" class="mt-2 h-32 w-full rounded-lg object-cover"></button>` : `<button type="button" class="slot-pick-btn mt-2 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-[#d6e0dc] text-xs text-[#687a74] hover:border-[#2f6b5b] hover:bg-[#edf4f1] transition" data-slot="${slot}">+ ${esc(localized(locale, "Add photo", "Προσθήκη φωτογραφίας", "Ajouter une photo", "Foto hinzufügen", "Añadir foto", "Aggiungi foto"))}</button>`}</div>`;
+      return `<div class="rounded-xl border border-[#d9e5e0] bg-white p-3"><div class="flex items-center justify-between gap-2"><strong class="text-sm text-[#183c33]">${esc(label)}</strong>${assigned ? `<button type="button" class="portrait-remove-btn text-xs font-semibold text-red-600 hover:text-red-800" data-slot="${slot}">${esc(localized(locale, "Remove", "Αφαίρεση", "Supprimer", "Entfernen", "Eliminar", "Rimuovi"))}</button>` : ""}</div><p class="mt-1 min-h-10 text-xs leading-5 text-[#687a74]">${esc(slotDescriptions[slot])}</p>${assigned ? `<button type="button" class="slot-pick-btn block w-full" data-slot="${slot}"><img src="/wedding-media/${encodeURIComponent(assignedMediaId ?? "")}?variant=thumb" alt="" class="mt-2 h-32 w-full rounded-lg object-cover"></button>` : `<button type="button" class="slot-pick-btn mt-2 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-[#d6e0dc] text-xs text-[#687a74] hover:border-[#2f6b5b] hover:bg-[#edf4f1] transition" data-slot="${slot}">+ ${esc(localized(locale, "Add photo", "Προσθήκη φωτογραφίας", "Ajouter une photo", "Foto hinzufügen", "Añadir foto", "Aggiungi foto"))}</button>`}</div>`;
 
 
     }).join("")}</div>`;
     const script = `<script>(()=>{let activeSlot=null;const modal=document.getElementById('portrait-modal'),title=document.getElementById('portrait-modal-title'),closeBtn=document.getElementById('portrait-modal-close'),slotInput=document.getElementById('portrait-upload-slot'),uploadForm=document.getElementById('portrait-upload-form'),uploadButton=uploadForm?.querySelector('[data-portrait-upload-submit]'),errorBox=document.getElementById('portrait-action-error');const message=${JSON.stringify(localized(locale, "The photo could not be saved. Please try again.", "Η φωτογραφία δεν αποθηκεύτηκε. Δοκίμασε ξανά.", "La photo n’a pas pu être enregistrée. Réessayez.", "Das Foto konnte nicht gespeichert werden. Versuche es erneut.", "No se pudo guardar la foto. Inténtalo de nuevo.", "Impossibile salvare la foto. Riprova."))};const showError=()=>{if(errorBox){errorBox.textContent=message;errorBox.classList.remove('hidden')}};const close=()=>{modal.style.display='none';activeSlot=null;if(slotInput)slotInput.value='';errorBox?.classList.add('hidden')};document.querySelectorAll('.slot-pick-btn').forEach(btn=>{btn.addEventListener('click',()=>{activeSlot=btn.dataset.slot||null;if(slotInput)slotInput.value=activeSlot||'';const slotDiv=btn.closest('.rounded-xl');title.textContent=slotDiv?.querySelector('strong')?.textContent||'';errorBox?.classList.add('hidden');modal.style.display='flex'})});closeBtn.addEventListener('click',close);modal.addEventListener('click',(e)=>{if(e.target===modal)close()});uploadForm?.addEventListener('submit',event=>{if(!activeSlot){event.preventDefault();showError();return}if(uploadButton)uploadButton.disabled=true});document.querySelectorAll('.gallery-pick').forEach(el=>{el.addEventListener('click',async()=>{if(!activeSlot)return;const mediaId=el.dataset.mediaId;if(!mediaId)return;el.disabled=true;errorBox?.classList.add('hidden');const form=new FormData();form.set('slot',activeSlot);form.set('mediaId',mediaId);try{const response=await fetch('/api/account/events/${encodeURIComponent(event.code)}/wedding/portraits',{method:'POST',credentials:'include',body:form});if(!response.ok)throw new Error('assign_failed');location.reload()}catch{el.disabled=false;showError()}})});document.querySelectorAll('.portrait-remove-btn').forEach(btn=>{btn.addEventListener('click',async(e)=>{e.stopPropagation();const slot=btn.dataset.slot;if(!slot)return;btn.disabled=true;try{const response=await fetch('/api/account/events/${encodeURIComponent(event.code)}/wedding/portraits/'+encodeURIComponent(slot),{method:'DELETE',credentials:'include'});if(!response.ok)throw new Error('remove_failed');location.reload()}catch{btn.disabled=false;showError()}})})})()<\/script>`;
-    content = `<p class="text-xs font-bold uppercase tracking-[.18em] text-[#2f6b5b]">02 · Portraits</p><h2 class="mt-2 text-3xl">${esc(localized(locale, "Pre-wedding photos", "Pre-wedding φωτογραφίες", "Photos pré-mariage", "Pre-Wedding-Fotos", "Fotos pre-boda", "Foto pre-matrimonio"))}</h2><p class="mt-2 text-sm leading-6 text-[#687a74]">${esc(localized(locale, "Tap any slot to add a photo from your pre-wedding gallery or upload a new one.", "Πάτα σε οποιοδήποτε slot για να προσθέσεις φωτογραφία από το pre-wedding gallery σου ή ανέβασε νέα.", "Appuyez sur un emplacement pour ajouter une photo de votre galerie pré-mariage.", "Tippe auf einen Slot, um ein Foto aus deiner Pre-Wedding-Galerie hinzuzufügen.", "Toca cualquier espacio para añadir una foto de tu galería pre-boda.", "Tocca uno slot per aggiungere una foto dalla galleria pre-matrimonio."))}</p>${portraitSection}${modal}<form action="${action}" method="post" class="mt-7"><input type="hidden" name="locale" value="${locale}"><div class="mt-6 flex gap-3">${previous}<button class="ml-auto rounded-xl bg-[#2f6b5b] px-6 py-3 font-semibold text-white">${esc(nextLabel)}</button></div></form>${script}`;
+    content = `<p class="text-xs font-bold uppercase tracking-[.18em] text-[#2f6b5b]">02 · Photo story</p><h2 class="mt-2 text-3xl">${esc(localized(locale, "Pre-wedding photo story", "Pre-wedding φωτογραφική ιστορία", "Récit photo pré-mariage", "Pre-Wedding-Fotostrecke", "Historia fotográfica pre-boda", "Racconto fotografico pre-matrimonio"))}</h2><p class="mt-2 text-sm leading-6 text-[#687a74]">${esc(localized(locale, "All uploaded photos become part of the template’s visual story. Use these five positions to choose the leading images; the rest automatically build the hero slideshow and editorial gallery.", "Όλες οι φωτογραφίες που ανεβάζετε γίνονται μέρος της οπτικής ιστορίας του template. Με αυτές τις πέντε θέσεις ορίζετε τις βασικές εικόνες· οι υπόλοιπες χτίζουν αυτόματα το hero slideshow και το editorial gallery.", "Toutes les photos alimentent le récit visuel. Ces cinq emplacements définissent les images principales; les autres composent le diaporama et la galerie.", "Alle Fotos werden Teil der visuellen Geschichte. Diese fünf Positionen bestimmen die Hauptbilder; weitere Fotos bilden Slideshow und Galerie.", "Todas las fotos forman parte de la historia visual. Estas cinco posiciones definen las imágenes principales; las demás crean la presentación y la galería.", "Tutte le foto entrano nel racconto visivo. Queste cinque posizioni definiscono le immagini principali; le altre creano slideshow e galleria."))}</p><div class="mt-4 inline-flex rounded-full bg-[#edf4f1] px-3 py-1.5 text-xs font-bold text-[#2f6b5b]">${weddingMedia.filter((media) => media.media_type === "image").length} ${esc(localized(locale, "photos in your story", "φωτογραφίες στην ιστορία σας", "photos dans votre récit", "Fotos in eurer Geschichte", "fotos en vuestra historia", "foto nel vostro racconto"))}</div>${portraitSection}${modal}<form action="${action}" method="post" class="mt-7"><input type="hidden" name="locale" value="${locale}"><div class="mt-6 flex gap-3">${previous}<button class="ml-auto rounded-xl bg-[#2f6b5b] px-6 py-3 font-semibold text-white">${esc(nextLabel)}</button></div></form>${script}`;
 
 
 
