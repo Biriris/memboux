@@ -51,4 +51,23 @@ describe("integrated wedding guest experience", () => {
     expect(result.scripts).toContain("slideshow-feed");
     expect(result.scripts).toContain("wedding-select-media");
   });
+
+  it("progressively reveals large guest galleries", () => {
+    const result = renderWeddingExperience({
+      code: "ABC123",
+      eventName: "Alex & Sam",
+      locale: "en",
+      guestUrl: "https://memboux.com/wedding/ABC123",
+      guestQrSvg: "<svg></svg>",
+      guestItems: Array.from({ length: 14 }, (_, index) => photo(`guest-${index}`, "guest")),
+      officialItems: [],
+      guestbookEntries: [],
+      settings: { rsvp_enabled: 0, guestbook_enabled: 0, comments_enabled: 0, slideshow_enabled: 0 },
+      curatorName: "Memboux Studio",
+    });
+    expect(result.html).toContain('data-gallery-more="wedding-guest-gallery"');
+    expect(result.html).toContain("2 remaining");
+    expect(result.html).toContain('data-gallery-deferred="true"');
+    expect(result.scripts).toContain('data-gallery-grid="wedding-guest-gallery"');
+  });
 });

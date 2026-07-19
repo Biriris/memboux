@@ -75,9 +75,14 @@ describe("wedding event page", () => {
     expect(html).toContain("w-title-shine");
     expect(html).toContain("13.5vw");
     expect(html).toContain("display:block!important");
-    expect(html).toContain("--w-hero-size:clamp(3rem,7.4vw,6.9rem)");
+    expect(html).toContain("--w-hero-size:clamp(2.85rem,6.7vw,6.15rem)");
     expect(html).not.toContain('<header class="w-top">');
     expect(html).toContain('role="navigation"');
+    expect(html).toContain('id="countdown"');
+    expect(html).toContain('data-countdown-value="days"');
+    expect(html).toContain("Our wedding day");
+    expect(html).not.toContain("The celebration");
+    expect(html).toContain('class="w-ornament"');
   });
 
   it("reduces the display scale for long names instead of allowing collisions", () => {

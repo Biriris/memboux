@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MediaRow } from "../src/domain";
-import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, lightboxMarkup, mediaLikesScript, mediaUploaderOverlay } from "../src/views/media";
+import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaUploaderOverlay } from "../src/views/media";
 
 const media = (overrides: Partial<MediaRow> = {}): MediaRow => ({
   id: "11111111-1111-4111-8111-111111111111",
@@ -126,6 +126,22 @@ describe("media views", () => {
     expect(html).toContain('data-gallery-photo-count="1"');
     expect(html).not.toContain("data-gallery-filter");
     expect(html).toContain('data-gallery-sort="photos-only"');
+  });
+
+  it("defers gallery media beyond the first page and reveals it in batches", () => {
+    const items = Array.from({ length: 14 }, (_, index) => media({ id: `photo-${index}` }));
+    const html = cards(items, { lightbox: true, deferAfter: 12 });
+    const controls = galleryProgressiveControls(items.length, "guest-gallery", "en");
+    const script = galleryProgressiveScript("guest-gallery");
+
+    expect(html.match(/data-gallery-deferred="true"/g)).toHaveLength(2);
+    expect(html).toContain('data-deferred-src="/media/photo-12?variant=thumb"');
+    expect(html).not.toContain('<img src="/media/photo-12?variant=thumb"');
+    expect(controls).toContain('data-gallery-more="guest-gallery"');
+    expect(controls).toContain("2 remaining");
+    expect(script).toContain("data-deferred-src");
+    expect(script).toContain("memboux:gallery-sorted");
+    expect(script).toContain("visible+=12");
   });
 
   it("offers the owner a per-photo cover control", () => {

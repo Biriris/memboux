@@ -18,6 +18,7 @@ type MediaCardOptions = {
   likes?: boolean;
   likesReadonly?: boolean;
   showUploader?: boolean;
+  deferAfter?: number;
   coverControl?: {
     eventCode: string;
     locale: Locale;
@@ -69,7 +70,9 @@ export function cards(items: MediaCardRow[], options?: MediaCardOptions) {
     const originalSrc = `/media/${encodeURIComponent(m.id)}`;
     const thumbSrc = `${originalSrc}?variant=thumb`;
     const previewSrc = `${originalSrc}?variant=preview`;
-    const media = m.media_type === "image" ? `<img src="${thumbSrc}" alt="" loading="lazy" decoding="async" class="block h-auto w-full object-contain">` : `<video src="${originalSrc}" ${options?.lightbox ? "muted playsinline" : "controls playsinline"} preload="metadata" class="block h-auto w-full bg-black object-contain"></video>`;
+    const deferred = Number.isInteger(options?.deferAfter) && index >= Number(options?.deferAfter);
+    const sourceAttribute = (url: string) => deferred ? `data-deferred-src="${url}"` : `src="${url}"`;
+    const media = m.media_type === "image" ? `<img ${sourceAttribute(thumbSrc)} alt="" loading="lazy" decoding="async" class="block h-auto w-full object-contain">` : `<video ${sourceAttribute(originalSrc)} ${options?.lightbox ? "muted playsinline" : "controls playsinline"} preload="metadata" class="block h-auto w-full bg-black object-contain"></video>`;
     const likesEnabled = options?.likes ?? Boolean(options?.lightbox && m.like_count !== undefined);
     const likeData = ` data-media-id="${esc(m.id)}"${likesEnabled && m.media_type === "image" ? ` data-like-count="${Math.max(0, Number(m.like_count ?? 0))}" data-liked="${Boolean(m.viewer_liked)}"` : ""}`;
     const content = options?.lightbox ? `<button type="button" class="lightbox-item block w-full" data-src="${m.media_type === "image" ? previewSrc : originalSrc}" data-full="${originalSrc}" data-original="${originalSrc}?download=1" data-type="${m.media_type}" data-uploader="${esc(m.uploaded_by)}"${likeData}${options.reportCode ? ` data-report="/gallery/${encodeURIComponent(options.reportCode)}/removal/${encodeURIComponent(m.id)}"` : ""}>${media}</button>` : options?.manage && options.code ? `<a href="/dashboard/${encodeURIComponent(options.code)}/media/${encodeURIComponent(m.id)}?lang=${options.locale ?? "en"}" class="block w-full">${media}</a>` : `<a href="${originalSrc}" class="block w-full">${media}</a>`;
@@ -84,7 +87,7 @@ export function cards(items: MediaCardRow[], options?: MediaCardOptions) {
     const uploader = (options?.showUploader ?? options?.lightbox) && uploaderName
       ? `<span class="pointer-events-none absolute bottom-2 left-2 z-30 max-w-[48%] truncate rounded-full border border-white/20 bg-black/60 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-lg backdrop-blur sm:max-w-[60%]" title="${esc(uploaderName)}">${esc(uploaderName)}</span>`
       : "";
-    return `<article data-media-type="${m.media_type}" data-media-order="${index}" data-media-uploaded="${Number(m.uploaded_at) || 0}" data-media-captured="${Number(m.captured_at ?? m.uploaded_at) || 0}" data-media-rating="${Math.max(0, Number(m.like_count ?? 0))}" class="memboux-media-card selectable-media relative mb-3 overflow-hidden rounded-2xl bg-[#f1f6f3] shadow-sm transition sm:mb-4">${selector}${options?.reportCode ? `<a href="/gallery/${encodeURIComponent(options.reportCode)}/removal/${encodeURIComponent(m.id)}?lang=${options.locale??"en"}" class="absolute right-2 top-2 z-10 rounded-full bg-black/55 px-3 py-1 text-xs text-white">${options.locale==="el"?"Αναφορά":"Report"}</a>` : ""}${cover}${uploader}${like}${content}</article>`;
+    return `<article data-media-type="${m.media_type}" data-media-order="${index}" data-media-uploaded="${Number(m.uploaded_at) || 0}" data-media-captured="${Number(m.captured_at ?? m.uploaded_at) || 0}" data-media-rating="${Math.max(0, Number(m.like_count ?? 0))}"${deferred ? ' data-gallery-deferred="true"' : ""} class="memboux-media-card selectable-media relative mb-3 overflow-hidden rounded-2xl bg-[#f1f6f3] shadow-sm transition sm:mb-4${deferred ? " hidden" : ""}">${selector}${options?.reportCode ? `<a href="/gallery/${encodeURIComponent(options.reportCode)}/removal/${encodeURIComponent(m.id)}?lang=${options.locale??"en"}" class="absolute right-2 top-2 z-10 rounded-full bg-black/55 px-3 py-1 text-xs text-white">${options.locale==="el"?"Αναφορά":"Report"}</a>` : ""}${cover}${uploader}${like}${content}</article>`;
   }).join("");
 }
 
@@ -129,7 +132,25 @@ export function galleryFilterControls(items: MediaRow[], prefix: string, locale:
 }
 
 export function galleryFilterScript(_items: MediaRow[], prefix: string) {
-  return `<script>(()=>{const sort=document.querySelector('[data-gallery-sort="${prefix}"]'),explicitGrid=document.querySelector('[data-gallery-grid="${prefix}"]'),grid=explicitGrid||sort?.closest('section')?.querySelector('[data-media-type]')?.parentElement;if(!grid)return;const cards=[...grid.querySelectorAll('[data-media-type]')];const value=(card,key)=>Number(card.dataset[key])||0;const sortCards=mode=>{cards.sort((a,b)=>mode==='rating'?(value(b,'mediaRating')-value(a,'mediaRating')||value(b,'mediaUploaded')-value(a,'mediaUploaded')):mode==='latest'?(value(b,'mediaUploaded')-value(a,'mediaUploaded')):mode==='oldest'?(value(a,'mediaUploaded')-value(b,'mediaUploaded')):(value(a,'mediaCaptured')-value(b,'mediaCaptured')||value(a,'mediaOrder')-value(b,'mediaOrder')));cards.forEach(card=>grid.append(card));window.__membouxBrickwallRelayout?.()};sort?.addEventListener('change',()=>sortCards(sort.value));sortCards('chronology')})()<\/script>`;
+  return `<script>(()=>{const sort=document.querySelector('[data-gallery-sort="${prefix}"]'),explicitGrid=document.querySelector('[data-gallery-grid="${prefix}"]'),grid=explicitGrid||sort?.closest('section')?.querySelector('[data-media-type]')?.parentElement;if(!grid)return;const cards=[...grid.querySelectorAll('[data-media-type]')];const value=(card,key)=>Number(card.dataset[key])||0;const sortCards=mode=>{cards.sort((a,b)=>mode==='rating'?(value(b,'mediaRating')-value(a,'mediaRating')||value(b,'mediaUploaded')-value(a,'mediaUploaded')):mode==='latest'?(value(b,'mediaUploaded')-value(a,'mediaUploaded')):mode==='oldest'?(value(a,'mediaUploaded')-value(b,'mediaUploaded')):(value(a,'mediaCaptured')-value(b,'mediaCaptured')||value(a,'mediaOrder')-value(b,'mediaOrder')));cards.forEach(card=>grid.append(card));grid.dispatchEvent(new CustomEvent('memboux:gallery-sorted'));window.__membouxBrickwallRelayout?.()};sort?.addEventListener('change',()=>sortCards(sort.value));sortCards('chronology')})()<\/script>`;
+}
+
+export function galleryProgressiveControls(total: number, prefix: string, locale: Locale, initial = 12) {
+  if (total <= initial) return "";
+  const labels: Record<Locale, { more: string; remaining: string }> = {
+    en: { more: "Show more", remaining: "remaining" },
+    el: { more: "Προβολή περισσότερων", remaining: "απομένουν" },
+    fr: { more: "Afficher plus", remaining: "restantes" },
+    de: { more: "Mehr anzeigen", remaining: "verbleibend" },
+    es: { more: "Mostrar más", remaining: "restantes" },
+    it: { more: "Mostra altro", remaining: "rimanenti" },
+  };
+  const copy = labels[locale];
+  return `<div class="mt-8 flex justify-center"><button type="button" data-gallery-more="${esc(prefix)}" class="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#cbd8d3] bg-white px-5 py-2.5 text-sm font-semibold text-[#29483e] shadow-sm transition hover:-translate-y-0.5 hover:border-[#86a99d] hover:shadow-md"><span>${esc(copy.more)}</span><small class="rounded-full bg-[#edf4f1] px-2 py-1 text-[11px]" data-gallery-remaining>${Math.max(0, total - initial)} ${esc(copy.remaining)}</small></button></div>`;
+}
+
+export function galleryProgressiveScript(prefix: string, initial = 12, batch = 12) {
+  return `<script>(()=>{const grid=document.querySelector('[data-gallery-grid="${prefix}"]'),button=document.querySelector('[data-gallery-more="${prefix}"]');if(!grid||!button)return;const cards=()=>[...grid.querySelectorAll('.memboux-media-card')];let visible=${Math.max(1, initial)};const hydrate=card=>card.querySelectorAll('[data-deferred-src]').forEach(media=>{media.src=media.dataset.deferredSrc;delete media.dataset.deferredSrc});const render=()=>{const ordered=cards();ordered.forEach((card,index)=>{const show=index<visible;card.classList.toggle('hidden',!show);if(show)hydrate(card)});const remaining=Math.max(0,ordered.length-visible),counter=button.querySelector('[data-gallery-remaining]');if(counter){const suffix=(counter.textContent||'').replace(/^\\d+\\s*/, '');counter.textContent=remaining+' '+suffix}button.classList.toggle('hidden',remaining===0);button.setAttribute('aria-expanded',String(remaining===0));requestAnimationFrame(()=>window.__membouxBrickwallRelayout?.())};button.addEventListener('click',()=>{visible+=${Math.max(1, batch)};render()});grid.addEventListener('memboux:gallery-sorted',()=>{visible=${Math.max(1, initial)};render()});render()})()<\/script>`;
 }
 
 export function brickwallScript() {

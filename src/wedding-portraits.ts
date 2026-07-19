@@ -197,9 +197,10 @@ export async function deleteWeddingMedia(
   db: D1Database,
   mediaId: string,
 ): Promise<boolean> {
-  const result = await db.prepare(
-    "DELETE FROM event_wedding_media WHERE id=?"
-  ).bind(mediaId).run();
+  const [, result] = await db.batch([
+    db.prepare("DELETE FROM event_wedding_portrait_assignments WHERE media_id=?").bind(mediaId),
+    db.prepare("DELETE FROM event_wedding_media WHERE id=?").bind(mediaId),
+  ]);
   return result.meta.changes > 0;
 }
 

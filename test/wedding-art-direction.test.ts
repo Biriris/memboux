@@ -29,8 +29,8 @@ describe("wedding template art direction", () => {
   it("keeps the complete brand visible and uses readable preview typography", () => {
     expect(weddingArtDirectionStyles).toContain("min-width:11.5rem");
     expect(weddingArtDirectionStyles).toContain("display:block!important");
-    expect(weddingArtDirectionStyles).toContain("--w-hero-size:clamp(3rem,7.4vw,6.9rem)");
-    expect(weddingArtDirectionStyles).toContain("--w-title-size:clamp(2.2rem,4.7vw,4.5rem)");
+    expect(weddingArtDirectionStyles).toContain("--w-hero-size:clamp(2.85rem,6.7vw,6.15rem)");
+    expect(weddingArtDirectionStyles).toContain("--w-title-size:clamp(2rem,3.9vw,3.75rem)");
     expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="poster"] .w-hero h1{font-size:var(--w-hero-size)}');
   });
 
@@ -40,5 +40,12 @@ describe("wedding template art direction", () => {
     expect(weddingArtDirectionStyles).toContain(".w-page .w-photo-grid");
     expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(1)');
     expect(weddingArtDirectionStyles).toContain("grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:dense");
+  });
+
+  it("adds restrained countdown typography and template-aware ornaments", () => {
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-countdown-grid");
+    expect(weddingArtDirectionStyles).toContain("font-variant-numeric:tabular-nums");
+    expect(weddingArtDirectionStyles).toContain('content:"❦"');
+    expect(weddingArtDirectionStyles).toContain("font-size:min(var(--w-title-size),clamp(2rem,3.9vw,3.75rem))");
   });
 });

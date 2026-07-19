@@ -471,6 +471,25 @@ describe("account route boundaries", () => {
     });
     expect(ownerDraftMedia.status).toBe(200);
     expect(ownerDraftMedia.headers.get("content-type")).toBe("image/jpeg");
+    const populatedPortraitWizard = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/setup?lang=en&step=2`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const populatedPortraitHtml = await populatedPortraitWizard.text();
+    expect(populatedPortraitHtml).toContain("All your photos in one place");
+    expect(populatedPortraitHtml).toContain("data-wedding-library-card");
+    expect(populatedPortraitHtml).toContain(`/wedding/media/${uploadedWeddingMedia!.id}/delete`);
+
+    const deleteWeddingMediaForm = new FormData();
+    deleteWeddingMediaForm.set("locale", "en");
+    const deleteWeddingMediaResponse = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/media/${uploadedWeddingMedia!.id}/delete`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", Cookie: cookieHeader },
+      body: deleteWeddingMediaForm,
+      redirect: "manual",
+    });
+    expect(deleteWeddingMediaResponse.status).toBe(303);
+    expect(await env.DB.prepare("SELECT id FROM event_wedding_media WHERE id=?").bind(uploadedWeddingMedia!.id).first()).toBeNull();
+    expect(await env.DB.prepare("SELECT slot FROM event_wedding_portrait_assignments WHERE event_id=?").bind(weddingMediaEvent!.id).first()).toBeNull();
 
     const savePortraits = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/setup/2`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
