@@ -1,4 +1,4 @@
-import { APIError, betterAuth } from "better-auth";
+﻿import { APIError, betterAuth } from "better-auth";
 import { countActiveOwnedEvents } from "./account-data";
 import { sha256 } from "./utils";
 
@@ -7,8 +7,16 @@ export type AuthEnv = {
   BETTER_AUTH_SECRET: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  FACEBOOK_CLIENT_ID?: string;
+  FACEBOOK_CLIENT_SECRET?: string;
   RESEND_API_KEY: string;
 };
+
+export function facebookAuthEnabled(
+  env: Pick<AuthEnv, "FACEBOOK_CLIENT_ID" | "FACEBOOK_CLIENT_SECRET">,
+) {
+  return Boolean(env.FACEBOOK_CLIENT_ID?.trim() && env.FACEBOOK_CLIENT_SECRET?.trim());
+}
 
 export type EmailPurpose =
   | "verification"
@@ -42,7 +50,7 @@ function accountEmail(options: {
   secondary: string;
 }) {
   const url = emailEsc(options.url);
-  return `<!doctype html><html><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${emailEsc(options.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6fb;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px"><tr><td style="padding:34px"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:#172033">Memboux</div><div style="margin-top:4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#6366f1">Collecting moments</div><h1 style="margin:32px 0 12px;font-size:28px;line-height:1.2;color:#111827">${emailEsc(options.title)}</h1><p style="margin:0;color:#475569;font-size:16px;line-height:1.7">${emailEsc(options.intro)}</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px">${emailEsc(options.actionLabel)}</a></p><p style="margin:0 0 8px;color:#64748b;font-size:13px;line-height:1.6">${emailEsc(options.secondary)}</p><p style="margin:0;word-break:break-all;color:#6366f1;font-size:12px;line-height:1.6"><a href="${url}" style="color:#6366f1">${url}</a></p><hr style="margin:30px 0;border:0;border-top:1px solid #e2e8f0"><p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6">This is a transactional account email from memboux.com.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f4f8f6;color:#183c33;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${emailEsc(options.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8f6;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e2ebe7;border-radius:20px"><tr><td style="padding:34px"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:#183c33">Memboux</div><div style="margin-top:4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#3f7d6c">Collecting moments</div><h1 style="margin:32px 0 12px;font-size:28px;line-height:1.2;color:#172d27">${emailEsc(options.title)}</h1><p style="margin:0;color:#4a6159;font-size:16px;line-height:1.7">${emailEsc(options.intro)}</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#2f6b5b;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px">${emailEsc(options.actionLabel)}</a></p><p style="margin:0 0 8px;color:#65756f;font-size:13px;line-height:1.6">${emailEsc(options.secondary)}</p><p style="margin:0;word-break:break-all;color:#3f7d6c;font-size:12px;line-height:1.6"><a href="${url}" style="color:#3f7d6c">${url}</a></p><hr style="margin:30px 0;border:0;border-top:1px solid #e2ebe7"><p style="margin:0;color:#94a79f;font-size:12px;line-height:1.6">This is a transactional account email from memboux.com.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 async function recordEmailAttempt(
@@ -221,6 +229,14 @@ export function createAuth(env: AuthEnv, waitUntil?: (promise: Promise<unknown>)
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
       },
+      ...(facebookAuthEnabled(env)
+        ? {
+            facebook: {
+              clientId: env.FACEBOOK_CLIENT_ID!,
+              clientSecret: env.FACEBOOK_CLIENT_SECRET!,
+            },
+          }
+        : {}),
     },
   });
 }

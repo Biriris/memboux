@@ -14,8 +14,11 @@ const now = 1_800_000_000_000;
 
 beforeEach(async () => {
   await env.DB.batch([
+    env.DB.prepare("DROP TABLE IF EXISTS account_notifications"),
     env.DB.prepare("DROP TABLE IF EXISTS event_invitations"),
     env.DB.prepare("DROP TABLE IF EXISTS event_members"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_professional_assignments"),
+    env.DB.prepare("DROP TABLE IF EXISTS professional_profiles"),
     env.DB.prepare("DROP TABLE IF EXISTS events"),
     env.DB.prepare('DROP TABLE IF EXISTS "user"'),
     env.DB.prepare('CREATE TABLE "user" (id TEXT PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL)'),
@@ -38,7 +41,22 @@ beforeEach(async () => {
       accepted_at INTEGER,
       token_hash TEXT UNIQUE,
       declined_at INTEGER,
+      invitation_kind TEXT NOT NULL DEFAULT 'member',
       UNIQUE (event_id,email)
+    )`),
+    env.DB.prepare(`CREATE TABLE account_notifications (
+      id TEXT PRIMARY KEY,user_id TEXT,event_id TEXT,invitation_id TEXT,
+      actor_user_id TEXT,actor_name TEXT,type TEXT,item_count INTEGER,
+      created_at INTEGER,read_at INTEGER
+    )`),
+    env.DB.prepare(`CREATE TABLE professional_profiles (
+      user_id TEXT PRIMARY KEY,business_name TEXT,slug TEXT UNIQUE,bio TEXT,website TEXT,
+      status TEXT,created_at INTEGER,updated_at INTEGER
+    )`),
+    env.DB.prepare(`CREATE TABLE event_professional_assignments (
+      event_id TEXT,professional_user_id TEXT,assigned_by TEXT,status TEXT,
+      created_at INTEGER,accepted_at INTEGER,updated_at INTEGER,
+      PRIMARY KEY(event_id,professional_user_id)
     )`),
     env.DB.prepare('INSERT INTO "user" (id,name,email) VALUES (?,?,?)').bind("owner-1", "Owner", "owner@memboux.test"),
     env.DB.prepare('INSERT INTO "user" (id,name,email) VALUES (?,?,?)').bind("guest-1", "Guest", "guest@example.com"),
@@ -52,6 +70,7 @@ async function createInvitation(options: {
   role?: "editor" | "viewer";
   expiresAt?: number;
   token?: string;
+  invitationKind?: "member" | "professional";
 } = {}) {
   const token = options.token ?? createInvitationToken();
   await createOrReplaceInvitation(env.DB, {
@@ -63,6 +82,7 @@ async function createInvitation(options: {
     createdAt: now,
     expiresAt: options.expiresAt ?? now + 60_000,
     tokenHash: await hashInvitationToken(token),
+    invitationKind: options.invitationKind,
   });
   return token;
 }
@@ -111,7 +131,7 @@ describe("explicit invitation responses", () => {
     expect((await respondToInvitation(env.DB, "invite-1", { id: "wrong", email: "wrong@example.com" }, "accept", now + 1)).status).toBe("forbidden");
 
     const response = await respondToInvitation(env.DB, "invite-1", { id: "guest-1", email: "Guest@Example.com" }, "accept", now + 2);
-    expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1" });
+    expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1", professional: false });
     expect((await env.DB.prepare("SELECT role FROM event_members WHERE event_id='event-1' AND user_id='guest-1'").first<{ role: string }>())?.role).toBe("viewer");
     expect((await env.DB.prepare("SELECT accepted_at FROM event_invitations WHERE id='invite-1'").first<{ accepted_at: number }>())?.accepted_at).toBe(now + 2);
   });
@@ -148,5 +168,22 @@ describe("explicit invitation responses", () => {
       { user_id: "guest-1", role: "editor" },
       { user_id: "owner-1", role: "owner" },
     ]);
+  });
+
+  it("accepts a professional invitation into Studio without granting member access", async () => {
+    await createInvitation({ invitationKind: "professional" });
+    const response = await respondToInvitation(
+      env.DB,
+      "invite-1",
+      { id: "guest-1", email: "guest@example.com", name: "Guest Photographer" },
+      "accept",
+      now + 5,
+    );
+
+    expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1", professional: true });
+    expect(await env.DB.prepare("SELECT 1 FROM event_members WHERE user_id='guest-1'").first()).toBeNull();
+    expect(await env.DB.prepare("SELECT status FROM professional_profiles WHERE user_id='guest-1'").first()).toEqual({ status: "active" });
+    expect(await env.DB.prepare("SELECT status FROM event_professional_assignments WHERE professional_user_id='guest-1'").first()).toEqual({ status: "accepted" });
+    expect(await env.DB.prepare("SELECT type FROM account_notifications WHERE user_id='owner-1'").first()).toEqual({ type: "invitation_accepted" });
   });
 });

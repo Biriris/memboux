@@ -12,6 +12,7 @@ beforeEach(async () => {
       event_id TEXT NOT NULL,
       object_key TEXT NOT NULL,
       content_hash TEXT,
+      canonical_hash TEXT,
       deleted_at INTEGER,
       purge_at INTEGER,
       reported_at INTEGER

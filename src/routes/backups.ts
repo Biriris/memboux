@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+﻿import { Hono } from "hono";
 import type { Bindings, CloudConnectionRow, EventBackupRow } from "../domain";
 import {
   decryptDropboxRefreshToken,
@@ -110,7 +110,7 @@ function backupStatusMarkup(event: BackupEventRow, locale: Locale) {
   </div>`;
 }
 
-backupRoutes.get("/:locale{el|en}/backups", async (c) => {
+backupRoutes.get("/:locale{el|en|fr|de|es|it}/backups", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
@@ -141,15 +141,15 @@ backupRoutes.get("/:locale{el|en}/backups", async (c) => {
   const copy = labels(locale);
   const eventCards = events.results.map((event) => {
     const active = event.backup_status === "queued" || event.backup_status === "running";
-    return `<article class="rounded-3xl border border-[#dfe5f1] bg-white p-5 shadow-sm sm:p-6">
+    return `<article class="rounded-3xl border border-[#dfeae5] bg-white p-5 shadow-sm sm:p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="min-w-0"><h2 class="truncate text-2xl">${esc(event.eventName)}</h2><p class="mt-1 text-sm text-[#64748b]">${esc(formatEventDates(event, locale))}</p><p class="mt-2 text-sm">${event.media_count} files · ${formatBytes(Number(event.media_bytes))}</p></div>
+        <div class="min-w-0"><h2 class="truncate text-2xl">${esc(event.eventName)}</h2><p class="mt-1 text-sm text-[#65756f]">${esc(formatEventDates(event, locale))}</p><p class="mt-2 text-sm">${event.media_count} files · ${formatBytes(Number(event.media_bytes))}</p></div>
         <div class="flex flex-wrap gap-2">
-          ${connection ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/google" method="post"><input type="hidden" name="locale" value="${locale}"><button ${active ? "disabled" : ""} class="rounded-xl bg-[#4f46e5] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-50">Google · ${event.backup_id ? copy.again : copy.backup}</button></form>` : ""}
+          ${connection ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/google" method="post"><input type="hidden" name="locale" value="${locale}"><button ${active ? "disabled" : ""} class="rounded-xl bg-[#2f6b5b] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-50">Google · ${event.backup_id ? copy.again : copy.backup}</button></form>` : ""}
           ${dropboxConnection ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/dropbox" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-[#0061ff]/25 bg-[#0061ff]/10 px-4 py-3 text-sm font-semibold text-[#0054db]">Dropbox · ${copy.backup}</button></form>` : ""}
         </div>
       </div>
-      ${event.media_count === 0 ? `<p class="mt-4 rounded-xl bg-[#f8faff] p-3 text-sm text-[#64748b]">${copy.empty}</p>` : ""}
+      ${event.media_count === 0 ? `<p class="mt-4 rounded-xl bg-[#f6faf8] p-3 text-sm text-[#65756f]">${copy.empty}</p>` : ""}
       ${backupStatusMarkup(event, locale)}
     </article>`;
   }).join("");
@@ -157,25 +157,25 @@ backupRoutes.get("/:locale{el|en}/backups", async (c) => {
   const connected = c.req.query("connected") === "1";
   const oauthError = c.req.query("error") === "oauth";
   return c.html(page(copy.title, `${accountHeader(locale, user)}<main class="mx-auto max-w-5xl p-5 md:p-10">
-    <section class="overflow-hidden rounded-[2rem] bg-[#172033] p-6 text-white shadow-xl sm:p-9">
-      <p class="text-xs font-semibold uppercase tracking-[.22em] text-[#a5b4fc]">${copy.eyebrow}</p>
+    <section class="overflow-hidden rounded-[2rem] bg-[#183c33] p-6 text-white shadow-xl sm:p-9">
+      <p class="text-xs font-semibold uppercase tracking-[.22em] text-[#a9c9bc]">${copy.eyebrow}</p>
       <h1 class="mt-3 text-4xl sm:text-5xl">${copy.title}</h1><p class="mt-4 max-w-2xl text-white/70">${copy.intro}</p>
       ${connected ? `<p class="mt-5 rounded-xl bg-emerald-400/15 p-3 text-sm text-emerald-100">${copy.connected}</p>` : ""}
       ${oauthError ? `<p class="mt-5 rounded-xl bg-red-400/15 p-3 text-sm text-red-100">${locale === "el" ? "Η σύνδεση δεν ολοκληρώθηκε. Δοκίμασε ξανά." : "The connection could not be completed. Please try again."}</p>` : ""}
     </section>
     <section class="mt-6 rounded-3xl bg-white p-6 shadow-sm sm:p-8">
-      <div class="flex flex-wrap items-center justify-between gap-5"><div class="flex items-center gap-4"><span class="flex h-14 w-14 items-center justify-center rounded-2xl border bg-white shadow-sm">${googleIcon()}</span><div><h2 class="text-2xl">${connection ? copy.connected : copy.disconnected}</h2><p class="mt-1 max-w-xl text-sm text-[#64748b]">${copy.connectHelp}</p></div></div>
-      ${connection ? `<form action="/api/cloud/google/disconnect" method="post" onsubmit="return confirm('${locale === "el" ? "Αποσύνδεση του Google Drive;" : "Disconnect Google Drive?"}')"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-red-200 px-4 py-3 text-sm text-red-700">${copy.disconnect}</button></form>` : `<a href="/api/cloud/google/connect?locale=${locale}" class="inline-flex items-center gap-2 rounded-xl bg-[#4f46e5] px-5 py-3 font-semibold text-white">${googleIcon()} ${copy.connect}</a>`}
-      </div><p class="mt-5 rounded-xl bg-[#f8faff] p-4 text-sm text-[#64748b]">${copy.privacy}</p>
+      <div class="flex flex-wrap items-center justify-between gap-5"><div class="flex items-center gap-4"><span class="flex h-14 w-14 items-center justify-center rounded-2xl border bg-white shadow-sm">${googleIcon()}</span><div><h2 class="text-2xl">${connection ? copy.connected : copy.disconnected}</h2><p class="mt-1 max-w-xl text-sm text-[#65756f]">${copy.connectHelp}</p></div></div>
+      ${connection ? `<form action="/api/cloud/google/disconnect" method="post" onsubmit="return confirm('${locale === "el" ? "Αποσύνδεση του Google Drive;" : "Disconnect Google Drive?"}')"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-red-200 px-4 py-3 text-sm text-red-700">${copy.disconnect}</button></form>` : `<a href="/api/cloud/google/connect?locale=${locale}" class="inline-flex items-center gap-2 rounded-xl bg-[#2f6b5b] px-5 py-3 font-semibold text-white">${googleIcon()} ${copy.connect}</a>`}
+      </div><p class="mt-5 rounded-xl bg-[#f6faf8] p-4 text-sm text-[#65756f]">${copy.privacy}</p>
     </section>
     <section class="mt-4 rounded-3xl bg-white p-6 shadow-sm sm:p-8">
-      <div class="flex flex-wrap items-center justify-between gap-5"><div class="flex items-center gap-4"><span class="flex h-14 w-14 items-center justify-center rounded-2xl border bg-white shadow-sm">${dropboxIcon()}</span><div><h2 class="text-2xl">${dropboxConnection ? (locale === "el" ? "Το αυτόματο Dropbox backup είναι ενεργό" : "Automatic Dropbox backup is on") : (locale === "el" ? "Σύνδεση Dropbox" : "Connect Dropbox")}</h2><p class="mt-1 max-w-xl text-sm text-[#64748b]">${locale === "el" ? "Το Memboux χρησιμοποιεί μόνο τον δικό του φάκελο εφαρμογής στο προσωπικό Dropbox σου." : "Memboux uses only its dedicated app folder inside your personal Dropbox."}</p></div></div>
-      ${dropboxConnection ? `<form action="/api/cloud/dropbox/disconnect" method="post" onsubmit="return confirm('${locale === "el" ? "Αποσύνδεση του Dropbox;" : "Disconnect Dropbox?"}')"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-red-200 px-4 py-3 text-sm text-red-700">${copy.disconnect}</button></form>` : dropboxConfigured ? `<a href="/api/cloud/dropbox/connect?locale=${locale}" class="inline-flex items-center gap-2 rounded-xl bg-[#0061ff] px-5 py-3 font-semibold text-white">${dropboxIcon()} ${locale === "el" ? "Σύνδεση Dropbox" : "Connect Dropbox"}</a>` : `<span class="rounded-xl bg-[#f1f5f9] px-4 py-3 text-sm text-[#64748b]">${locale === "el" ? "Αναμένεται ρύθμιση εφαρμογής Dropbox" : "Dropbox app setup required"}</span>`}
+      <div class="flex flex-wrap items-center justify-between gap-5"><div class="flex items-center gap-4"><span class="flex h-14 w-14 items-center justify-center rounded-2xl border bg-white shadow-sm">${dropboxIcon()}</span><div><h2 class="text-2xl">${dropboxConnection ? (locale === "el" ? "Το αυτόματο Dropbox backup είναι ενεργό" : "Automatic Dropbox backup is on") : (locale === "el" ? "Σύνδεση Dropbox" : "Connect Dropbox")}</h2><p class="mt-1 max-w-xl text-sm text-[#65756f]">${locale === "el" ? "Το Memboux χρησιμοποιεί μόνο τον δικό του φάκελο εφαρμογής στο προσωπικό Dropbox σου." : "Memboux uses only its dedicated app folder inside your personal Dropbox."}</p></div></div>
+      ${dropboxConnection ? `<form action="/api/cloud/dropbox/disconnect" method="post" onsubmit="return confirm('${locale === "el" ? "Αποσύνδεση του Dropbox;" : "Disconnect Dropbox?"}')"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-red-200 px-4 py-3 text-sm text-red-700">${copy.disconnect}</button></form>` : dropboxConfigured ? `<a href="/api/cloud/dropbox/connect?locale=${locale}" class="inline-flex items-center gap-2 rounded-xl bg-[#0061ff] px-5 py-3 font-semibold text-white">${dropboxIcon()} ${locale === "el" ? "Σύνδεση Dropbox" : "Connect Dropbox"}</a>` : `<span class="rounded-xl bg-[#f2f7f4] px-4 py-3 text-sm text-[#65756f]">${locale === "el" ? "Αναμένεται ρύθμιση εφαρμογής Dropbox" : "Dropbox app setup required"}</span>`}
       </div>
     </section>
-    <div class="mt-9 flex items-center justify-between"><h2 class="text-3xl">${copy.events}</h2><span class="text-sm text-[#64748b]">${events.results.length}</span></div>
-    <div class="mt-4 grid gap-4">${eventCards || `<div class="rounded-3xl bg-white p-8 text-center text-[#64748b]">${locale === "el" ? "Δεν έχεις event για backup ακόμη." : "You do not have any events to back up yet."}</div>`}</div>
-  </main><script>(()=>{const labels=${JSON.stringify({ queued: copy.queued, running: copy.running, completed: copy.completed, failed: copy.failed })};const poll=async box=>{try{const response=await fetch('/api/backups/'+box.dataset.backupStatus,{credentials:'include'});if(!response.ok)return;const backup=await response.json();box.querySelector('[data-status-label]').textContent=labels[backup.status]||backup.status;box.querySelector('[data-status-count]').textContent=backup.completed_items+'/'+backup.total_items;const percent=backup.total_items?Math.round(backup.completed_items/backup.total_items*100):(backup.status==='completed'?100:0);box.querySelector('[data-status-progress]').style.width=percent+'%';const error=box.querySelector('[data-status-error]');if(backup.error_message){error.textContent=backup.error_message;error.classList.remove('hidden')}const link=box.querySelector('[data-drive-link]');if(backup.provider_folder_id){link.href='https://drive.google.com/drive/folders/'+encodeURIComponent(backup.provider_folder_id);link.classList.remove('hidden')}if(backup.status==='queued'||backup.status==='running')setTimeout(()=>poll(box),2500);else setTimeout(()=>location.reload(),900)}catch{setTimeout(()=>poll(box),5000)}};document.querySelectorAll('[data-active="true"]').forEach(poll)})()<\/script>${logoutScript(locale)}`, { locale }));
+    <div class="mt-9 flex items-center justify-between"><h2 class="text-3xl">${copy.events}</h2><span class="text-sm text-[#65756f]">${events.results.length}</span></div>
+    <div class="mt-4 grid gap-4">${eventCards || `<div class="rounded-3xl bg-white p-8 text-center text-[#65756f]">${locale === "el" ? "Δεν έχεις event για backup ακόμη." : "You do not have any events to back up yet."}</div>`}</div>
+  </main><script>(()=>{const labels=${JSON.stringify({ queued: copy.queued, running: copy.running, completed: copy.completed, failed: copy.failed })};const poll=async box=>{try{const response=await fetch('/api/backups/'+box.dataset.backupStatus,{credentials:'include'});if(!response.ok)return;const backup=await response.json();box.querySelector('[data-status-label]').textContent=labels[backup.status]||backup.status;box.querySelector('[data-status-count]').textContent=backup.completed_items+'/'+backup.total_items;const percent=backup.total_items?Math.round(backup.completed_items/backup.total_items*100):(backup.status==='completed'?100:0);box.querySelector('[data-status-progress]').style.width=percent+'%';const error=box.querySelector('[data-status-error]');if(backup.error_message){error.textContent=backup.error_message;error.classList.remove('hidden')}const link=box.querySelector('[data-drive-link]');if(backup.provider_folder_id){link.href='https://drive.google.com/drive/folders/'+encodeURIComponent(backup.provider_folder_id);link.classList.remove('hidden')}if(backup.status==='queued'||backup.status==='running')setTimeout(()=>poll(box),2500);else setTimeout(()=>location.reload(),900)}catch{setTimeout(()=>poll(box),5000)}};document.querySelectorAll('[data-active="true"]').forEach(poll)})()<\/script>${logoutScript(locale)}`, { locale, settingsBack: true }));
 });
 
 backupRoutes.get("/api/cloud/google/connect", async (c) => {

@@ -20,6 +20,7 @@ beforeAll(async () => {
     default_locale TEXT NOT NULL DEFAULT 'en',
     event_start_date TEXT,
     event_end_date TEXT,
+    location TEXT,
     gallery_pin_hash TEXT,
     deleted_at INTEGER,
     purge_at INTEGER
@@ -64,6 +65,7 @@ describe("event route boundaries", () => {
     `/api/account/events/${code}/details`,
     `/api/account/events/${code}/invite`,
     `/api/account/events/${code}/members/remove`,
+    `/api/account/events/${code}/members/role`,
     `/api/account/events/${code}/professional/assign`,
     `/api/account/events/${code}/professional/revoke`,
     `/api/account/events/${code}/media/11111111-1111-4111-8111-111111111111/rename`,

@@ -13,6 +13,10 @@ describe("message sharing", () => {
     expect(html).toContain("fb-messenger://share/");
     expect(html).not.toContain("sharer/sharer.php");
     expect(html).not.toContain('aria-label="Facebook"');
+    expect(html).toContain('href="sms:?&body=');
+    expect(html).toContain('aria-label="Text message"');
+    expect(html).toContain("sm:hidden");
+    expect(html.indexOf('href="sms:')).toBeLessThan(html.indexOf('href="viber:'));
   });
 
   it("copies the private link before opening a message app and keeps native fallback", () => {

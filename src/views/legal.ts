@@ -1,18 +1,18 @@
-import type { Locale } from "../i18n";
+﻿import type { Locale } from "../i18n";
 import { brandMark, page } from "./shared";
 
-const shell = (locale: Locale, title: string, content: string) => page(
+const shell = (locale: Locale, title: string, content: string, path: "privacy-policy" | "terms" | "privacy-request" | "cookie-policy") => page(
   title,
-  `<header class="border-b bg-white"><div class="mx-auto flex max-w-4xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<a href="/${locale === "en" ? "el" : "en"}/${title.toLowerCase().startsWith("privacy") || title.startsWith("Απόρρητο") ? "privacy-policy" : "terms"}" class="rounded-xl border px-3 py-2 text-sm">${locale === "en" ? "EL" : "EN"}</a></div></header><main class="mx-auto max-w-4xl p-5 pb-16 md:p-10"><article class="rounded-3xl bg-white p-6 shadow md:p-10">${content}</article><footer class="mt-7 flex flex-wrap gap-5 text-sm text-[#64748b]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`,
+  `<header class="border-b bg-white"><div class="mx-auto flex max-w-4xl items-center justify-between p-5">${brandMark(`/${locale}`, true)}<a href="/${locale === "en" ? "el" : "en"}/${path}" class="rounded-xl border px-3 py-2 text-sm">${locale === "en" ? "EL" : "EN"}</a></div></header><main class="mx-auto max-w-4xl p-5 pb-16 md:p-10"><article class="rounded-3xl bg-white p-6 shadow md:p-10">${content}</article><footer class="mt-7 flex flex-wrap gap-5 text-sm text-[#65756f]"><a href="/${locale}/privacy-policy">${locale === "el" ? "Απόρρητο" : "Privacy"}</a><a href="/${locale}/cookie-policy">Cookies</a><a href="/${locale}/terms">${locale === "el" ? "Όροι" : "Terms"}</a><a href="/${locale}/privacy-request">${locale === "el" ? "Αίτημα δεδομένων" : "Data request"}</a></footer></main>`,
 );
 
 const section = (title: string, body: string) => `<section><h2 class="text-2xl">${title}</h2>${body}</section>`;
 
 export function privacyPolicyPage(locale: Locale) {
   const el = locale === "el";
-  const content = `<p class="text-xs uppercase tracking-[.2em] text-[#4338ca]">Version 17/07/2026</p>
+  const content = `<p class="text-xs uppercase tracking-[.2em] text-[#255848]">Version 17/07/2026</p>
     <h1 class="mt-3 text-4xl">${el ? "Πολιτική απορρήτου" : "Privacy policy"}</h1>
-    <p class="mt-5 text-[#64748b]">${el
+    <p class="mt-5 text-[#65756f]">${el
       ? "Το Memboux είναι υπηρεσία ιδιωτικών galleries για events. Το παρόν κείμενο περιγράφει με διαφάνεια την τρέχουσα τεχνική λειτουργία· δεν αποτελεί δήλωση πιστοποίησης συμμόρφωσης."
       : "Memboux is a private event-gallery service. This notice transparently describes the current technical operation; it is not a certification of compliance."}</p>
     <div class="mt-8 space-y-7 leading-7">
@@ -25,8 +25,8 @@ export function privacyPolicyPage(locale: Locale) {
       ${section(
         el ? "Δεδομένα που επεξεργαζόμαστε" : "Data we process",
         `<p>${el
-          ? "Στοιχεία λογαριασμού, sessions και security logs, event metadata και memberships, φωτογραφίες/βίντεο και τεχνικά metadata, εκδόσεις συγκατάθεσης upload, προσκλήσεις, αιτήματα αφαίρεσης και privacy requests. Τα rate limits αποθηκεύουν μονόδρομα hashed identifiers και όχι raw IP."
-          : "Account details, sessions and security logs, event metadata and memberships, photos/videos and technical metadata, upload-consent versions, invitations, removal requests and privacy requests. Rate limits store one-way hashed identifiers rather than raw IP addresses."}</p>`,
+          ? "Στοιχεία λογαριασμού, sessions και security logs, event metadata και memberships, φωτογραφίες/βίντεο και τεχνικά metadata, εκδόσεις συγκατάθεσης upload, προσκλήσεις, συνομιλίες υποστήριξης και στοιχεία επικοινωνίας, αιτήματα αφαίρεσης και privacy requests. Τα rate limits αποθηκεύουν μονόδρομα hashed identifiers και όχι raw IP."
+          : "Account details, sessions and security logs, event metadata and memberships, photos/videos and technical metadata, upload-consent versions, invitations, support conversations and contact details, removal requests and privacy requests. Rate limits store one-way hashed identifiers rather than raw IP addresses."}</p>`,
       )}
       ${section(
         el ? "Σκοποί και υπηρεσίες" : "Purposes and services",
@@ -42,7 +42,7 @@ export function privacyPolicyPage(locale: Locale) {
         <p class="mt-3">${el
           ? "Το Google refresh token αποθηκεύεται κρυπτογραφημένο και συνδέεται αποκλειστικά με τον δικό σου λογαριασμό Memboux. Δεν κοινοποιούμε Google user data σε διαφημιστές, data brokers ή άλλα apps και δεν το χρησιμοποιούμε για διαφημίσεις, profiling ή εκπαίδευση γενικών μοντέλων AI/ML. Η χρήση και τυχόν μεταφορά πληροφοριών που λαμβάνονται από Google APIs συμμορφώνεται με την Google API Services User Data Policy, συμπεριλαμβανομένων των Limited Use requirements."
           : "The Google refresh token is encrypted at rest and linked only to your own Memboux account. We do not disclose Google user data to advertisers, data brokers or other apps, and we do not use it for advertising, profiling or training generalized AI/ML models. Memboux's use and transfer to any other app of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements."}</p>
-        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block font-semibold text-[#4338ca]">Google API Services User Data Policy</a>`,
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block font-semibold text-[#255848]">Google API Services User Data Policy</a>`,
       )}
       ${section(
         el ? "Διατήρηση και αποσύνδεση Google Drive" : "Retention and Google Drive disconnection",
@@ -60,7 +60,7 @@ export function privacyPolicyPage(locale: Locale) {
         el ? "Επιλογές και δικαιώματα" : "Choices and rights",
         `<p>${el
           ? "Οι χρήστες μπορούν να εξάγουν τα account data τους, να αποσυνδέσουν το Google Drive και να ζητήσουν επαληθευμένη διαγραφή από το Privacy center. Κάθε media item διαθέτει αίτημα αφαίρεσης. Για πρόσβαση, διόρθωση, διαγραφή, περιορισμό ή εναντίωση χρησιμοποίησε την ασφαλή φόρμα αιτήματος."
-          : "Users can export their account data, disconnect Google Drive and request verified deletion from the Privacy center. Each media item offers a removal request. For access, correction, deletion, restriction or objection, use the secure request form."}</p><a href="/${locale}/privacy-request" class="mt-4 inline-block rounded-xl bg-[#4f46e5] px-5 py-3 text-white">${el ? "Υποβολή αιτήματος" : "Submit a request"}</a>`,
+          : "Users can export their account data, disconnect Google Drive and request verified deletion from the Privacy center. Each media item offers a removal request. For access, correction, deletion, restriction or objection, use the secure request form."}</p><a href="/${locale}/privacy-request" class="mt-4 inline-block rounded-xl bg-[#2f6b5b] px-5 py-3 text-white">${el ? "Υποβολή αιτήματος" : "Submit a request"}</a>`,
       )}
       ${section(
         el ? "Στοιχεία υπευθύνου" : "Controller details",
@@ -69,12 +69,36 @@ export function privacyPolicyPage(locale: Locale) {
           : "Memboux is the service operator. Before accepting payments, the full legal name, postal address and official privacy email will also be published. Until then, privacy requests and contact are received through the secure Privacy center form."}</p>`,
       )}
     </div>`;
-  return shell(locale, el ? "Απόρρητο – Memboux" : "Privacy policy – Memboux", content);
+  return shell(locale, el ? "Απόρρητο – Memboux" : "Privacy policy – Memboux", content, "privacy-policy");
+}
+
+export function cookiePolicyPage(locale: Locale) {
+  const el = locale === "el";
+  const content = `<p class="text-xs uppercase tracking-[.2em] text-[#255848]">Version 18/07/2026</p>
+    <h1 class="mt-3 text-4xl">${el ? "Πολιτική cookies" : "Cookie policy"}</h1>
+    <p class="mt-5 text-[#65756f]">${el
+      ? "Εδώ εξηγούμε ποιες τεχνολογίες αποθήκευσης χρησιμοποιεί το Memboux και πώς ελέγχεις τις προτιμήσεις σου."
+      : "This notice explains which storage technologies Memboux uses and how you control your preferences."}</p>
+    <div class="mt-8 space-y-7 leading-7">
+      ${section(el ? "Απαραίτητα cookies" : "Essential cookies", `<p>${el
+        ? "Είναι αναγκαία για σύνδεση και ασφάλεια, επιλογή γλώσσας, πρόσβαση σε προστατευμένες galleries, διατήρηση των επιλογών συγκατάθεσης και ασφαλή συνέχεια μιας συνομιλίας υποστήριξης. Δεν μπορούν να απενεργοποιηθούν από το banner επειδή χωρίς αυτά βασικές λειτουργίες δεν δουλεύουν."
+        : "These are required for sign-in and security, language selection, access to protected galleries, remembering consent choices and securely continuing a support conversation. They cannot be disabled from the banner because core features depend on them."}</p>`)}
+      ${section(el ? "Analytics και marketing" : "Analytics and marketing", `<p>${el
+        ? "Οι δύο κατηγορίες είναι προαιρετικές και παραμένουν ανενεργές μέχρι να τις εγκρίνεις. Αυτή τη στιγμή το Memboux δεν φορτώνει τρίτο analytics ή advertising tracker. Η δομή συγκατάθεσης υπάρχει ώστε μελλοντική προσθήκη να μη γίνει χωρίς προηγούμενη επιλογή σου."
+        : "Both categories are optional and remain inactive until you approve them. Memboux currently loads no third-party analytics or advertising tracker. The consent structure ensures that a future integration is not enabled without your prior choice."}</p>`)}
+      ${section(el ? "Οι επιλογές σου" : "Your choices", `<p>${el
+        ? "Μπορείς να δεχθείς όλες τις κατηγορίες, να κρατήσεις μόνο τις απαραίτητες ή να επιλέξεις ξεχωριστά. Άλλαξε την επιλογή σου οποτεδήποτε από το μικρό εικονίδιο ρυθμίσεων cookies κάτω αριστερά. Η επιλογή αποθηκεύεται για έως 180 ημέρες. Μπορείς επίσης να καθαρίσεις cookies και local storage από τις ρυθμίσεις του browser σου."
+        : "You can accept all categories, keep only essential storage or choose each optional category separately. Change your choice at any time using the small cookie-settings icon at the bottom left. Your choice is stored for up to 180 days. You can also clear cookies and local storage in your browser settings."}</p>`)}
+      ${section(el ? "Υποστήριξη" : "Support", `<p>${el
+        ? "Το live support χρησιμοποιεί ένα τυχαίο, ασφαλές αναγνωριστικό επισκέπτη ώστε να εμφανίζει τη σωστή συνομιλία χωρίς να αποθηκεύει το ίδιο το μυστικό στη βάση. Αν είσαι συνδεδεμένος, η συνομιλία συσχετίζεται και με τον λογαριασμό σου. Τα μηνύματα και τυχόν στοιχεία επικοινωνίας χρησιμοποιούνται μόνο για την αντιμετώπιση του αιτήματός σου."
+        : "Live support uses a random secure visitor identifier to restore the correct conversation without storing the secret itself in the database. If you are signed in, the conversation is also associated with your account. Messages and optional contact details are used only to handle your request."}</p>`)}
+    </div>`;
+  return shell(locale, el ? "Cookies – Memboux" : "Cookie policy – Memboux", content, "cookie-policy");
 }
 
 export function termsPage(locale: Locale) {
   const el = locale === "el";
-  const content = `<p class="text-xs uppercase tracking-[.2em] text-[#4338ca]">Version 17/07/2026</p>
+  const content = `<p class="text-xs uppercase tracking-[.2em] text-[#255848]">Version 17/07/2026</p>
     <h1 class="mt-3 text-4xl">${el ? "Όροι χρήσης" : "Terms of use"}</h1>
     <div class="mt-8 space-y-7 leading-7">
       ${section(
@@ -114,7 +138,7 @@ export function termsPage(locale: Locale) {
           : "Pricing, quotas, refunds, SLA and full provider details are not yet published. They must be finalized before accepting payments."}</p>`,
       )}
     </div>`;
-  return shell(locale, el ? "Όροι – Memboux" : "Terms – Memboux", content);
+  return shell(locale, el ? "Όροι – Memboux" : "Terms – Memboux", content, "terms");
 }
 
 export function privacyRequestPage(locale: Locale, sent = false, reference = "") {
@@ -130,6 +154,7 @@ export function privacyRequestPage(locale: Locale, sent = false, reference = "")
   return shell(
     locale,
     el ? "Αίτημα δεδομένων – Memboux" : "Data request – Memboux",
-    `<p class="text-xs uppercase tracking-[.2em] text-[#4338ca]">Privacy request</p><h1 class="mt-3 text-4xl">${el ? "Άσκηση δικαιώματος" : "Exercise your rights"}</h1>${sent ? `<div class="mt-6 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><strong>${el ? "Το αίτημα καταχωρίστηκε." : "Your request was recorded."}</strong><p class="mt-1 break-all text-sm">Reference: ${reference}</p></div>` : ""}<form action="/api/privacy/requests" method="post" class="mt-7 space-y-4"><input type="hidden" name="locale" value="${locale}"><label class="block text-sm font-medium">Email<input name="email" type="email" maxlength="254" required class="mt-1 w-full rounded-xl border px-4 py-3"></label><label class="block text-sm font-medium">${el ? "Τύπος αιτήματος" : "Request type"}<select name="requestType" class="mt-1 w-full rounded-xl border px-4 py-3">${options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><label class="block text-sm font-medium">${el ? "Λεπτομέρειες" : "Details"}<textarea name="details" minlength="20" maxlength="2000" required rows="7" class="mt-1 w-full rounded-xl border px-4 py-3" placeholder="${el ? "Περιέγραψε το αίτημα και, αν αφορά event ή media, πρόσθεσε τον σχετικό κωδικό." : "Describe your request and, if it concerns an event or media item, add the relevant code."}"></textarea></label><p class="text-xs text-[#64748b]">${el ? "Μην συμπεριλαμβάνεις κωδικούς πρόσβασης, PIN ή ευαίσθητα έγγραφα στη φόρμα." : "Do not include passwords, PINs or sensitive documents in this form."}</p><button class="rounded-xl bg-[#4f46e5] px-6 py-3 text-white">${el ? "Υποβολή" : "Submit request"}</button></form>`,
+    `<p class="text-xs uppercase tracking-[.2em] text-[#255848]">Privacy request</p><h1 class="mt-3 text-4xl">${el ? "Άσκηση δικαιώματος" : "Exercise your rights"}</h1>${sent ? `<div class="mt-6 rounded-2xl bg-emerald-50 p-5 text-emerald-800"><strong>${el ? "Το αίτημα καταχωρίστηκε." : "Your request was recorded."}</strong><p class="mt-1 break-all text-sm">Reference: ${reference}</p></div>` : ""}<form action="/api/privacy/requests" method="post" class="mt-7 space-y-4"><input type="hidden" name="locale" value="${locale}"><label class="block text-sm font-medium">Email<input name="email" type="email" maxlength="254" required class="mt-1 w-full rounded-xl border px-4 py-3"></label><label class="block text-sm font-medium">${el ? "Τύπος αιτήματος" : "Request type"}<select name="requestType" class="mt-1 w-full rounded-xl border px-4 py-3">${options.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label><label class="block text-sm font-medium">${el ? "Λεπτομέρειες" : "Details"}<textarea name="details" minlength="20" maxlength="2000" required rows="7" class="mt-1 w-full rounded-xl border px-4 py-3" placeholder="${el ? "Περιέγραψε το αίτημα και, αν αφορά event ή media, πρόσθεσε τον σχετικό κωδικό." : "Describe your request and, if it concerns an event or media item, add the relevant code."}"></textarea></label><p class="text-xs text-[#65756f]">${el ? "Μην συμπεριλαμβάνεις κωδικούς πρόσβασης, PIN ή ευαίσθητα έγγραφα στη φόρμα." : "Do not include passwords, PINs or sensitive documents in this form."}</p><button class="rounded-xl bg-[#2f6b5b] px-6 py-3 text-white">${el ? "Υποβολή" : "Submit request"}</button></form>`,
+    "privacy-request",
   );
 }

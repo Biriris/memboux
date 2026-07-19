@@ -26,6 +26,30 @@ const checks = [
     body: 'data-page="home" data-locale="el"',
   },
   {
+    name: "French homepage",
+    path: "/fr",
+    status: 200,
+    body: "Rassemblez chaque moment. Gardez-le à vous.",
+  },
+  {
+    name: "German homepage",
+    path: "/de",
+    status: 200,
+    body: "Sammle jeden Moment. Behalte ihn für dich.",
+  },
+  {
+    name: "Spanish homepage",
+    path: "/es",
+    status: 200,
+    body: "Reúne cada momento. Hazlo tuyo.",
+  },
+  {
+    name: "Italian homepage",
+    path: "/it",
+    status: 200,
+    body: "Raccogli ogni momento. Tienilo per te.",
+  },
+  {
     name: "anonymous Studio boundary",
     path: "/studio?lang=en",
     status: 302,
@@ -46,6 +70,12 @@ const checks = [
   {
     name: "anonymous admin users boundary",
     path: "/admin/users",
+    status: 302,
+    location: "/admin/login",
+  },
+  {
+    name: "anonymous admin support boundary",
+    path: "/admin/support",
     status: 302,
     location: "/admin/login",
   },

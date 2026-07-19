@@ -18,10 +18,23 @@ describe("authentication and admin views", () => {
   it("keeps Google and email callbacks inside the selected locale", () => {
     const html = authPage("el", "login");
 
-    expect(html).toContain("provider:'google'");
+    expect(html).toContain("socialLogin(googleButton,'google')");
     expect(html).toContain('postAuthRedirect="/el/account"');
     expect(html).toContain("callbackURL:postAuthRedirect");
-    expect(html).toContain('href="/en/login"');
+    expect(html).not.toContain('href="/en/login"');
+    expect(html).toContain('href="/el"');
+  });
+
+  it("only exposes Facebook sign-in after its provider is configured", () => {
+    const disabled = authPage("en", "login");
+    const enabled = authPage("el", "register", "", { facebook: true });
+
+    expect(disabled).not.toContain('id="facebook"');
+    expect(disabled).not.toContain("socialLogin(facebookButton,'facebook')");
+    expect(enabled).toContain('id="facebook"');
+    expect(enabled).toContain("Συνέχεια με Facebook");
+    expect(enabled).toContain("socialLogin(facebookButton,'facebook')");
+    expect(enabled).toContain("callbackURL:postAuthRedirect");
   });
 
   it("preserves safe invitation redirects and rejects external redirects", () => {

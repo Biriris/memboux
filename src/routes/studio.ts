@@ -1,10 +1,12 @@
-import { Hono } from "hono";
+﻿import { Hono } from "hono";
 import { parse as parseMetadata } from "exifr";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventRow, MediaRow } from "../domain";
-import { normalizeLocale } from "../i18n";
+import { normalizeLocale, type Locale } from "../i18n";
 import { restoreDeletedMedia } from "../media-trash";
+import { isCanonicalDuplicateConstraint, mediaCanonicalHash } from "../media-fingerprint";
+import { createAccountNotification, notifyEventMembersAboutUpload } from "../notifications";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
@@ -21,8 +23,11 @@ import {
 } from "../upload-policy";
 import { esc, formatDateTime, formatEventDates, sha256Bytes } from "../utils";
 import { accountMenuDark, brandMark, logoutScript, page } from "../views/shared";
+import { photoUploadMarkup } from "../views/upload";
 
 export const studioRoutes = new Hono<{ Bindings: Bindings }>();
+
+export const studioDashboardHref = (locale: Locale) => `/${locale}/account`;
 
 const mediaIdsFromBody = (value: unknown | unknown[]) =>
   (Array.isArray(value) ? value : [value])
@@ -39,7 +44,7 @@ studioRoutes.get("/studio", async (c) => {
     return c.html(
       page(
         "Memboux Studio",
-        `<header class="border-b bg-[#172033] text-white"><div class="mx-auto flex max-w-5xl items-center justify-between p-5">${brandMark(`/${locale}`, true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-3xl p-5 md:p-10"><section class="rounded-3xl bg-white p-8 text-center shadow"><h1 class="text-4xl">Memboux Studio</h1><p class="mt-3 text-[#64748b]">${locale === "el" ? "Ο λογαριασμός σου δεν έχει ακόμη εγκεκριμένο professional profile." : "Your account does not have an approved professional profile yet."}</p></section></main>${logoutScript(locale)}`,
+        `<header class="border-b bg-[#183c33] text-white"><div class="mx-auto flex max-w-5xl items-center justify-between p-5">${brandMark(studioDashboardHref(locale), true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-3xl p-5 md:p-10"><section class="rounded-3xl bg-white p-8 text-center shadow"><h1 class="text-4xl">Memboux Studio</h1><p class="mt-3 text-[#65756f]">${locale === "el" ? "Ο λογαριασμός σου δεν έχει ακόμη εγκεκριμένο professional profile." : "Your account does not have an approved professional profile yet."}</p></section></main>${logoutScript(locale)}`,
       ),
     );
   const assignments = await c.env.DB.prepare(
@@ -56,13 +61,13 @@ studioRoutes.get("/studio", async (c) => {
   const cards = assignments.results
     .map(
       (event) =>
-        `<article class="rounded-2xl border bg-white p-5 shadow-sm"><span class="rounded-full bg-[#eef2ff] px-3 py-1 text-xs uppercase">${esc(event.assignment_status)}</span><h2 class="mt-3 text-2xl">${esc(event.eventName)}</h2><p class="mt-1 text-sm text-[#4f46e5]">${esc(formatEventDates(event, locale))}</p>${event.assignment_status === "invited" ? `<form action="/studio/assignments/${encodeURIComponent(event.event_id)}/accept" method="post" class="mt-4"><input type="hidden" name="locale" value="${locale}"><button class="w-full rounded-xl bg-[#4f46e5] px-4 py-3 text-white">${locale === "el" ? "Αποδοχή ανάθεσης" : "Accept assignment"}</button></form>` : `<a href="/studio/events/${event.code}?lang=${locale}" class="mt-4 block rounded-xl bg-[#172033] px-4 py-3 text-center text-white">${locale === "el" ? "Άνοιγμα workspace" : "Open workspace"}</a>`}</article>`,
+        `<article class="rounded-2xl border bg-white p-5 shadow-sm"><span class="rounded-full bg-[#e8f3ee] px-3 py-1 text-xs uppercase">${esc(event.assignment_status)}</span><h2 class="mt-3 text-2xl">${esc(event.eventName)}</h2><p class="mt-1 text-sm text-[#2f6b5b]">${esc(formatEventDates(event, locale))}</p>${event.assignment_status === "invited" ? `<form action="/studio/assignments/${encodeURIComponent(event.event_id)}/accept" method="post" class="mt-4"><input type="hidden" name="locale" value="${locale}"><button class="w-full rounded-xl bg-[#2f6b5b] px-4 py-3 text-white">${locale === "el" ? "Αποδοχή ανάθεσης" : "Accept assignment"}</button></form>` : `<a href="/studio/events/${event.code}?lang=${locale}" class="mt-4 block rounded-xl bg-[#183c33] px-4 py-3 text-center text-white">${locale === "el" ? "Άνοιγμα workspace" : "Open workspace"}</a>`}</article>`,
     )
     .join("");
   return c.html(
     page(
       "Memboux Studio",
-      `<header class="border-b bg-[#172033] text-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark("/studio", true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex flex-wrap items-end justify-between gap-4"><div><p class="text-xs uppercase tracking-[.2em] text-[#4338ca]">Professional workspace</p><h1 class="mt-2 text-4xl">${esc(profile.business_name)}</h1></div><a href="/studio/trash?lang=${locale}" class="rounded-xl border bg-white px-4 py-2 text-sm">${locale === "el" ? "Κάδος Studio" : "Studio trash"}</a></div><div class="mt-7 grid gap-4 md:grid-cols-2">${cards || `<p class="rounded-2xl bg-white p-8 text-[#64748b]">${locale === "el" ? "Δεν υπάρχουν αναθέσεις." : "No assignments yet."}</p>`}</div></main>${logoutScript(locale)}`,
+      `<header class="border-b bg-[#183c33] text-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(studioDashboardHref(locale), true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><div class="flex flex-wrap items-end justify-between gap-4"><div><p class="text-xs uppercase tracking-[.2em] text-[#255848]">Professional workspace</p><h1 class="mt-2 text-4xl">${esc(profile.business_name)}</h1></div><a href="/studio/trash?lang=${locale}" class="rounded-xl border bg-white px-4 py-2 text-sm">${locale === "el" ? "Κάδος Studio" : "Studio trash"}</a></div><div class="mt-7 grid gap-4 md:grid-cols-2">${cards || `<p class="rounded-2xl bg-white p-8 text-[#65756f]">${locale === "el" ? "Δεν υπάρχουν αναθέσεις." : "No assignments yet."}</p>`}</div></main>${logoutScript(locale)}`,
     ),
   );
 });
@@ -80,11 +85,25 @@ studioRoutes.post("/studio/assignments/:eventId/accept", async (c) => {
     "invited",
   );
   if (!assignment) return c.text("Assignment not found", 404);
+  const assignmentOwner = await c.env.DB.prepare("SELECT assigned_by FROM event_professional_assignments WHERE event_id=? AND professional_user_id=?")
+    .bind(c.req.param("eventId"), user.id)
+    .first<{ assigned_by: string }>();
+  const acceptedAt = Date.now();
   await c.env.DB.prepare(
     "UPDATE event_professional_assignments SET status='accepted',accepted_at=?,updated_at=? WHERE event_id=? AND professional_user_id=? AND status='invited'",
   )
-    .bind(Date.now(), Date.now(), c.req.param("eventId"), user.id)
+    .bind(acceptedAt, acceptedAt, c.req.param("eventId"), user.id)
     .run();
+  if (assignmentOwner) {
+    await createAccountNotification(c.env.DB, {
+      userId: assignmentOwner.assigned_by,
+      eventId: c.req.param("eventId"),
+      actorUserId: user.id,
+      actorName: user.name,
+      type: "invitation_accepted",
+      createdAt: acceptedAt,
+    });
+  }
   const body = await c.req.parseBody();
   return c.redirect(
     `/studio?lang=${normalizeLocale(String(body.locale ?? "en"))}`,
@@ -135,9 +154,12 @@ studioRoutes.get("/studio/events/:code", async (c) => {
   const tile = (m: MediaRow, check = false) =>
     `<article class="relative overflow-hidden rounded-2xl border bg-white"><label class="block aspect-square cursor-pointer">${check ? `<input type="checkbox" name="ids" value="${esc(m.id)}" class="absolute left-3 top-3 z-10 h-5 w-5">` : ""}${m.media_type === "image" ? `<img src="/studio/media/${m.id}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<video src="/studio/media/${m.id}" muted preload="metadata" class="h-full w-full object-cover"></video>`}</label></article>`;
   return c.html(
-    page(
-      `${event.eventName} – Studio`,
-      `<header class="border-b bg-[#172033] text-white"><div class="mx-auto flex max-w-7xl items-center justify-between p-5">${brandMark("/studio", true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/studio?lang=${locale}" class="text-sm text-[#4f46e5]">← Studio</a><h1 class="mt-3 text-4xl">${esc(event.eventName)}</h1><p class="mt-2 text-[#64748b]">${esc(formatEventDates(event, locale))}</p><section class="mt-7 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Upload official υλικού" : "Upload official media"}</h2><form action="/studio/events/${event.code}/upload" method="post" enctype="multipart/form-data" class="mt-4 flex flex-col gap-3 sm:flex-row"><input type="hidden" name="locale" value="${locale}"><input name="file" type="file" multiple required accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="min-w-0 flex-1 rounded-xl border p-3"><button class="rounded-xl bg-[#4f46e5] px-5 py-3 text-white">Upload</button></form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">Official album (${official.results.length})</h2><form action="/studio/events/${event.code}/official/remove" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${official.results.map((m) => tile(m, true)).join("") || "<p>No official selections yet.</p>"}</div>${official.results.length ? `<div class="mt-4 flex flex-wrap gap-2"><button class="rounded-xl border px-4 py-2">${locale === "el" ? "Αφαίρεση από album" : "Remove from album"}</button><button formaction="/studio/events/${event.code}/media/trash" class="rounded-xl border border-red-200 px-4 py-2 text-red-700">${locale === "el" ? "Στον κάδο (μόνο δικά μου uploads)" : "Move my uploads to trash"}</button></div>` : ""}</form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Επιλογή από guest gallery" : "Curate from guest gallery"}</h2><form action="/studio/events/${event.code}/official/add" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${guest.results.map((m) => tile(m, true)).join("") || "<p>No guest media.</p>"}</div>${guest.results.length ? `<button class="mt-4 rounded-xl bg-[#4f46e5] px-5 py-3 text-white">${locale === "el" ? "Προσθήκη επιλεγμένων" : "Add selected"}</button>` : ""}</form></section></main>${logoutScript(locale)}`,
+    photoUploadMarkup(
+      page(
+        `${event.eventName} – Studio`,
+      `<header class="border-b bg-[#183c33] text-white"><div class="mx-auto flex max-w-7xl items-center justify-between p-5">${brandMark(studioDashboardHref(locale), true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/studio?lang=${locale}" class="text-sm text-[#2f6b5b]">← Studio</a><h1 class="mt-3 text-4xl">${esc(event.eventName)}</h1><p class="mt-2 text-[#65756f]">${esc(formatEventDates(event, locale))}</p><section class="mt-7 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Upload official υλικού" : "Upload official media"}</h2><form action="/studio/events/${event.code}/upload" method="post" enctype="multipart/form-data" class="mt-4 flex flex-col gap-3 sm:flex-row"><input type="hidden" name="locale" value="${locale}"><input name="file" type="file" multiple required accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="min-w-0 flex-1 rounded-xl border p-3"><button class="rounded-xl bg-[#2f6b5b] px-5 py-3 text-white">Upload</button></form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">Official album (${official.results.length})</h2><form action="/studio/events/${event.code}/official/remove" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${official.results.map((m) => tile(m, true)).join("") || "<p>No official selections yet.</p>"}</div>${official.results.length ? `<div class="mt-4 flex flex-wrap gap-2"><button class="rounded-xl border px-4 py-2">${locale === "el" ? "Αφαίρεση από album" : "Remove from album"}</button><button formaction="/studio/events/${event.code}/media/trash" class="rounded-xl border border-red-200 px-4 py-2 text-red-700">${locale === "el" ? "Στον κάδο (μόνο δικά μου uploads)" : "Move my uploads to trash"}</button></div>` : ""}</form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Επιλογή από guest gallery" : "Curate from guest gallery"}</h2><form action="/studio/events/${event.code}/official/add" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${guest.results.map((m) => tile(m, true)).join("") || "<p>No guest media.</p>"}</div>${guest.results.length ? `<button class="mt-4 rounded-xl bg-[#2f6b5b] px-5 py-3 text-white">${locale === "el" ? "Προσθήκη επιλεγμένων" : "Add selected"}</button>` : ""}</form></section></main>${logoutScript(locale)}`,
+      ),
+      locale,
     ),
   );
 });
@@ -252,7 +274,7 @@ studioRoutes.get("/studio/trash", async (c) => {
   return c.html(
     page(
       locale === "el" ? "Κάδος Studio" : "Studio trash",
-      `<header class="border-b bg-[#172033] text-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark("/studio", true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><a href="/studio?lang=${locale}" class="text-sm text-[#4f46e5]">← Studio</a><h1 class="mt-3 text-4xl">${locale === "el" ? "Κάδος Studio" : "Studio trash"}</h1><p class="mt-2 text-[#64748b]">${locale === "el" ? "Τα δικά σου official uploads διατηρούνται για 30 ημέρες." : "Your official uploads are retained for 30 days."}</p><form action="/studio/trash/restore" method="post" class="mt-7"><input type="hidden" name="locale" value="${locale}"><div class="grid grid-cols-2 gap-4 md:grid-cols-4">${tiles || `<p class="col-span-full rounded-2xl bg-white p-10 text-center text-[#64748b]">${locale === "el" ? "Ο κάδος είναι άδειος." : "Trash is empty."}</p>`}</div>${media.results.length ? `<button class="mt-5 rounded-xl bg-[#4f46e5] px-5 py-3 text-white">${locale === "el" ? "Επαναφορά επιλεγμένων" : "Restore selected"}</button>` : ""}</form></main>${logoutScript(locale)}`,
+      `<header class="border-b bg-[#183c33] text-white"><div class="mx-auto flex max-w-6xl items-center justify-between p-5">${brandMark(studioDashboardHref(locale), true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-6xl p-5 md:p-10"><a href="/studio?lang=${locale}" class="text-sm text-[#2f6b5b]">← Studio</a><h1 class="mt-3 text-4xl">${locale === "el" ? "Κάδος Studio" : "Studio trash"}</h1><p class="mt-2 text-[#65756f]">${locale === "el" ? "Τα δικά σου official uploads διατηρούνται για 30 ημέρες." : "Your official uploads are retained for 30 days."}</p><form action="/studio/trash/restore" method="post" class="mt-7"><input type="hidden" name="locale" value="${locale}"><div class="grid grid-cols-2 gap-4 md:grid-cols-4">${tiles || `<p class="col-span-full rounded-2xl bg-white p-10 text-center text-[#65756f]">${locale === "el" ? "Ο κάδος είναι άδειος." : "Trash is empty."}</p>`}</div>${media.results.length ? `<button class="mt-5 rounded-xl bg-[#2f6b5b] px-5 py-3 text-white">${locale === "el" ? "Επαναφορά επιλεγμένων" : "Restore selected"}</button>` : ""}</form></main>${logoutScript(locale)}`,
     ),
   );
 });
@@ -302,10 +324,11 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
     for (const file of files) {
       const bytes = await file.arrayBuffer();
       const hash = await sha256Bytes(bytes);
+      const canonicalHash = await mediaCanonicalHash(bytes, file.type, hash);
       const existing = await c.env.DB.prepare(
-        "SELECT id FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL AND reported_at IS NULL",
+        "SELECT id FROM media WHERE event_id=? AND deleted_at IS NULL AND reported_at IS NULL AND (content_hash=? OR canonical_hash=?)",
       )
-        .bind(event.id, hash)
+        .bind(event.id, hash, canonicalHash)
         .first<{ id: string }>();
       if (existing) {
         await c.env.DB.prepare(
@@ -354,26 +377,35 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
       });
       uploadedKeys.push(objectKey);
       const now = Date.now();
-      await c.env.DB.batch([
-        c.env.DB.prepare(
-          "INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title,origin,uploaded_by_user_id) VALUES (?,?,?,?,?,?,?,?,?,?,NULL,'official',?)",
-        ).bind(
-          id,
-          event.id,
-          objectKey,
-          file.type.startsWith("image/") ? "image" : "video",
-          file.type,
-          user.name,
-          now,
-          capturedAt,
-          hash,
-          file.size,
-          user.id,
-        ),
-        c.env.DB.prepare(
-          "INSERT INTO official_album_items (event_id,media_id,added_by,position,created_at) VALUES (?,?,?,?,?)",
-        ).bind(event.id, id, user.id, 0, now),
-      ]);
+      try {
+        await c.env.DB.batch([
+          c.env.DB.prepare(
+            "INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,canonical_hash,size_bytes,title,origin,uploaded_by_user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,'official',?)",
+          ).bind(
+            id,
+            event.id,
+            objectKey,
+            file.type.startsWith("image/") ? "image" : "video",
+            file.type,
+            user.name,
+            now,
+            capturedAt,
+            hash,
+            canonicalHash,
+            file.size,
+            user.id,
+          ),
+          c.env.DB.prepare(
+            "INSERT INTO official_album_items (event_id,media_id,added_by,position,created_at) VALUES (?,?,?,?,?)",
+          ).bind(event.id, id, user.id, 0, now),
+        ]);
+      } catch (error) {
+        if (!isCanonicalDuplicateConstraint(error)) throw error;
+        await c.env.MEDIA.delete(objectKey);
+        uploadedKeys.pop();
+        await releaseStorage(c.env.DB, reservation.ownerId, file.size);
+        reservedBytes -= file.size;
+      }
     }
   } catch (error) {
     if (uploadedKeys.length) {
@@ -393,6 +425,12 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
     throw error;
   }
   if (uploadedKeys.length) {
+    await notifyEventMembersAboutUpload(c.env.DB, {
+      eventId: event.id,
+      actorUserId: user.id,
+      actorName: user.name,
+      itemCount: uploadedKeys.length,
+    });
     c.executionCtx.waitUntil(
       queueAutomaticCloudBackupsForEvent(c.env, event.id).catch((error) => {
         console.error(JSON.stringify({
@@ -403,5 +441,7 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
       }),
     );
   }
+  if (c.req.header("Accept")?.includes("application/json"))
+    return c.json({ ok: true, uploaded: uploadedKeys.length });
   return c.redirect(`/studio/events/${event.code}?lang=${locale}`, 303);
 });

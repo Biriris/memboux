@@ -1,4 +1,5 @@
 import type { AuthEnv } from "./auth";
+import type { EventType } from "./event-types";
 import type { Locale } from "./i18n";
 
 export type EventRole = "owner" | "editor" | "viewer";
@@ -6,11 +7,13 @@ export type CloudProvider = "google_drive" | "dropbox";
 
 export type Bindings = AuthEnv & {
   MEDIA: R2Bucket;
+  IMAGES: ImagesBinding;
   ASSETS: Fetcher;
   DRIVE_BACKUP_WORKFLOW: Workflow;
   DROPBOX_BACKUP_WORKFLOW: Workflow;
   DROPBOX_APP_KEY?: string;
   DROPBOX_APP_SECRET?: string;
+  GOOGLE_MAPS_API_KEY?: string;
   ADMIN_PASSWORD?: string;
   BUSINESS_LEGAL_NAME?: string;
   BUSINESS_POSTAL_ADDRESS?: string;
@@ -80,6 +83,12 @@ export type EventRow = {
   default_locale: Locale;
   event_start_date: string | null;
   event_end_date: string | null;
+  event_type?: EventType | null;
+  location?: string | null;
+  location_place_id?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_provider?: "google_places" | "map_coordinates" | null;
   gallery_pin_hash: string | null;
   deleted_at: number | null;
   purge_at: number | null;
@@ -95,6 +104,7 @@ export type MediaRow = {
   uploaded_at: number;
   captured_at: number | null;
   content_hash: string | null;
+  canonical_hash?: string | null;
   reported_at: number | null;
   size_bytes: number;
   title: string | null;
@@ -110,8 +120,9 @@ export type EventMemberRow = {
   user_id: string;
   name: string;
   email: string;
-  role: EventRole;
+  role: EventRole | "professional";
   created_at: number;
+  access_status?: "invited" | "accepted" | null;
 };
 
 export type EventInvitationRow = {
@@ -123,4 +134,5 @@ export type EventInvitationRow = {
   expires_at: number;
   accepted_at: number | null;
   declined_at: number | null;
+  invitation_kind: "member" | "professional";
 };

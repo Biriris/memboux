@@ -21,12 +21,12 @@ export function safeFileExtension(filename: string) {
 
 export function uploadValidationDetails(error: UploadValidationError, locale: Locale) {
   const messages: Record<UploadValidationError, { en: string; el: string; status: number }> = {
-    empty: { en: "No files were selected.", el: "Δεν επιλέχθηκαν αρχεία.", status: 400 },
-    too_many: { en: `You can upload up to ${MAX_UPLOAD_FILES} files at once.`, el: `Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} αρχεία μαζί.`, status: 413 },
-    unsupported_type: { en: "One or more files have an unsupported type.", el: "Κάποιο αρχείο έχει μη υποστηριζόμενο τύπο.", status: 415 },
-    file_too_large: { en: "Each file must be no larger than 100 MB.", el: "Κάθε αρχείο πρέπει να είναι έως 100 MB.", status: 413 },
+    empty: { en: "No photos were selected.", el: "Δεν επιλέχθηκαν φωτογραφίες.", status: 400 },
+    too_many: { en: `You can upload up to ${MAX_UPLOAD_FILES} photos at once.`, el: `Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} φωτογραφίες μαζί.`, status: 413 },
+    unsupported_type: { en: "Only JPEG, PNG, WebP, and GIF photos are supported right now.", el: "Προς το παρόν υποστηρίζονται μόνο φωτογραφίες JPEG, PNG, WebP και GIF.", status: 415 },
+    file_too_large: { en: "Each photo must be no larger than 100 MB.", el: "Κάθε φωτογραφία πρέπει να είναι έως 100 MB.", status: 413 },
     total_too_large: { en: "The total selection must be no larger than 100 MB.", el: "Η συνολική επιλογή πρέπει να είναι έως 100 MB.", status: 413 },
   };
   const detail = messages[error];
-  return { message: detail[locale], status: detail.status };
+  return { message: locale === "el" ? detail.el : detail.en, status: detail.status };
 }

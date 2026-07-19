@@ -8,6 +8,7 @@ const publicEventId = "gallery-public-event";
 const pinnedCode = "PIN901";
 const pinnedEventId = "gallery-pinned-event";
 const expiredCode = "OLD901";
+const weddingCode = "WED901";
 const pin = "2468";
 let pinHash = "";
 let galleryCookie = "";
@@ -23,12 +24,13 @@ beforeAll(async () => {
       status TEXT NOT NULL DEFAULT 'active', notes TEXT NOT NULL DEFAULT '',
       updated_at INTEGER, default_locale TEXT NOT NULL DEFAULT 'en',
       event_start_date TEXT, event_end_date TEXT, gallery_pin_hash TEXT,
+      event_type TEXT NOT NULL DEFAULT 'other',
       deleted_at INTEGER, purge_at INTEGER
     )`),
     env.DB.prepare(`CREATE TABLE media (
       id TEXT PRIMARY KEY, event_id TEXT NOT NULL, object_key TEXT NOT NULL UNIQUE,
       media_type TEXT NOT NULL, content_type TEXT NOT NULL, uploaded_by TEXT NOT NULL,
-      uploaded_at INTEGER NOT NULL, captured_at INTEGER, content_hash TEXT,
+      uploaded_at INTEGER NOT NULL, captured_at INTEGER, content_hash TEXT, canonical_hash TEXT,
       reported_at INTEGER, size_bytes INTEGER NOT NULL DEFAULT 0, title TEXT,
       deleted_at INTEGER, purge_at INTEGER, upload_consent_at INTEGER,
       upload_policy_version TEXT, origin TEXT NOT NULL DEFAULT 'guest',
@@ -38,6 +40,14 @@ beforeAll(async () => {
       event_id TEXT NOT NULL, media_id TEXT NOT NULL, added_by TEXT NOT NULL,
       position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
       PRIMARY KEY (event_id,media_id)
+    )`),
+    env.DB.prepare(`CREATE TABLE media_likes (
+      media_id TEXT NOT NULL, actor_key TEXT NOT NULL, created_at INTEGER NOT NULL,
+      PRIMARY KEY (media_id,actor_key)
+    )`),
+    env.DB.prepare(`CREATE TABLE event_covers (
+      event_id TEXT PRIMARY KEY, source_media_id TEXT, object_key TEXT NOT NULL,
+      content_type TEXT NOT NULL, updated_by TEXT NOT NULL, updated_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE media_removal_requests (
       id TEXT PRIMARY KEY, media_id TEXT NOT NULL, event_id TEXT NOT NULL,
@@ -49,6 +59,7 @@ beforeAll(async () => {
       request_count INTEGER NOT NULL, expires_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT,created_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE account_notifications (id TEXT PRIMARY KEY,user_id TEXT,event_id TEXT,invitation_id TEXT,actor_user_id TEXT,actor_name TEXT,type TEXT,item_count INTEGER,created_at INTEGER,read_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_entitlements (user_id TEXT PRIMARY KEY,plan_key TEXT,storage_limit_bytes INTEGER,event_limit INTEGER,member_limit INTEGER,updated_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_event_usage (user_id TEXT PRIMARY KEY,active_events INTEGER,updated_at INTEGER)`),
@@ -63,6 +74,8 @@ beforeAll(async () => {
     insertEvent.bind(publicEventId, publicCode, "Public gallery", "Public gallery", "", now, now + 86_400_000, now, null),
     insertEvent.bind(pinnedEventId, pinnedCode, "Pinned gallery", "Pinned gallery", "", now, now + 86_400_000, now, pinHash),
     insertEvent.bind("gallery-expired-event", expiredCode, "Expired gallery", "Expired gallery", "", now - 172_800_000, now - 86_400_000, now, null),
+    insertEvent.bind("gallery-wedding-event", weddingCode, "Wedding gallery", "Wedding gallery", "", now, now + 86_400_000, now, null),
+    env.DB.prepare("UPDATE events SET event_type='wedding' WHERE id='gallery-wedding-event'"),
   ]);
   await env.DB.batch([
     env.DB.prepare("INSERT INTO event_members VALUES (?,?,?,?)").bind(publicEventId,"gallery-owner","owner",now),
@@ -70,6 +83,9 @@ beforeAll(async () => {
     env.DB.prepare("INSERT INTO account_entitlements VALUES (?,?,?,?,?,?)").bind("gallery-owner","beta",20*1024*1024*1024,25,25,now),
     env.DB.prepare("INSERT INTO account_storage_usage VALUES (?,?,?)").bind("gallery-owner",36,now),
     env.DB.prepare("INSERT INTO account_event_usage VALUES (?,?,?)").bind("gallery-owner",2,now),
+    env.DB.prepare("INSERT INTO event_covers VALUES (?,?,?,?,?,?)").bind(
+      publicEventId, "public-stream-media", "covers/public/selected.jpg", "image/jpeg", "gallery-owner", now,
+    ),
   ]);
 
   const insertMedia = env.DB.prepare(`INSERT INTO media (
@@ -79,6 +95,7 @@ beforeAll(async () => {
   await env.DB.batch([
     insertMedia.bind("public-stream-media", publicEventId, "test/public-stream.jpg", "image", "image/jpeg", "Guest", now, "public-stream-hash", 12),
     insertMedia.bind("public-report-media", publicEventId, "test/public-report.jpg", "image", "image/jpeg", "Guest", now, "public-report-hash", 12),
+    insertMedia.bind("public-legacy-video", publicEventId, "test/public-legacy.mp4", "video", "video/mp4", "Guest", now, "public-legacy-video-hash", 12),
     insertMedia.bind("pinned-stream-media", pinnedEventId, "test/pinned-stream.jpg", "image", "image/jpeg", "Guest", now, "pinned-stream-hash", 12),
     env.DB.prepare(`INSERT INTO media (
       id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,
@@ -90,16 +107,27 @@ beforeAll(async () => {
     env.DB.prepare("INSERT INTO official_album_items VALUES (?,?,?,?,?)").bind(
       publicEventId, "official-stream-media", "studio-user", 0, now,
     ),
+    env.DB.prepare("INSERT INTO official_album_items VALUES (?,?,?,?,?)").bind(
+      publicEventId, "public-legacy-video", "studio-user", 1, now,
+    ),
   ]);
   await Promise.all([
     env.MEDIA.put("test/public-stream.jpg", new TextEncoder().encode("public-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/public-report.jpg", new TextEncoder().encode("report-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/public-legacy.mp4", new TextEncoder().encode("legacy-video"), { httpMetadata: { contentType: "video/mp4" } }),
     env.MEDIA.put("test/pinned-stream.jpg", new TextEncoder().encode("pinned-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/official-stream.jpg", new TextEncoder().encode("official-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("covers/public/selected.jpg", new TextEncoder().encode("selected-cover"), { httpMetadata: { contentType: "image/jpeg" } }),
   ]);
 });
 
 describe("gallery, upload, and media routes", () => {
+  it("sends wedding guest links to the unified wedding experience", async () => {
+    const response = await SELF.fetch(`https://memboux.com/gallery/${weddingCode}?lang=fr`, { redirect: "manual" });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(`/wedding/${weddingCode}?lang=fr`);
+  });
+
   it("renders an active public gallery", async () => {
     const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}?lang=en`);
     const html = await response.text();
@@ -107,7 +135,69 @@ describe("gallery, upload, and media routes", () => {
     expect(response.status).toBe(200);
     expect(html).toContain("Public gallery");
     expect(html).toContain("Upload");
-    expect(html).toContain("Images (2)");
+    expect(html).toContain("Gallery");
+    expect(html).toContain("2 photos");
+    expect(html).toContain('data-gallery-photo-count="2"');
+    expect(html).not.toContain("public-legacy-video");
+    expect(html).not.toContain("data-gallery-filter");
+    expect(html).toContain("data-media-like");
+    expect(html).toContain(`/gallery/${publicCode}/cover?v=${now}`);
+    expect(html).toContain('data-gallery-sort="guest-gallery"');
+    expect(html).toContain('data-like-count>0</span>');
+    expect(html).toContain('id="guest-upload-confirmation"');
+    expect(html).toContain("Privacy and confirmation");
+    expect(html).not.toContain('<summary class="cursor-pointer font-semibold">Privacy and confirmation</summary>');
+    expect(html).toContain("Up to 100 photos");
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif"');
+    expect(html).not.toContain('accept="image/jpeg,image/png,image/webp,image/gif,video/mp4');
+  });
+
+  it("serves the selected cover through the gallery access boundary", async () => {
+    const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/cover`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(new TextDecoder().decode(await response.arrayBuffer())).toBe("selected-cover");
+  });
+
+  it("toggles one persistent, pseudonymous like per visitor", async () => {
+    const first = await SELF.fetch(
+      `https://memboux.com/api/gallery/${publicCode}/media/public-stream-media/like`,
+      { method: "POST", headers: { Origin: "https://memboux.com", "CF-Connecting-IP": "198.51.100.144" } },
+    );
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ liked: true, count: 1 });
+    const visitorCookie = first.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+    expect(visitorCookie).toMatch(/^memboux_like_visitor=/);
+    expect(first.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(first.headers.get("set-cookie")).toContain("Secure");
+
+    const stored = await env.DB.prepare(
+      "SELECT actor_key FROM media_likes WHERE media_id=?",
+    ).bind("public-stream-media").first<{ actor_key: string }>();
+    expect(stored?.actor_key).toMatch(/^[a-f0-9]{64}$/);
+    expect(visitorCookie).not.toContain(stored?.actor_key ?? "missing");
+
+    const second = await SELF.fetch(
+      `https://memboux.com/api/gallery/${publicCode}/media/public-stream-media/like`,
+      {
+        method: "POST",
+        headers: {
+          Origin: "https://memboux.com",
+          Cookie: visitorCookie,
+          "CF-Connecting-IP": "198.51.100.144",
+        },
+      },
+    );
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual({ liked: false, count: 0 });
+  });
+
+  it("requires PIN gallery access before accepting a like", async () => {
+    const response = await SELF.fetch(
+      `https://memboux.com/api/gallery/${pinnedCode}/media/pinned-stream-media/like`,
+      { method: "POST", headers: { Origin: "https://memboux.com" } },
+    );
+    expect(response.status).toBe(401);
   });
 
   it("keeps official uploads separate and renders the curated official album", async () => {
@@ -120,6 +210,7 @@ describe("gallery, upload, and media routes", () => {
     expect(response.status).toBe(200);
     expect(html).toContain("Official album");
     expect(html).toContain("official-stream-media");
+    expect(html).not.toContain("public-legacy-video");
   });
 
   it("expires galleries according to the event expiration", async () => {
@@ -225,6 +316,20 @@ describe("gallery, upload, and media routes", () => {
     expect(fileResponse.status).toBe(400);
   });
 
+  it("rejects new video uploads while the retained video feature is disabled", async () => {
+    const form = new FormData();
+    form.set("locale", "en");
+    form.set("upload_confirmation", "accepted");
+    form.append("file", new File([new Uint8Array([1, 2, 3])], "clip.mp4", { type: "video/mp4" }));
+    const response = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", "CF-Connecting-IP": "198.51.100.87" },
+      body: form,
+    });
+    expect(response.status).toBe(415);
+    expect(await response.text()).toContain("Only JPEG, PNG, WebP, and GIF photos");
+  });
+
   it("stores versioned consent evidence for a guest upload", async () => {
     const form = new FormData();
     form.set("locale", "en");
@@ -242,6 +347,39 @@ describe("gallery, upload, and media routes", () => {
     const row = await env.DB.prepare("SELECT upload_consent_at,upload_policy_version FROM media WHERE event_id=? AND uploaded_by=?").bind(publicEventId, "Consent Guest").first<{ upload_consent_at: number; upload_policy_version: string }>();
     expect(row?.upload_policy_version).toBe("guest-upload-2026-07-13");
     expect(row?.upload_consent_at).toBeGreaterThanOrEqual(before);
+    expect(await env.DB.prepare(
+      "SELECT user_id,type,item_count,read_at FROM account_notifications WHERE event_id=? ORDER BY created_at DESC LIMIT 1",
+    ).bind(publicEventId).first()).toEqual({
+      user_id: "gallery-owner",
+      type: "media_uploaded",
+      item_count: 1,
+      read_at: null,
+    });
+  });
+
+  it("deduplicates JPEG exports whose pixels are identical but metadata differs", async () => {
+    const jpeg = (metadata: number[]) => new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe1, 0x00, metadata.length + 2, ...metadata,
+      0xff, 0xdb, 0x00, 0x04, 0x11, 0x22,
+      0xff, 0xda, 0x00, 0x04, 0x33, 0x44, 0x12, 0x34, 0xff, 0xd9,
+    ]);
+    const upload = async (bytes: Uint8Array, ip: string) => {
+      const form = new FormData();
+      form.set("locale", "en");
+      form.set("name", "Duplicate test");
+      form.set("upload_confirmation", "accepted");
+      form.append("file", new File([bytes], "moment.jpg", { type: "image/jpeg" }));
+      return SELF.fetch(`https://memboux.com/api/upload/${publicCode}`, {
+        method: "POST",
+        headers: { Origin: "https://memboux.com", "CF-Connecting-IP": ip },
+        body: form,
+        redirect: "manual",
+      });
+    };
+    expect((await upload(jpeg([1, 2]), "198.51.100.91")).status).toBe(303);
+    expect((await upload(jpeg([9, 8, 7, 6]), "198.51.100.92")).status).toBe(303);
+    expect(await env.DB.prepare("SELECT COUNT(*) total FROM media WHERE event_id=? AND uploaded_by='Duplicate test'").bind(publicEventId).first())
+      .toEqual({ total: 1 });
   });
 
   it("blocks uploads to a PIN gallery without its cookie", async () => {
@@ -263,6 +401,8 @@ describe("gallery, upload, and media routes", () => {
 
     const download = await SELF.fetch("https://memboux.com/media/public-stream-media?download=1");
     expect(download.headers.get("content-disposition")).toMatch(/^attachment; filename="memboux-\d{4}-\d{2}-\d{2}\.jpg"$/);
+    expect(download.headers.get("content-type")).toBe("image/jpeg");
+    expect(new TextDecoder().decode(await download.arrayBuffer())).toBe("public-image");
   });
 
   it("protects PIN media with the same gallery cookie", async () => {

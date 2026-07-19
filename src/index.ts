@@ -19,6 +19,9 @@ import { publicRoutes } from "./routes/public";
 import { studioRoutes } from "./routes/studio";
 import { backupRoutes } from "./routes/backups";
 import { invitationRoutes } from "./routes/invitations";
+import { experienceRoutes } from "./routes/experience";
+import { weddingRoutes } from "./routes/wedding";
+import { supportRoutes } from "./routes/support";
 
 export { GoogleDriveBackupWorkflow } from "./google-drive";
 export { DropboxBackupWorkflow } from "./dropbox";
@@ -64,6 +67,9 @@ app.route("/", galleryRoutes);
 app.route("/", studioRoutes);
 app.route("/", backupRoutes);
 app.route("/", invitationRoutes);
+app.route("/", experienceRoutes);
+app.route("/", weddingRoutes);
+app.route("/", supportRoutes);
 
 app.onError((error, c) => {
   if (error instanceof HTTPException) return error.getResponse();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE } from "../src/config";
+import { MAX_FILE_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_SIZE, VIDEO_UPLOADS_ENABLED, VIDEO_UPLOAD_TYPES } from "../src/config";
 import { safeFileExtension, uploadValidationDetails, validateUploadFiles, type UploadFileDescriptor } from "../src/upload-policy";
 
 const file = (overrides: Partial<UploadFileDescriptor> = {}): UploadFileDescriptor => ({
@@ -13,11 +13,15 @@ describe("upload validation", () => {
   it("uses the raised Cloudflare-safe upload limits", () => {
     expect(MAX_FILE_SIZE).toBe(100 * 1024 * 1024);
     expect(MAX_UPLOAD_TOTAL_SIZE).toBe(100 * 1024 * 1024);
+    expect(MAX_UPLOAD_FILES).toBe(100);
+    expect(VIDEO_UPLOADS_ENABLED).toBe(false);
   });
 
-  it("accepts all supported image and video MIME types", () => {
-    const supported = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
+  it("accepts supported photos while retaining disabled video definitions", () => {
+    const supported = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     expect(validateUploadFiles(supported.map((type) => file({ type })))).toBeNull();
+    expect(VIDEO_UPLOAD_TYPES).toContain("video/mp4");
+    expect(validateUploadFiles([file({ name: "clip.mp4", type: "video/mp4" })])).toBe("unsupported_type");
   });
 
   it("rejects empty selections and unsupported MIME types", () => {
@@ -44,10 +48,10 @@ describe("upload validation", () => {
 
   it("returns localized errors with their HTTP status", () => {
     expect(uploadValidationDetails("unsupported_type", "en")).toEqual({
-      message: "One or more files have an unsupported type.", status: 415,
+      message: "Only JPEG, PNG, WebP, and GIF photos are supported right now.", status: 415,
     });
     expect(uploadValidationDetails("too_many", "el")).toEqual({
-      message: `Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} αρχεία μαζί.`, status: 413,
+      message: `Μπορείς να ανεβάσεις έως ${MAX_UPLOAD_FILES} φωτογραφίες μαζί.`, status: 413,
     });
   });
 });

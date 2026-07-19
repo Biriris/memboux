@@ -34,6 +34,10 @@ describe("public Worker routes", () => {
     expect(sitemap.headers.get("content-type")).toContain("application/xml");
     expect(sitemapText).toContain("https://memboux.com/en");
     expect(sitemapText).toContain('hreflang="el"');
+    expect(sitemapText).toContain('hreflang="fr"');
+    expect(sitemapText).toContain('hreflang="de"');
+    expect(sitemapText).toContain('hreflang="es"');
+    expect(sitemapText).toContain('hreflang="it"');
   });
 
   it("renders canonical multilingual SEO on homepages and noindex on login", async () => {
@@ -58,6 +62,29 @@ describe("public Worker routes", () => {
     expect(response.status).toBe(404);
   });
 
+  it.each([
+    ["fr", "Rassemblez chaque moment. Gardez-le à vous.", "Français"],
+    ["de", "Sammle jeden Moment. Behalte ihn für dich.", "Deutsch"],
+    ["es", "Reúne cada momento. Hazlo tuyo.", "Español"],
+    ["it", "Raccogli ogni momento. Tienilo per te.", "Italiano"],
+  ])("fully localizes the %s homepage and exposes every language", async (locale, hero, languageName) => {
+    const response = await SELF.fetch(`https://memboux.com/${locale}`);
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain(`memboux_locale=${locale}`);
+    expect(html).toContain(`<html lang="${locale}">`);
+    expect(html).toContain(hero);
+    expect(html).toContain(languageName);
+    expect(html).toContain('href="/en"');
+    expect(html).toContain('href="/el"');
+    expect(html).toContain('href="/fr"');
+    expect(html).toContain('href="/de"');
+    expect(html).toContain('href="/es"');
+    expect(html).toContain('href="/it"');
+    expect(html).toContain(`property="og:locale" content="${locale === "fr" ? "fr_FR" : locale === "de" ? "de_DE" : locale === "es" ? "es_ES" : "it_IT"}"`);
+  });
+
   it("publishes transparent Google Drive data-use terms in both languages", async () => {
     const englishPrivacy = await (await SELF.fetch("https://memboux.com/en/privacy-policy")).text();
     const greekTerms = await (await SELF.fetch("https://memboux.com/el/terms")).text();
@@ -78,6 +105,7 @@ describe("public Worker routes", () => {
     ["/el/forgot-password", "Αποστολή συνδέσμου"],
     ["/en/reset-password?token=test-token", "Choose a new password"],
     ["/en/privacy-policy", "Privacy policy"],
+    ["/en/cookie-policy", "Essential cookies"],
     ["/el/terms", "Όροι χρήσης"],
     ["/en/privacy-request", "Exercise your rights"],
   ])("renders public route %s", async (path, expectedText) => {

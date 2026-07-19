@@ -35,6 +35,9 @@
       "bucket_name": "memboux-media"
     }
   ],
+  "images": {
+    "binding": "IMAGES"
+  },
   "workflows": [
     {
       "name": "memboux-google-drive-backups",

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+﻿import { Hono } from "hono";
 import QRCode from "qrcode";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings } from "../domain";
@@ -13,8 +13,10 @@ import { safeFileExtension, validateUploadFiles } from "../upload-policy";
 import { adminShell } from "../views/admin";
 import { bulkSelectionScript, cards, lightboxMarkup } from "../views/media";
 import { accountMenu, brandMark, logoutScript, page } from "../views/shared";
+import { photoUploadMarkup } from "../views/upload";
 import { constantTimeEqual, dateInput, esc, formatDate, formatDateTime, formatEventDates, sha256, sha256Bytes, validEventDate } from "../utils";
 import { getEventRole, roleCan } from "../access";
+import { isCanonicalDuplicateConstraint, mediaCanonicalHash } from "../media-fingerprint";
 
 export const adminEventRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -50,9 +52,12 @@ adminEventRoutes.get("/admin/events/:code", async (c) => {
     ],
   });
   return c.html(
-    adminShell(
-      event.eventName,
-      `<main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/admin" class="text-sm font-medium text-[#4338ca]">← ${locale === "el" ? "Πίσω στη βιβλιοθήκη" : "Back to library"}</a><div class="mt-5 grid gap-6 lg:grid-cols-[420px_1fr]"><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="flex items-start justify-between gap-3"><div><h1 class="mt-1 text-3xl font-bold">${esc(event.eventName)}</h1></div><span class="rounded-full px-3 py-1 text-xs font-semibold ${event.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-[#475569]"}">${event.status === "active" ? (locale === "el" ? "Ενεργό" : "Active") : locale === "el" ? "Αρχειοθετημένο" : "Archived"}</span></div><form action="/admin/events/${encodeURIComponent(event.code)}/update" method="post" class="mt-7 space-y-4"><label class="block text-sm font-semibold">${locale === "el" ? "Όνομα event" : "Event name"}<input name="eventName" required maxlength="100" value="${esc(event.eventName)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">${locale === "el" ? "Κατάσταση" : "Status"}<select name="status" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"><option value="active"${event.status === "active" ? " selected" : ""}>${locale === "el" ? "Ενεργό" : "Active"}</option><option value="archived"${event.status === "archived" ? " selected" : ""}>${locale === "el" ? "Αρχειοθετημένο" : "Archived"}</option></select></label><div class="grid grid-cols-2 gap-3"><label class="block text-sm font-semibold">${locale === "el" ? "Έναρξη event" : "Event start"}<input name="eventStartDate" type="date" required value="${esc(event.event_start_date ?? "")}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">${locale === "el" ? "Λήξη event" : "Event end"}<input name="eventEndDate" type="date" value="${esc(event.event_end_date ?? "")}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label></div><label class="block text-sm font-semibold">${locale === "el" ? "Ημερομηνία λήξης πρόσβασης" : "Access expiration"}<input name="expires_at" type="date" required value="${dateInput(event.expires_at)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><div class="rounded-2xl bg-[#f5f7ff] p-4"><p class="text-sm font-semibold">PIN gallery</p><p class="mt-1 text-xs text-[#64748b]">${event.gallery_pin_hash ? "Υπάρχει ενεργό PIN. Για λόγους ασφαλείας δεν εμφανίζεται. Μπορείς να το αντικαταστήσεις χωρίς το παλιό." : "Δεν υπάρχει ενεργό PIN."}</p><input name="galleryPin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" placeholder="${event.gallery_pin_hash ? "Νέο PIN (προαιρετικά)" : "Νέο PIN 4–8 ψηφίων"}" class="mt-3 w-full rounded-xl border bg-white px-4 py-3 font-normal">${event.gallery_pin_hash ? '<label class="mt-3 flex items-center gap-2 text-sm font-normal"><input name="removeGalleryPin" type="checkbox"> Αφαίρεση υπάρχοντος PIN</label>' : ""}</div><label class="block text-sm font-semibold">${locale === "el" ? "Εσωτερικές σημειώσεις" : "Internal notes"}<textarea name="notes" maxlength="2000" rows="6" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal" placeholder="Πληροφορίες, συμφωνίες, εκκρεμότητες…">${esc(event.notes)}</textarea></label><button class="w-full rounded-xl bg-[#172033] py-3 font-semibold text-white">${locale === "el" ? "Αποθήκευση αλλαγών" : "Save changes"}</button></form><div class="mt-5"><a href="${esc(guestUrl)}" target="_blank" class="block rounded-xl border px-4 py-3 text-center text-sm font-semibold">${locale === "el" ? "Άνοιγμα guest gallery" : "Open guest gallery"}</a></div><form action="/admin/events/${encodeURIComponent(event.code)}/upload" method="post" enctype="multipart/form-data" class="mt-5 rounded-2xl bg-[#f5f7ff] p-4"><label class="text-sm font-semibold">${locale === "el" ? "Upload φωτογραφιών / βίντεο" : "Upload photos / videos"}<input name="file" type="file" multiple required accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="mt-2 w-full rounded-xl border bg-white p-3 font-normal"></label><p class="mt-2 text-xs text-[#64748b]">${locale === "el" ? "Έως 20 αρχεία, 100 MB ανά αρχείο και 100 MB συνολικά." : "Up to 20 files, 100 MB each and 100 MB total."}</p><button class="mt-3 w-full rounded-xl bg-[#4f46e5] px-4 py-3 text-white">${locale === "el" ? "Ανέβασμα" : "Upload"}</button></form></section><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="mb-5 flex items-center justify-between"><div><p class="text-sm text-[#64748b]">${locale === "el" ? "Δημιουργήθηκε" : "Created"} ${formatDate(event.created_at)}</p><h2 class="text-2xl font-bold">${locale === "el" ? "Αρχεία" : "Files"} (${items.length})</h2></div><div class="flex flex-wrap gap-2"><button type="button" id="admin-select-media" class="rounded-xl border px-3 py-2 text-sm">Select</button><button type="button" id="admin-download-selected" class="hidden rounded-xl bg-[#4f46e5] px-3 py-2 text-sm text-white">Download selected</button><button type="button" id="admin-delete-selected" class="hidden rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">Delete selected</button></div></div>${items.length ? `<form id="admin-bulk-media" action="/admin/events/${encodeURIComponent(event.code)}/media/bulk-trash" method="post"><input id="admin-media-ids" type="hidden" name="ids"><div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items, { selectable: true, deferredSelection: true })}</div></form>` : `<p class="py-16 text-center text-[#64748b]">${locale === "el" ? "Δεν υπάρχουν uploads." : "No uploads."}</p>`}</section></div></main>${adminMediaScript}`,
+    photoUploadMarkup(
+      adminShell(
+        event.eventName,
+      `<main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/admin" class="text-sm font-medium text-[#255848]">← ${locale === "el" ? "Πίσω στη βιβλιοθήκη" : "Back to library"}</a><div class="mt-5 grid gap-6 lg:grid-cols-[420px_1fr]"><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="flex items-start justify-between gap-3"><div><h1 class="mt-1 text-3xl font-bold">${esc(event.eventName)}</h1></div><span class="rounded-full px-3 py-1 text-xs font-semibold ${event.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-[#4a6159]"}">${event.status === "active" ? (locale === "el" ? "Ενεργό" : "Active") : locale === "el" ? "Αρχειοθετημένο" : "Archived"}</span></div><form action="/admin/events/${encodeURIComponent(event.code)}/update" method="post" class="mt-7 space-y-4"><label class="block text-sm font-semibold">${locale === "el" ? "Όνομα event" : "Event name"}<input name="eventName" required maxlength="100" value="${esc(event.eventName)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">${locale === "el" ? "Κατάσταση" : "Status"}<select name="status" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"><option value="active"${event.status === "active" ? " selected" : ""}>${locale === "el" ? "Ενεργό" : "Active"}</option><option value="archived"${event.status === "archived" ? " selected" : ""}>${locale === "el" ? "Αρχειοθετημένο" : "Archived"}</option></select></label><div class="grid grid-cols-2 gap-3"><label class="block text-sm font-semibold">${locale === "el" ? "Έναρξη event" : "Event start"}<input name="eventStartDate" type="date" required value="${esc(event.event_start_date ?? "")}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><label class="block text-sm font-semibold">${locale === "el" ? "Λήξη event" : "Event end"}<input name="eventEndDate" type="date" value="${esc(event.event_end_date ?? "")}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label></div><label class="block text-sm font-semibold">${locale === "el" ? "Ημερομηνία λήξης πρόσβασης" : "Access expiration"}<input name="expires_at" type="date" required value="${dateInput(event.expires_at)}" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal"></label><div class="rounded-2xl bg-[#f1f6f3] p-4"><p class="text-sm font-semibold">PIN gallery</p><p class="mt-1 text-xs text-[#65756f]">${event.gallery_pin_hash ? "Υπάρχει ενεργό PIN. Για λόγους ασφαλείας δεν εμφανίζεται. Μπορείς να το αντικαταστήσεις χωρίς το παλιό." : "Δεν υπάρχει ενεργό PIN."}</p><input name="galleryPin" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" placeholder="${event.gallery_pin_hash ? "Νέο PIN (προαιρετικά)" : "Νέο PIN 4–8 ψηφίων"}" class="mt-3 w-full rounded-xl border bg-white px-4 py-3 font-normal">${event.gallery_pin_hash ? '<label class="mt-3 flex items-center gap-2 text-sm font-normal"><input name="removeGalleryPin" type="checkbox"> Αφαίρεση υπάρχοντος PIN</label>' : ""}</div><label class="block text-sm font-semibold">${locale === "el" ? "Εσωτερικές σημειώσεις" : "Internal notes"}<textarea name="notes" maxlength="2000" rows="6" class="mt-1 w-full rounded-xl border px-4 py-3 font-normal" placeholder="Πληροφορίες, συμφωνίες, εκκρεμότητες…">${esc(event.notes)}</textarea></label><button class="w-full rounded-xl bg-[#183c33] py-3 font-semibold text-white">${locale === "el" ? "Αποθήκευση αλλαγών" : "Save changes"}</button></form><div class="mt-5"><a href="${esc(guestUrl)}" target="_blank" class="block rounded-xl border px-4 py-3 text-center text-sm font-semibold">${locale === "el" ? "Άνοιγμα guest gallery" : "Open guest gallery"}</a></div><form action="/admin/events/${encodeURIComponent(event.code)}/upload" method="post" enctype="multipart/form-data" class="mt-5 rounded-2xl bg-[#f1f6f3] p-4"><label class="text-sm font-semibold">${locale === "el" ? "Upload φωτογραφιών / βίντεο" : "Upload photos / videos"}<input name="file" type="file" multiple required accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="mt-2 w-full rounded-xl border bg-white p-3 font-normal"></label><p class="mt-2 text-xs text-[#65756f]">${locale === "el" ? "Έως 20 αρχεία, 100 MB ανά αρχείο και 100 MB συνολικά." : "Up to 20 files, 100 MB each and 100 MB total."}</p><button class="mt-3 w-full rounded-xl bg-[#2f6b5b] px-4 py-3 text-white">${locale === "el" ? "Ανέβασμα" : "Upload"}</button></form></section><section class="rounded-3xl bg-white p-6 shadow-lg"><div class="mb-5 flex items-center justify-between"><div><p class="text-sm text-[#65756f]">${locale === "el" ? "Δημιουργήθηκε" : "Created"} ${formatDate(event.created_at)}</p><h2 class="text-2xl font-bold">${locale === "el" ? "Αρχεία" : "Files"} (${items.length})</h2></div><div class="flex flex-wrap gap-2"><button type="button" id="admin-select-media" class="rounded-xl border px-3 py-2 text-sm">Select</button><button type="button" id="admin-download-selected" class="hidden rounded-xl bg-[#2f6b5b] px-3 py-2 text-sm text-white">Download selected</button><button type="button" id="admin-delete-selected" class="hidden rounded-xl border border-red-200 px-3 py-2 text-sm text-red-700">Delete selected</button></div></div>${items.length ? `<form id="admin-bulk-media" action="/admin/events/${encodeURIComponent(event.code)}/media/bulk-trash" method="post"><input id="admin-media-ids" type="hidden" name="ids"><div class="grid grid-cols-2 gap-4 md:grid-cols-3">${cards(items, { selectable: true, deferredSelection: true })}</div></form>` : `<p class="py-16 text-center text-[#65756f]">${locale === "el" ? "Δεν υπάρχουν uploads." : "No uploads."}</p>`}</section></div></main>${adminMediaScript}`,
+        locale,
+      ),
       locale,
     ),
   );
@@ -78,11 +83,12 @@ adminEventRoutes.post("/admin/events/:code/upload", async (c) => {
       const objectKey = `${event.id}/${id}.${extension}`;
       const bytes = await file.arrayBuffer();
       const contentHash = await sha256Bytes(bytes);
+      const canonicalHash = await mediaCanonicalHash(bytes, file.type, contentHash);
       if (
         await c.env.DB.prepare(
-          "SELECT 1 FROM media WHERE event_id=? AND content_hash=? AND deleted_at IS NULL",
+          "SELECT 1 FROM media WHERE event_id=? AND deleted_at IS NULL AND (content_hash=? OR canonical_hash=?)",
         )
-          .bind(event.id, contentHash)
+          .bind(event.id, contentHash, canonicalHash)
           .first()
       )
         continue;
@@ -122,22 +128,31 @@ adminEventRoutes.post("/admin/events/:code/upload", async (c) => {
         },
       });
       uploadedKeys.push(objectKey);
-      await c.env.DB.prepare(
-        "INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,NULL)",
-      )
-        .bind(
-          id,
-          event.id,
-          objectKey,
-          file.type.startsWith("image/") ? "image" : "video",
-          file.type,
-          "Memboux Admin",
-          Date.now(),
-          capturedAt,
-          contentHash,
-          file.size,
+      try {
+        await c.env.DB.prepare(
+          "INSERT INTO media (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,content_hash,canonical_hash,size_bytes,title) VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL)",
         )
-        .run();
+          .bind(
+            id,
+            event.id,
+            objectKey,
+            file.type.startsWith("image/") ? "image" : "video",
+            file.type,
+            "Memboux Admin",
+            Date.now(),
+            capturedAt,
+            contentHash,
+            canonicalHash,
+            file.size,
+          )
+          .run();
+      } catch (error) {
+        if (!isCanonicalDuplicateConstraint(error)) throw error;
+        await c.env.MEDIA.delete(objectKey);
+        uploadedKeys.pop();
+        await releaseStorage(c.env.DB, reservation.ownerId, file.size);
+        reservedBytes -= file.size;
+      }
     }
   } catch (error) {
     if (uploadedKeys.length) {
@@ -167,6 +182,8 @@ adminEventRoutes.post("/admin/events/:code/upload", async (c) => {
       }),
     );
   }
+  if (c.req.header("Accept")?.includes("application/json"))
+    return c.json({ ok: true, uploaded: uploadedKeys.length });
   return c.redirect(`/admin/events/${event.code}`, 303);
 });
 

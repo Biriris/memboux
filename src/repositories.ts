@@ -1,4 +1,5 @@
 import type { Bindings, EventRow, MediaRow } from "./domain";
+import { mediaObjectKeys } from "./media-variants";
 import { purgeExpiredRateLimits } from "./rate-limit";
 import { reconcileQuotaUsage, releaseStorage } from "./quotas";
 
@@ -40,9 +41,25 @@ export async function permanentlyDeleteEvent(
   const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?")
     .bind(eventId)
     .all<{ object_key: string }>();
-  for (let index = 0; index < objects.results.length; index += 1000) {
+  const availableTables = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('event_covers','event_wedding_menus')",
+  ).all<{ name: string }>();
+  const tableNames = new Set(availableTables.results.map((table) => table.name));
+  const auxiliaryObjectKeys: string[] = [];
+  if (tableNames.has("event_covers")) {
+    const cover = await env.DB.prepare("SELECT object_key FROM event_covers WHERE event_id=?")
+      .bind(eventId).first<{ object_key: string }>();
+    if (cover?.object_key) auxiliaryObjectKeys.push(cover.object_key);
+  }
+  if (tableNames.has("event_wedding_menus")) {
+    const menu = await env.DB.prepare("SELECT object_key FROM event_wedding_menus WHERE event_id=?")
+      .bind(eventId).first<{ object_key: string }>();
+    if (menu?.object_key) auxiliaryObjectKeys.push(menu.object_key);
+  }
+  if (auxiliaryObjectKeys.length) await env.MEDIA.delete([...new Set(auxiliaryObjectKeys)]);
+  for (let index = 0; index < objects.results.length; index += 333) {
     await env.MEDIA.delete(
-      objects.results.slice(index, index + 1000).map((item) => item.object_key),
+      objects.results.slice(index, index + 333).flatMap((item) => mediaObjectKeys(item.object_key)),
     );
   }
   await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(eventId).run();
@@ -61,7 +78,7 @@ export async function purgeExpiredTrash(env: Bindings) {
     .all<{ id: string; object_key: string; size_bytes:number; owner_id:string|null }>();
 
   if (expiredMedia.results.length) {
-    await env.MEDIA.delete(expiredMedia.results.map((item) => item.object_key));
+    await env.MEDIA.delete(expiredMedia.results.flatMap((item) => mediaObjectKeys(item.object_key)));
     await env.DB.batch(expiredMedia.results.map((item) => env.DB.prepare("DELETE FROM media WHERE id=?").bind(item.id)));
     for(const item of expiredMedia.results)await releaseStorage(env.DB,item.owner_id,item.size_bytes);
   }

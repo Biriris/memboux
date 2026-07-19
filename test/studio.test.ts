@@ -7,6 +7,7 @@ import {
   trashProfessionalMedia,
   validProfessionalSlug,
 } from "../src/studio";
+import { studioDashboardHref } from "../src/routes/studio";
 
 beforeAll(async () => {
   await env.DB.batch([
@@ -49,6 +50,11 @@ beforeAll(async () => {
 });
 
 describe("professional studio permissions", () => {
+  it("always sends the Studio logo back to the account dashboard", () => {
+    expect(studioDashboardHref("en")).toBe("/en/account");
+    expect(studioDashboardHref("el")).toBe("/el/account");
+  });
+
   it("keeps studio pages and mutations private", async () => {
     const page = await SELF.fetch("https://memboux.com/studio?lang=en", { redirect: "manual" });
     expect(page.status).toBe(302);
