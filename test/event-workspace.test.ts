@@ -180,8 +180,8 @@ describe("event workspace", () => {
     expect(html).toContain("Ceremony &amp; reception");
     expect(html).toContain("Features &amp; estimate");
     expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=1`);
-    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=2`);
-    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=4`);
+    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=3`);
+    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=5`);
     expect(html).toContain('id="gallery"');
     expect(html).toContain('id="share"');
     expect(html).toContain('data-test="wedding-qr"');

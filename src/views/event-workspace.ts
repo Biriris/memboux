@@ -141,9 +141,9 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
     const target = item.href === "wedding-profile"
       ? `/dashboard/${event.code}/wedding/setup?lang=${locale}&step=1`
       : item.href === "wedding-schedule"
-        ? `/dashboard/${event.code}/wedding/setup?lang=${locale}&step=2`
+        ? `/dashboard/${event.code}/wedding/setup?lang=${locale}&step=3`
         : item.href === "wedding-features"
-          ? `/dashboard/${event.code}/wedding/setup?lang=${locale}&step=4`
+          ? `/dashboard/${event.code}/wedding/setup?lang=${locale}&step=5`
           : item.href ? `#${item.href}` : null;
     const inner = `<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${complete ? "bg-[#2f6b5b] text-white" : item.href ? "bg-[#e5efeb] text-[#255848]" : "bg-[#f1f3f2] text-[#87958f]"} text-sm font-bold">${complete ? "✓" : index + 1}</span><span class="min-w-0"><span class="block font-semibold text-[#183c33]">${esc(eventTemplateText(item.title, locale))}</span><span class="mt-1 block text-sm leading-5 text-[#687a74]">${esc(eventTemplateText(item.description, locale))}</span><span class="mt-3 inline-flex rounded-full ${complete ? "bg-emerald-50 text-emerald-800" : item.href ? "bg-[#edf4f1] text-[#2f6b5b]" : "bg-[#f3f4f3] text-[#77857f]"} px-2.5 py-1 text-[11px] font-bold uppercase tracking-[.08em]">${status}</span></span>`;
     return target ? `<li><a href="${esc(target)}" class="flex h-full gap-3 rounded-2xl border border-[#e0e9e5] p-4 transition hover:-translate-y-0.5 hover:border-[#adc9be] hover:shadow-sm">${inner}</a></li>` : `<li class="flex gap-3 rounded-2xl border border-dashed border-[#d9e1dd] bg-[#fafbfa] p-4">${inner}</li>`;

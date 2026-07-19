@@ -203,13 +203,18 @@ describe("media views", () => {
     expect(html).toContain("visibleImage.dataset.fullResolution='true'");
   });
 
-  it("packs cards into a responsive two-column brickwall", () => {
+  it("packs cards into a brickwall that follows the gallery's responsive columns", () => {
     const html = brickwallScript();
 
     expect(html).toContain("__membouxBrickwall");
     expect(html).toContain("getComputedStyle(grid).columnGap");
-    expect(html).toContain("columnWidth=(width-gap)/2");
-    expect(html).toContain("heights[0]<=heights[1]?0:1");
+    expect(html).toContain("breakpoints={sm:640,md:768,lg:1024,xl:1280,'2xl':1536}");
+    expect(html).toContain("responsiveColumns");
+    expect(html).toContain("/^grid-cols-(\\d+)$/");
+    expect(html).toContain("/^(sm|md|lg|xl|2xl):grid-cols-(\\d+)$/");
+    expect(html).toContain("columnWidth=(width-gap*(columns-1))/columns");
+    expect(html).toContain("heights.indexOf(Math.min(...heights))");
+    expect(html).toContain("brickwallColumns=String(columns)");
     expect(html).toContain("translate3d(");
     expect(html).toContain("ResizeObserver");
     expect(html).toContain("MutationObserver");

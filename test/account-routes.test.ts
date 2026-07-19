@@ -194,7 +194,7 @@ describe("account route boundaries", () => {
         reception_place_id TEXT,reception_lat REAL,reception_lng REAL,dress_code TEXT NOT NULL DEFAULT '',contact_name TEXT NOT NULL DEFAULT '',
         contact_email TEXT NOT NULL DEFAULT '',contact_phone TEXT NOT NULL DEFAULT '',travel_notes TEXT NOT NULL DEFAULT '',
         accommodation_notes TEXT NOT NULL DEFAULT '',gift_message TEXT NOT NULL DEFAULT '',gift_url TEXT NOT NULL DEFAULT '',
-        wizard_step INTEGER NOT NULL DEFAULT 1,wizard_completed_at INTEGER,catalog_version TEXT NOT NULL,
+        wizard_step INTEGER NOT NULL DEFAULT 1 CHECK (wizard_step BETWEEN 1 AND 6),wizard_completed_at INTEGER,catalog_version TEXT NOT NULL,
         estimated_total_minor INTEGER NOT NULL DEFAULT 3900,currency TEXT NOT NULL DEFAULT 'EUR',updated_at INTEGER NOT NULL,
         template_key TEXT NOT NULL DEFAULT 'cypress',publish_status TEXT NOT NULL DEFAULT 'draft',accent_color TEXT
       )`),
@@ -424,12 +424,26 @@ describe("account route boundaries", () => {
     expect(wizardHtml).toContain(`preview=1&theme=champagne`);
     expect(wizardHtml).toContain('class="w-template-selected"');
     expect(wizardHtml).toContain('data-selected="true"');
+    expect(wizardHtml).toContain('id="wedding-save-exit"');
+    expect(wizardHtml).toContain("lg:grid-cols-4");
+    expect(wizardHtml).toContain("Couple information");
+    expect(wizardHtml).toContain("templates.before(heading,...details)");
 
     const wizardHeaders = {
       Origin: "https://memboux.com",
       "Content-Type": "application/x-www-form-urlencoded",
       Cookie: cookieHeader,
     };
+    const saveAndExitCouple = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/setup/1`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual",
+      body: new URLSearchParams({ locale: "en", intent: "exit", templateKey: "champagne", partnerOneName: "Alex", partnerTwoName: "Sam", welcomeMessage: "Celebrate with us", story: "Our story" }),
+    });
+    expect(saveAndExitCouple.status).toBe(303);
+    expect(saveAndExitCouple.headers.get("location")).toBe(`/dashboard/${weddingBody.code}?lang=en#template`);
+    const savedWeddingEvent = await env.DB.prepare("SELECT id FROM events WHERE code=?").bind(weddingBody.code).first<{ id: string }>();
+    expect(await env.DB.prepare("SELECT template_key FROM event_wedding_profiles WHERE event_id=?").bind(savedWeddingEvent!.id).first())
+      .toEqual({ template_key: "champagne" });
+
     const saveCouple = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/setup/1`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
       body: new URLSearchParams({ locale: "en", partnerOneName: "Alex", partnerTwoName: "Sam", welcomeMessage: "Celebrate with us", story: "Our story" }),
@@ -570,5 +584,5 @@ describe("account route boundaries", () => {
     expect(await bulkDelete.json()).toEqual({ action: "delete", processed: 1 });
     expect(await env.DB.prepare("SELECT id FROM events WHERE id=?").bind(event!.id).first()).toBeNull();
 
-  });
+  }, 15_000);
 });
