@@ -22,6 +22,10 @@ import { invitationRoutes } from "./routes/invitations";
 import { experienceRoutes } from "./routes/experience";
 import { weddingRoutes } from "./routes/wedding";
 import { supportRoutes } from "./routes/support";
+import {
+  reconcileResumableUploads,
+  resumableUploadRoutes,
+} from "./routes/resumable-uploads";
 
 export { GoogleDriveBackupWorkflow } from "./google-drive";
 export { DropboxBackupWorkflow } from "./dropbox";
@@ -64,6 +68,7 @@ app.route("/", eventProfessionalRoutes);
 app.route("/", eventMediaRoutes);
 app.route("/", eventRoutes);
 app.route("/", galleryRoutes);
+app.route("/", resumableUploadRoutes);
 app.route("/", studioRoutes);
 app.route("/", backupRoutes);
 app.route("/", invitationRoutes);
@@ -84,11 +89,16 @@ export default {
     ctx.waitUntil(Promise.allSettled([
       purgeExpiredTrash(env),
       reconcileAutomaticCloudBackups(env),
+      reconcileResumableUploads(env),
     ]).then((results) => {
       results.forEach((result, index) => {
         if (result.status === "rejected") {
           console.error(JSON.stringify({
-            event: index === 0 ? "trash_reconciliation_failed" : "drive_reconciliation_failed",
+            event: index === 0
+              ? "trash_reconciliation_failed"
+              : index === 1
+                ? "drive_reconciliation_failed"
+                : "multipart_upload_reconciliation_failed",
             error: result.reason instanceof Error ? result.reason.message.slice(0, 300) : "unknown",
           }));
         }

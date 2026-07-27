@@ -95,7 +95,7 @@ describe("event workspace", () => {
     expect(html).toContain(`/api/gallery/${event.code}/media/`);
   });
 
-  it("keeps retained videos out of the event dashboard gallery", () => {
+  it("shows photos and videos in the event dashboard gallery", () => {
     const html = renderEventWorkspace({
       ...baseInput,
       membership: "owner",
@@ -140,8 +140,8 @@ describe("event workspace", () => {
     });
 
     expect(html).toContain("dashboard-photo");
-    expect(html).not.toContain("dashboard-video");
-    expect(html).not.toContain("Videos");
+    expect(html).toContain("dashboard-video");
+    expect(html).toContain("1 video");
     expect(html).toContain("1 photo");
     expect(html).toContain('data-gallery-photo-count="1"');
     expect(html).toContain("data-media-cover");

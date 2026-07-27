@@ -63,6 +63,18 @@ beforeAll(async () => {
     env.DB.prepare(`CREATE TABLE account_entitlements (user_id TEXT PRIMARY KEY,plan_key TEXT,storage_limit_bytes INTEGER,event_limit INTEGER,member_limit INTEGER,updated_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_event_usage (user_id TEXT PRIMARY KEY,active_events INTEGER,updated_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE multipart_upload_sessions (
+      id TEXT PRIMARY KEY,event_id TEXT,upload_id TEXT,object_key TEXT UNIQUE,media_id TEXT UNIQUE,
+      file_name TEXT,content_type TEXT,media_type TEXT,size_bytes INTEGER,part_size INTEGER,
+      total_parts INTEGER,client_fingerprint TEXT,uploaded_by TEXT,uploaded_by_user_id TEXT,
+      origin TEXT,reservation_owner_id TEXT,upload_consent_at INTEGER,upload_policy_version TEXT,
+      captured_at INTEGER,status TEXT,created_at INTEGER,updated_at INTEGER,expires_at INTEGER,
+      completed_at INTEGER,notified_at INTEGER
+    )`),
+    env.DB.prepare(`CREATE TABLE multipart_upload_parts (
+      session_id TEXT,part_number INTEGER,etag TEXT,size_bytes INTEGER,client_hash TEXT,
+      created_at INTEGER,PRIMARY KEY(session_id,part_number)
+    )`),
   ]);
 
   const insertEvent = env.DB.prepare(`INSERT INTO events (
@@ -138,7 +150,8 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain("Gallery");
     expect(html).toContain("2 photos");
     expect(html).toContain('data-gallery-photo-count="2"');
-    expect(html).not.toContain("public-legacy-video");
+    expect(html).toContain("public-legacy-video");
+    expect(html).toContain("1 video");
     expect(html).not.toContain("data-gallery-filter");
     expect(html).toContain("data-media-like");
     expect(html).toContain(`/gallery/${publicCode}/cover?v=${now}`);
@@ -147,9 +160,8 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain('id="guest-upload-confirmation"');
     expect(html).toContain("Privacy and confirmation");
     expect(html).not.toContain('<summary class="cursor-pointer font-semibold">Privacy and confirmation</summary>');
-    expect(html).toContain("Up to 100 photos");
-    expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif"');
-    expect(html).not.toContain('accept="image/jpeg,image/png,image/webp,image/gif,video/mp4');
+    expect(html).toContain("Up to 100 photos or videos");
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif,video/mp4');
   });
 
   it("serves the selected cover through the gallery access boundary", async () => {
@@ -210,7 +222,7 @@ describe("gallery, upload, and media routes", () => {
     expect(response.status).toBe(200);
     expect(html).toContain("Official album");
     expect(html).toContain("official-stream-media");
-    expect(html).not.toContain("public-legacy-video");
+    expect(html).toContain("public-legacy-video");
   });
 
   it("expires galleries according to the event expiration", async () => {
@@ -316,7 +328,7 @@ describe("gallery, upload, and media routes", () => {
     expect(fileResponse.status).toBe(400);
   });
 
-  it("rejects new video uploads while the retained video feature is disabled", async () => {
+  it("accepts video uploads", async () => {
     const form = new FormData();
     form.set("locale", "en");
     form.set("upload_confirmation", "accepted");
@@ -325,9 +337,111 @@ describe("gallery, upload, and media routes", () => {
       method: "POST",
       headers: { Origin: "https://memboux.com", "CF-Connecting-IP": "198.51.100.87" },
       body: form,
+      redirect: "manual",
     });
-    expect(response.status).toBe(415);
-    expect(await response.text()).toContain("Only JPEG, PNG, WebP, and GIF photos");
+    expect(response.status).toBe(303);
+    const stored = await env.DB.prepare(
+      "SELECT media_type,content_type FROM media WHERE event_id=? AND content_type='video/mp4' ORDER BY uploaded_at DESC LIMIT 1",
+    ).bind(publicEventId).first<{ media_type: string; content_type: string }>();
+    expect(stored).toEqual({ media_type: "video", content_type: "video/mp4" });
+  });
+
+  it("resumes a multipart video and stores it only after every part completes", async () => {
+    const fingerprint = "a".repeat(64);
+    const metadata = {
+      filename: "long-event-video.mp4",
+      contentType: "video/mp4",
+      size: 6,
+      lastModified: now,
+      fingerprint,
+      origin: "guest",
+      name: "Resumable Guest",
+      consent: "accepted",
+      locale: "en",
+    };
+    const start = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.201",
+      },
+      body: JSON.stringify(metadata),
+    });
+    expect(start.status).toBe(201);
+    const session = await start.json<{
+      sessionId: string;
+      token: string;
+      totalParts: number;
+      uploadedParts: unknown[];
+    }>();
+    expect(session.totalParts).toBe(1);
+    expect(session.uploadedParts).toEqual([]);
+
+    const resume = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.201",
+      },
+      body: JSON.stringify(metadata),
+    });
+    expect(resume.status).toBe(200);
+    expect((await resume.json<{ sessionId: string }>()).sessionId).toBe(session.sessionId);
+
+    const partBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
+    const uploadPart = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/parts/1`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": session.token,
+          "Part-Fingerprint": "b".repeat(64),
+          "Content-Type": "application/octet-stream",
+        },
+        body: partBytes,
+      },
+    );
+    expect(uploadPart.status).toBe(200);
+
+    const complete = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/complete`,
+      {
+        method: "POST",
+        headers: { Origin: "https://memboux.com", "Upload-Token": session.token },
+      },
+    );
+    expect(complete.status).toBe(200);
+    expect(await complete.json()).toMatchObject({ ok: true, uploaded: 1, duplicate: false });
+
+    const finalize = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart/finalize`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", "Content-Type": "application/json" },
+      body: JSON.stringify({ sessions: [{ id: session.sessionId, token: session.token }] }),
+    });
+    expect(finalize.status).toBe(200);
+    expect(await finalize.json()).toMatchObject({ ok: true, uploaded: 1 });
+    const stored = await env.DB.prepare(
+      "SELECT media_type,content_type,size_bytes,uploaded_by FROM media WHERE event_id=? AND uploaded_by='Resumable Guest'",
+    ).bind(publicEventId).first();
+    expect(stored).toEqual({
+      media_type: "video",
+      content_type: "video/mp4",
+      size_bytes: 6,
+      uploaded_by: "Resumable Guest",
+    });
+  });
+
+  it("serves byte ranges for efficient video playback and seeking", async () => {
+    const response = await SELF.fetch("https://memboux.com/media/public-legacy-video", {
+      headers: { Range: "bytes=0-5" },
+    });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("content-range")).toBe("bytes 0-5/12");
+    expect(new TextDecoder().decode(await response.arrayBuffer())).toBe("legacy");
   });
 
   it("stores versioned consent evidence for a guest upload", async () => {

@@ -105,11 +105,13 @@ describe("media views", () => {
     const english = galleryFilterControls(items, "guest", "en");
     const script = galleryFilterScript(items, "guest");
     expect(greek).toContain("1 φωτογραφία");
+    expect(greek).toContain("1 βίντεο");
     expect(english).toContain("1 photo");
+    expect(english).toContain("1 video");
     expect(english).toContain('data-gallery-photo-count="1"');
     expect(english).not.toContain("All");
     expect(english).not.toContain("Photos");
-    expect(english).not.toContain("Videos");
+    expect(english).toContain('data-gallery-video-count="1"');
     expect(english).not.toContain("data-gallery-filter");
     expect(english).toContain('data-gallery-sort="guest"');
     expect(english).toContain("Most liked");
@@ -184,10 +186,12 @@ describe("media views", () => {
     expect(html).toContain("touchmove");
     expect(html).toContain("translateX('+dx+'px)");
     expect(html).toContain("native-save-image");
-    expect(html).toContain('draggable="true"');
-    expect(html).toContain("if(e.target===dialog||e.target===stage)dialog.close()");
+    expect(html).toContain("image.draggable=true");
+    expect(html).toContain("if(event.target===dialog||event.target===stage)dialog.close()");
     expect(html).toContain("ArrowLeft");
     expect(html).toContain("ArrowRight");
+    const source = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
+    expect(() => new Function(source)).not.toThrow();
   });
 
   it("likes an open photo with a mobile double tap", () => {
@@ -199,8 +203,9 @@ describe("media views", () => {
     expect(html).toContain("likeButton.click()");
     expect(html).toContain("lightbox-heart-pop");
     expect(html).toContain("{passive:false}");
-    expect(html).toContain("full=item.dataset.full||src");
-    expect(html).toContain("visibleImage.dataset.fullResolution='true'");
+    expect(html).toContain("original=item.dataset.original||item.dataset.full||src");
+    expect(html).toContain('id="lightbox-download"');
+    expect(html).not.toContain("fullResolution");
   });
 
   it("packs cards into a brickwall that follows the gallery's responsive columns", () => {

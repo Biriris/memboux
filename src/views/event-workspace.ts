@@ -45,8 +45,8 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
   const el = locale === "el";
   const canManageMedia = membership === "owner" || membership === "editor";
   const canManageEvent = membership === "owner";
-  const photoItems = items.filter((item) => item.media_type === "image");
-  const imageCount = photoItems.length;
+  const photoItems = items;
+  const imageCount = items.filter((item) => item.media_type === "image").length;
   const roleLabel = membership === "owner" ? (el ? "Ιδιοκτήτης" : "Owner") : membership === "editor" ? (el ? "Διαχειριστής" : "Manager") : (el ? "Θεατής" : "Viewer");
   const currentEventType = normalizeEventType(event.event_type);
   const previewLabel = currentEventType === "wedding" ? (el ? "Preview website" : "Preview website") : "Preview album";

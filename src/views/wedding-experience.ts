@@ -42,8 +42,8 @@ const tr = (locale: Locale, values: Record<Locale, string>) => values[locale];
 
 export function renderWeddingExperience(input: WeddingExperienceInput) {
   const { code, eventName, locale, guestUrl, guestQrSvg, guestbookEntries, settings } = input;
-  const guestItems = input.guestItems.filter((item) => item.media_type === "image");
-  const officialItems = input.officialItems.filter((item) => item.media_type === "image");
+  const guestItems = input.guestItems;
+  const officialItems = input.officialItems;
   const selectText = tr(locale, { en: "Select", el: "Επιλογή", fr: "Sélectionner", de: "Auswählen", es: "Seleccionar", it: "Seleziona" });
   const cancelText = tr(locale, { en: "Cancel", el: "Ακύρωση", fr: "Annuler", de: "Abbrechen", es: "Cancelar", it: "Annulla" });
   const downloadText = tr(locale, { en: "Download selected", el: "Λήψη επιλεγμένων", fr: "Télécharger la sélection", de: "Auswahl herunterladen", es: "Descargar selección", it: "Scarica selezionate" });

@@ -161,7 +161,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     c.env.DB.prepare(
       `SELECT COUNT(*) total FROM official_album_items o JOIN media m ON m.id=o.media_id
-       WHERE o.event_id=? AND m.media_type='image' AND m.deleted_at IS NULL AND m.reported_at IS NULL`,
+      WHERE o.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL`,
     ).bind(event.id).first<{ total: number }>(),
     QRCode.toString(guestUrl, qrOptions),
     c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?")
@@ -177,7 +177,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
       .catch(() => null),
   ]);
   const items = allMedia.filter((item) => item.origin !== "official");
-  const photoItems = items.filter((item) => item.media_type === "image");
+  const photoItems = items;
   const officialCount = officialResult?.total ?? 0;
   const guestQrSvg = guestQrRaw.replace("<svg", '<svg class="block h-auto w-full max-w-full"');
   const selectionScript = bulkSelectionScript({
@@ -298,10 +298,10 @@ galleryRoutes.get("/gallery/:code/official", async (c) => {
        WHERE a.event_id=? AND a.status='accepted' ORDER BY a.accepted_at DESC LIMIT 1`,
     ).bind(event.id).first<{ business_name: string }>().catch(() => null),
   ]);
-  const items = officialItems.filter((item) => item.media_type === "image");
+  const items = officialItems;
   const featured = items[0];
   const featuredMedia = featured
-    ? `<button type="button" class="lightbox-item group block h-full min-h-[20rem] w-full overflow-hidden" data-src="/media/${encodeURIComponent(featured.id)}" data-type="${featured.media_type}" data-uploader="${esc(featured.uploaded_by)}"${featured.media_type === "image" ? ` data-media-id="${esc(featured.id)}" data-like-count="${Number(featured.like_count ?? 0)}" data-liked="${Boolean(featured.viewer_liked)}"` : ""}>${featured.media_type === "image" ? `<img src="/media/${encodeURIComponent(featured.id)}" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]">` : `<video src="/media/${encodeURIComponent(featured.id)}" muted playsinline preload="metadata" class="h-full w-full object-cover"></video>`}</button>`
+    ? `<button type="button" class="lightbox-item group block h-full min-h-[20rem] w-full overflow-hidden" data-src="/media/${encodeURIComponent(featured.id)}${featured.media_type === "image" ? "?variant=preview" : ""}" data-full="/media/${encodeURIComponent(featured.id)}" data-original="/media/${encodeURIComponent(featured.id)}?download=1" data-type="${featured.media_type}" data-uploader="${esc(featured.uploaded_by)}"${featured.media_type === "image" ? ` data-media-id="${esc(featured.id)}" data-like-count="${Number(featured.like_count ?? 0)}" data-liked="${Boolean(featured.viewer_liked)}"` : ""}>${featured.media_type === "image" ? `<img src="/media/${encodeURIComponent(featured.id)}?variant=preview" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]">` : `<video src="/media/${encodeURIComponent(featured.id)}" muted playsinline preload="metadata" class="h-full w-full object-cover"></video>`}</button>`
     : `<div class="flex min-h-[20rem] items-center justify-center bg-gradient-to-br from-[#2a4139] via-[#2b6253] to-[#b5d0c5]"><img src="/brand/memboux-icon.png" alt="" class="h-28 w-28 opacity-25 brightness-0 invert"></div>`;
   return c.html(
     page(
@@ -505,13 +505,14 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
 
 galleryRoutes.get("/media/:id", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT m.object_key,m.content_type,m.media_type,m.captured_at,m.uploaded_at,m.event_id,e.code,e.gallery_pin_hash FROM media m JOIN events e ON e.id=m.event_id WHERE m.id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL AND e.deleted_at IS NULL",
+    "SELECT m.object_key,m.content_type,m.media_type,m.size_bytes,m.captured_at,m.uploaded_at,m.event_id,e.code,e.gallery_pin_hash FROM media m JOIN events e ON e.id=m.event_id WHERE m.id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL AND e.deleted_at IS NULL",
   )
     .bind(c.req.param("id"))
     .first<{
       object_key: string;
       content_type: string;
       media_type: "image" | "video";
+      size_bytes: number;
       captured_at: number | null;
       uploaded_at: number;
       event_id: string;
@@ -548,7 +549,11 @@ galleryRoutes.get("/media/:id", async (c) => {
       }));
     }
   }
-  object ??= await c.env.MEDIA.get(row.object_key);
+  const rangeRequested = !variant && c.req.header("Range");
+  object ??= await c.env.MEDIA.get(
+    row.object_key,
+    rangeRequested ? { range: c.req.raw.headers } : undefined,
+  );
   if (!object) return c.text("Το αρχείο δεν βρέθηκε.", 404);
 
   const headers = new Headers({
@@ -556,7 +561,25 @@ galleryRoutes.get("/media/:id", async (c) => {
     "Cache-Control": transformed ? "private, max-age=31536000, immutable" : "private, no-store",
     ETag: object.httpEtag,
     "X-Content-Type-Options": "nosniff",
+    "Accept-Ranges": "bytes",
   });
+  let status: 200 | 206 = 200;
+  if (rangeRequested && object.range) {
+    const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeRequested.trim());
+    if (match) {
+      const [, startText, endText] = match;
+      const suffixLength = !startText && endText ? Number(endText) : null;
+      const offset = suffixLength === null
+        ? Number(startText)
+        : Math.max(0, row.size_bytes - suffixLength);
+      const requestedEnd = endText && startText ? Number(endText) : row.size_bytes - 1;
+      const end = Math.min(row.size_bytes - 1, requestedEnd);
+      const length = Math.max(0, end - offset + 1);
+      headers.set("Content-Range", `bytes ${offset}-${end}/${row.size_bytes}`);
+      headers.set("Content-Length", String(length));
+      status = 206;
+    }
+  }
 
   if (c.req.query("download") === "1") {
     const extension =
@@ -566,5 +589,5 @@ galleryRoutes.get("/media/:id", async (c) => {
     headers.set("Content-Disposition", `attachment; filename="memboux-${date}.${extension}"`);
   }
 
-  return new Response(object.body, { headers });
+  return new Response(object.body, { headers, status });
 });
