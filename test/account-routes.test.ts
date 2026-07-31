@@ -512,6 +512,19 @@ describe("account route boundaries", () => {
     expect(stored?.gallery_pin_hash).toBeTruthy();
     expect(stored?.gallery_pin_hash).not.toBe("4826");
 
+    const pinRedirect = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookieHeader,
+      },
+      body: new URLSearchParams({ locale: "en", action: "set", pin: "4826" }),
+      redirect: "manual",
+    });
+    expect(pinRedirect.status).toBe(303);
+    expect(pinRedirect.headers.get("location")).toBe(`/dashboard/${event!.code}?lang=en#share`);
+
     const removePin = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
       method: "POST",
       headers: pinHeaders,

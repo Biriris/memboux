@@ -265,7 +265,7 @@ eventRoutes.post("/api/account/events/:code/privacy", async (c) => {
     c.header("Cache-Control", "private, no-store");
     return c.json({ enabled: action !== "remove" });
   }
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#settings`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#share`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/removal/:requestId/:action{approve|dismiss}", async (c) => {

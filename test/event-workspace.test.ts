@@ -39,13 +39,23 @@ const baseInput = {
 };
 
 describe("event workspace", () => {
-  it("orders the owner workspace without a duplicate event details section", () => {
+  it("organizes the owner workspace with role-aware navigation and settings", () => {
     const html = renderEventWorkspace({ ...baseInput, membership: "owner" });
 
+    expect(html).toContain("data-event-workspace-shell");
+    expect(html).toContain('data-event-role="owner"');
+    expect(html).toContain('data-workspace-section-link="overview"');
+    expect(html).toContain('href="#template"');
+    expect(html).toContain('href="#gallery"');
+    expect(html).toContain('href="#engagement"');
+    expect(html).toContain('href="#share"');
+    expect(html).toContain('href="#people"');
+    expect(html).toContain('href="#event-access"');
+    expect(html).toContain('href="#settings"');
     expect(html).toContain('id="gallery"');
     expect(html).toContain('id="share"');
-    expect(html).not.toContain('id="settings"');
-    expect(html).not.toContain("Event details");
+    expect(html).toContain('id="settings"');
+    expect(html).toContain("Event details");
     expect(html).toContain('id="people"');
     expect(html).toContain('id="danger"');
     expect(html).toContain('data-test="guest-qr"');
@@ -84,11 +94,14 @@ describe("event workspace", () => {
     expect(html).toContain('name="locationLat"');
     expect(html).toContain('data-location-map-open');
     expect(html).toContain("actions.before(editor)");
-    expect(html).not.toContain("Privacy and PIN");
+    expect(html).toContain("Guest gallery protection");
+    expect(html).toContain(`/api/account/events/${event.code}/privacy`);
+    expect(html.indexOf('id="gallery"')).toBeLessThan(html.indexOf('id="engagement"'));
     expect(html.indexOf('id="engagement"')).toBeLessThan(html.indexOf('id="share"'));
-    expect(html.indexOf('id="share"')).toBeLessThan(html.indexOf('id="gallery"'));
-    expect(html.indexOf('id="gallery"')).toBeLessThan(html.indexOf('id="people"'));
-    expect(html.indexOf('id="people"')).toBeLessThan(html.indexOf('id="danger"'));
+    expect(html.indexOf('id="share"')).toBeLessThan(html.indexOf('id="people"'));
+    expect(html.indexOf('id="people"')).toBeLessThan(html.indexOf('id="event-access"'));
+    expect(html.indexOf('id="event-access"')).toBeLessThan(html.indexOf('id="settings"'));
+    expect(html.indexOf('id="settings"')).toBeLessThan(html.indexOf('id="danger"'));
     const header = html.slice(0, html.indexOf("</header>"));
     expect(header).not.toContain("Preview album");
     expect(header).not.toContain("data-event-pin-toggle");
@@ -157,6 +170,16 @@ describe("event workspace", () => {
   it("keeps owner-only controls hidden from viewers", () => {
     const html = renderEventWorkspace({ ...baseInput, membership: "viewer", members: [] });
 
+    expect(html).toContain("data-event-workspace-shell");
+    expect(html).toContain('data-event-role="viewer"');
+    expect(html).toContain('data-workspace-section-link="overview"');
+    expect(html).toContain('data-workspace-section-link="gallery"');
+    expect(html).toContain('data-workspace-section-link="share"');
+    expect(html).not.toContain('data-workspace-section-link="template"');
+    expect(html).not.toContain('data-workspace-section-link="engagement"');
+    expect(html).not.toContain('data-workspace-section-link="people"');
+    expect(html).not.toContain('data-workspace-section-link="event-access"');
+    expect(html).not.toContain('data-workspace-section-link="settings"');
     expect(html).toContain('id="gallery"');
     expect(html).toContain("Download selected");
     expect(html).toContain("Trip &amp; vacation");
@@ -167,6 +190,19 @@ describe("event workspace", () => {
     expect(html).not.toContain('id="danger"');
     expect(html).not.toContain("Delete selected");
     expect(html).not.toContain("data-media-cover");
+  });
+
+  it("keeps editor navigation focused on viewing, sharing and media management", () => {
+    const html = renderEventWorkspace({ ...baseInput, membership: "editor", members: [] });
+
+    expect(html).toContain('data-event-role="editor"');
+    expect(html).toContain('data-workspace-section-link="overview"');
+    expect(html).toContain('data-workspace-section-link="gallery"');
+    expect(html).toContain('data-workspace-section-link="share"');
+    expect(html).not.toContain('data-workspace-section-link="template"');
+    expect(html).not.toContain('data-workspace-section-link="people"');
+    expect(html).not.toContain('data-workspace-section-link="settings"');
+    expect(html).toContain('id="owner-delete-selected"');
   });
 
   it("replaces original-download actions with an upgrade path during an enforced trial", () => {

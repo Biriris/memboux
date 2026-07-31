@@ -56,6 +56,12 @@ The code has recognizable layers, but their boundaries are not consistently enfo
 - **Repositories:** [`repositories.ts`](../../src/repositories.ts) contains event/media retention helpers, while [`support-repository.ts`](../../src/support-repository.ts) is a class-based support data-access boundary. Most other modules and routes issue D1 SQL directly.
 - **Infrastructure adapters:** [`auth.ts`](../../src/auth.ts) for Better Auth/Resend, [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), [`places.ts`](../../src/places.ts), R2 calls in media/support modules, and Workers AI in [`support-ai.ts`](../../src/support-ai.ts).
 
+## Authenticated event workspace
+
+`GET /dashboard/:code` composes the event workspace in [`src/routes/events.ts`](../../src/routes/events.ts). [`src/views/event-workspace.ts`](../../src/views/event-workspace.ts) renders the event-specific sections, while [`src/views/event-workspace-shell.ts`](../../src/views/event-workspace-shell.ts) owns the responsive workspace navigation.
+
+The navigation is derived from the verified event membership role without changing the capability model: owners receive setup, engagement, people, lifecycle, and settings links; editors and viewers receive only overview, media, and sharing links. Existing section fragments remain stable for backward compatibility. The shell exposes `data-workspace-section-link` attributes and emits a local `memboux:workspace-navigation` browser event when a section link is selected. No analytics provider consumes that event in this repository.
+
 ## State and external systems
 
 - D1 is authoritative for users, sessions, events, membership, media metadata, quotas, lifecycle state, commerce drafts, support, backup state, and audit records. See [Database schema](DATABASE_SCHEMA.md).
