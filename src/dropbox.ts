@@ -1,4 +1,5 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { authorizeCloudBackup } from "./cloud-backup-access";
 import type { Bindings, CloudConnectionRow, EventBackupItemRow, EventBackupRow, MediaRow } from "./domain";
 import { driveExportFilename } from "./google-drive";
 
@@ -145,22 +146,15 @@ export type DropboxBackupQueueResult =
   | { status: "queued"; backupId: string }
   | { status: "active"; backupId: string }
   | { status: "up_to_date"; backupId: null }
-  | { status: "not_connected" | "not_member" | "not_configured"; backupId: null };
+  | { status: "not_connected" | "not_member" | "not_configured" | "originals_locked"; backupId: null };
 
 export async function prepareDropboxBackup(
   db: D1Database,
   eventId: string,
   userId: string,
 ): Promise<DropboxBackupQueueResult> {
-  const connection = await db.prepare(
-    "SELECT 1 FROM cloud_connections WHERE user_id=? AND provider='dropbox'",
-  ).bind(userId).first();
-  if (!connection) return { status: "not_connected", backupId: null };
-  const membership = await db.prepare(
-    `SELECT 1 FROM event_members em JOIN events e ON e.id=em.event_id
-     WHERE em.event_id=? AND em.user_id=? AND e.deleted_at IS NULL`,
-  ).bind(eventId, userId).first();
-  if (!membership) return { status: "not_member", backupId: null };
+  const authorization = await authorizeCloudBackup(db, eventId, userId, "dropbox");
+  if (!authorization.allowed) return { status: authorization.reason, backupId: null };
   const active = await db.prepare(
     "SELECT id FROM event_backups WHERE event_id=? AND user_id=? AND provider='dropbox' AND status IN ('queued','running')",
   ).bind(eventId, userId).first<{ id: string }>();
@@ -356,18 +350,29 @@ async function uploadDropboxItem(env: Bindings, backupId: string, mediaId: strin
 export class DropboxBackupWorkflow extends WorkflowEntrypoint<Bindings, { backupId: string }> {
   async run(event: WorkflowEvent<{ backupId: string }>, step: WorkflowStep) {
     const snapshot = await step.do("load Dropbox backup snapshot", async () => {
-      const backup = await this.env.DB.prepare("SELECT id FROM event_backups WHERE id=? AND provider='dropbox'")
-        .bind(event.payload.backupId).first<{ id: string }>();
+      const backup = await this.env.DB.prepare("SELECT id,event_id,user_id FROM event_backups WHERE id=? AND provider='dropbox'")
+        .bind(event.payload.backupId).first<{ id: string; event_id: string; user_id: string }>();
       if (!backup) throw new Error("Backup no longer exists");
       const now = Date.now();
+      const authorization = await authorizeCloudBackup(
+        this.env.DB, backup.event_id, backup.user_id, "dropbox",
+      );
+      if (!authorization.allowed) {
+        await this.env.DB.prepare(
+          "UPDATE event_backups SET status='failed',error_message=?,completed_at=?,updated_at=? WHERE id=?",
+        ).bind(`Cloud backup authorization failed: ${authorization.reason}`, now, now, backup.id).run();
+        return { backupId: backup.id, authorized: false, items: [] as { media_id: string; sequence_no: number }[] };
+      }
       await this.env.DB.prepare(
         "UPDATE event_backups SET status='running',started_at=COALESCE(started_at,?),updated_at=? WHERE id=? AND status='queued'",
       ).bind(now, now, backup.id).run();
       const items = await this.env.DB.prepare(
         "SELECT media_id,sequence_no FROM event_backup_items WHERE backup_id=? ORDER BY sequence_no",
       ).bind(backup.id).all<{ media_id: string; sequence_no: number }>();
-      return { backupId: backup.id, items: items.results };
+      return { backupId: backup.id, authorized: true, items: items.results };
     });
+
+    if (!snapshot.authorized) return { status: "failed", backupId: snapshot.backupId };
 
     try {
       await step.do(

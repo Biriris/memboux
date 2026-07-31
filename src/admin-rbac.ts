@@ -30,7 +30,8 @@ export type AdminPermission =
   | "moderation.write"
   | "privacy.read"
   | "privacy.write"
-  | "system.read";
+  | "system.read"
+  | "system.write";
 
 export type AdminIdentity = {
   memberId: string;
@@ -58,7 +59,7 @@ const allPermissions: AdminPermission[] = [
   "team.manage", "users.read", "users.write", "users.delete",
   "events.read", "events.write", "events.delete", "support.read",
   "support.write", "billing.read", "billing.write", "moderation.read",
-  "moderation.write", "privacy.read", "privacy.write", "system.read",
+  "moderation.write", "privacy.read", "privacy.write", "system.read", "system.write",
 ];
 
 export const rolePermissions: Record<AdminRole, readonly AdminPermission[]> = {
@@ -123,7 +124,7 @@ export function permissionForAdminRequest(path: string, method: string): AdminPe
   if (path.startsWith("/admin/accounts")) return write ? "billing.write" : "billing.read";
   if (path.startsWith("/admin/reported") || path.startsWith("/admin/trash")) return write ? "moderation.write" : "moderation.read";
   if (path.startsWith("/admin/privacy-requests")) return write ? "privacy.write" : "privacy.read";
-  if (path.startsWith("/admin/readiness")) return "system.read";
+  if (path.startsWith("/admin/readiness")) return write ? "system.write" : "system.read";
   if (path.startsWith("/admin/users")) {
     if (/\/(entitlement|payments|subscription|quick-plan|quick-subscription)$/.test(path)) {
       return write ? "billing.write" : "billing.read";

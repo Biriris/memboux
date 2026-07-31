@@ -9,9 +9,16 @@ beforeEach(async () => {
     env.DB.prepare("DROP TABLE IF EXISTS cloud_connections"),
     env.DB.prepare("DROP TABLE IF EXISTS media"),
     env.DB.prepare("DROP TABLE IF EXISTS event_members"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_access"),
     env.DB.prepare("DROP TABLE IF EXISTS events"),
     env.DB.prepare("CREATE TABLE events (id TEXT PRIMARY KEY,deleted_at INTEGER)"),
     env.DB.prepare("CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT)"),
+    env.DB.prepare(`CREATE TABLE event_access (
+      event_id TEXT PRIMARY KEY,access_state TEXT,enforcement_state TEXT,media_limit INTEGER,
+      media_uploads_consumed INTEGER,guest_access_enabled INTEGER,guest_uploads_enabled INTEGER,
+      original_downloads_enabled INTEGER,trial_started_at INTEGER,trial_ends_at INTEGER,
+      unlocked_at INTEGER,expires_at INTEGER,created_at INTEGER,updated_at INTEGER
+    )`),
     env.DB.prepare(`CREATE TABLE media (
       id TEXT PRIMARY KEY,event_id TEXT,object_key TEXT,content_type TEXT,size_bytes INTEGER,
       captured_at INTEGER,uploaded_at INTEGER,deleted_at INTEGER,reported_at INTEGER
@@ -80,5 +87,17 @@ describe("automatic Google Drive backup preparation", () => {
     await env.DB.prepare("INSERT INTO cloud_connections VALUES (?,?)").bind("viewer-1", "google_drive").run();
 
     expect((await prepareGoogleDriveBackup(env.DB, "event-1", "viewer-1")).status).toBe("queued");
+  });
+
+  it("does not export originals while event access keeps them locked", async () => {
+    await env.DB.prepare(
+      `INSERT INTO event_access VALUES (
+        'event-1','trial','enforced',20,0,1,1,0,1,2,NULL,NULL,1,1
+      )`,
+    ).run();
+
+    expect((await prepareGoogleDriveBackup(env.DB, "event-1", "owner-1")).status)
+      .toBe("originals_locked");
+    expect(await env.DB.prepare("SELECT id FROM event_backups").first()).toBeNull();
   });
 });

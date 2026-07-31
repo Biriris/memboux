@@ -21,6 +21,9 @@ describe("admin RBAC", () => {
     expect(rolePermissions.finance).toContain("billing.write");
     expect(rolePermissions.finance).toContain("support.write");
     expect(rolePermissions.analyst).not.toContain("users.write");
+    expect(rolePermissions.analyst).not.toContain("system.write");
+    expect(rolePermissions.operations).not.toContain("system.write");
+    expect(rolePermissions.administrator).toContain("system.write");
     expect(rolePermissions.moderator).toContain("moderation.write");
     expect(rolePermissions.moderator).toContain("support.write");
   });
@@ -34,7 +37,9 @@ describe("admin RBAC", () => {
     expect(permissionForAdminRequest("/admin/accounts/user", "POST")).toBe("billing.write");
     expect(permissionForAdminRequest("/admin/users/user-1/delete", "POST")).toBe("users.delete");
     expect(permissionForAdminRequest("/admin/events/ABC/delete", "POST")).toBe("events.delete");
-    expect(permissionForAdminRequest("/admin/readiness/test-email", "POST")).toBe("system.read");
+    expect(permissionForAdminRequest("/admin/readiness", "GET")).toBe("system.read");
+    expect(permissionForAdminRequest("/admin/readiness/test-email", "POST")).toBe("system.write");
+    expect(permissionForAdminRequest("/admin/readiness/test-alias", "POST")).toBe("system.write");
   });
 
   it("rejects unknown roles", () => {

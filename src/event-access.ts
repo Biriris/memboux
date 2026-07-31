@@ -75,6 +75,18 @@ export function eventAccessAllows(access: EventAccessRow, capability: "guest_acc
   return access.original_downloads_enabled === 1;
 }
 
+export function eventOriginalExportsEnabled(
+  access: Pick<EventAccessRow, "access_state" | "enforcement_state" | "original_downloads_enabled">,
+) {
+  if (access.enforcement_state === "observe" || access.access_state === "unlocked") return true;
+  if (access.access_state === "expired") return false;
+  return access.original_downloads_enabled === 1;
+}
+
+export async function eventOriginalExportsAllowed(db: D1Database, eventId: string) {
+  return eventOriginalExportsEnabled(await getEventAccess(db, eventId));
+}
+
 export async function eventMediaUsage(db: D1Database, eventId: string) {
   const [access, gallery, wedding, pending] = await Promise.all([
     db.prepare("SELECT media_uploads_consumed FROM event_access WHERE event_id=?")

@@ -21,6 +21,7 @@ import {
   randomOAuthState,
 } from "../google-drive";
 import { normalizeLocale, type Locale } from "../i18n";
+import { eventOriginalExportsEnabled } from "../event-access";
 import { formatBytes } from "../quotas";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
@@ -45,6 +46,9 @@ type BackupEventRow = {
   backup_created_at: number | null;
   provider_folder_id: string | null;
   error_message: string | null;
+  access_state: "preview" | "trial" | "unlocked" | "expired";
+  enforcement_state: "observe" | "enforced";
+  original_downloads_enabled: 0 | 1;
 };
 
 const labels = (locale: Locale) => locale === "el" ? {
@@ -66,6 +70,7 @@ const labels = (locale: Locale) => locale === "el" ? {
   empty: "Δεν υπάρχουν ενεργά αρχεία σε αυτό το event.",
   openDrive: "Άνοιγμα στο Drive",
   privacy: "Τα πρωτότυπα παραμένουν ασφαλή στο Memboux. Το Drive λειτουργεί ως δεύτερο, αυτόματο προσωπικό αντίγραφο και η αποσύνδεση σταματά τους νέους συγχρονισμούς.",
+  originalsLocked: "Το cloud backup θα ενεργοποιηθεί όταν ξεκλειδωθεί η εξαγωγή πρωτοτύπων για αυτό το event.",
 } : {
   title: "Cloud backups",
   eyebrow: "Cloud archive",
@@ -85,6 +90,7 @@ const labels = (locale: Locale) => locale === "el" ? {
   empty: "This event has no active files.",
   openDrive: "Open in Drive",
   privacy: "Originals remain safely stored in Memboux. Drive is a second, automatic personal copy; disconnecting stops future syncs.",
+  originalsLocked: "Cloud backup becomes available when original export is unlocked for this event.",
 };
 
 const dropboxIcon = () => `<svg aria-hidden="true" viewBox="0 0 24 24" class="h-6 w-6" fill="#0061ff"><path d="M6 2 0 6l6 4 6-4-6-4Zm12 0-6 4 6 4 6-4-6-4ZM0 14l6 4 6-4-6-4-6 4Zm18-4-6 4 6 4 6-4-6-4Zm-12 9.3 6 3.7 6-3.7-6-3.8-6 3.8Z"/></svg>`;
@@ -125,31 +131,37 @@ backupRoutes.get("/:locale{el|en|fr|de|es|it}/backups", async (c) => {
     `SELECT e.id,e.code,e.eventName,e.event_start_date,e.event_end_date,
       COUNT(m.id) media_count,COALESCE(SUM(m.size_bytes),0) media_bytes,
       b.id backup_id,b.status backup_status,b.completed_items,b.total_items,b.completed_bytes,
-      b.created_at backup_created_at,b.provider_folder_id,b.error_message
+      b.created_at backup_created_at,b.provider_folder_id,b.error_message,
+      COALESCE(a.access_state,'unlocked') access_state,
+      COALESCE(a.enforcement_state,'observe') enforcement_state,
+      COALESCE(a.original_downloads_enabled,1) original_downloads_enabled
      FROM event_members em
      JOIN events e ON e.id=em.event_id
      LEFT JOIN media m ON m.event_id=e.id AND m.deleted_at IS NULL AND m.reported_at IS NULL
+     LEFT JOIN event_access a ON a.event_id=e.id
      LEFT JOIN event_backups b ON b.id=(
        SELECT latest.id FROM event_backups latest
        WHERE latest.event_id=e.id AND latest.user_id=em.user_id AND latest.provider='google_drive'
        ORDER BY latest.created_at DESC LIMIT 1
      )
      WHERE em.user_id=? AND e.deleted_at IS NULL
-     GROUP BY e.id,b.id
+     GROUP BY e.id,b.id,a.event_id
      ORDER BY COALESCE(e.event_start_date,'0000') DESC,e.created_at DESC`,
   ).bind(user.id).all<BackupEventRow>();
   const copy = labels(locale);
   const eventCards = events.results.map((event) => {
     const active = event.backup_status === "queued" || event.backup_status === "running";
+    const originalsEnabled = eventOriginalExportsEnabled(event);
     return `<article class="rounded-3xl border border-[#dfeae5] bg-white p-5 shadow-sm sm:p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0"><h2 class="truncate text-2xl">${esc(event.eventName)}</h2><p class="mt-1 text-sm text-[#6f657c]">${esc(formatEventDates(event, locale))}</p><p class="mt-2 text-sm">${event.media_count} files · ${formatBytes(Number(event.media_bytes))}</p></div>
         <div class="flex flex-wrap gap-2">
-          ${connection ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/google" method="post"><input type="hidden" name="locale" value="${locale}"><button ${active ? "disabled" : ""} class="rounded-xl bg-[#7c3aed] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-50">Google · ${event.backup_id ? copy.again : copy.backup}</button></form>` : ""}
-          ${dropboxConnection ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/dropbox" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-[#0061ff]/25 bg-[#0061ff]/10 px-4 py-3 text-sm font-semibold text-[#0054db]">Dropbox · ${copy.backup}</button></form>` : ""}
+          ${connection && originalsEnabled ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/google" method="post"><input type="hidden" name="locale" value="${locale}"><button ${active ? "disabled" : ""} class="rounded-xl bg-[#7c3aed] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-50">Google · ${event.backup_id ? copy.again : copy.backup}</button></form>` : ""}
+          ${dropboxConnection && originalsEnabled ? `<form action="/api/account/events/${encodeURIComponent(event.code)}/backups/dropbox" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-xl border border-[#0061ff]/25 bg-[#0061ff]/10 px-4 py-3 text-sm font-semibold text-[#0054db]">Dropbox · ${copy.backup}</button></form>` : ""}
         </div>
       </div>
       ${event.media_count === 0 ? `<p class="mt-4 rounded-xl bg-[#faf8ff] p-3 text-sm text-[#6f657c]">${copy.empty}</p>` : ""}
+      ${!originalsEnabled ? `<p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">${copy.originalsLocked}</p>` : ""}
       ${backupStatusMarkup(event, locale)}
     </article>`;
   }).join("");
@@ -368,7 +380,10 @@ backupRoutes.post("/api/account/events/:code/backups/google", async (c) => {
   if (!connection) return c.text("Connect Google Drive before creating a backup", 409);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  await queueGoogleDriveBackupForEvent(c.env, event.id, user.id);
+  const queued = await queueGoogleDriveBackupForEvent(c.env, event.id, user.id);
+  if (queued.status === "originals_locked") {
+    return c.text("Original exports are not enabled for this event", 403);
+  }
   return c.redirect(`/${locale}/backups`, 303);
 });
 
@@ -387,7 +402,10 @@ backupRoutes.post("/api/account/events/:code/backups/dropbox", async (c) => {
   if (!connection) return c.text("Connect Dropbox before creating a backup", 409);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  await queueDropboxBackupForEvent(c.env, event.id, user.id);
+  const queued = await queueDropboxBackupForEvent(c.env, event.id, user.id);
+  if (queued.status === "originals_locked") {
+    return c.text("Original exports are not enabled for this event", 403);
+  }
   return c.redirect(`/${locale}/backups`, 303);
 });
 
