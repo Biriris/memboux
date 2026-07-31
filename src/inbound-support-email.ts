@@ -11,6 +11,15 @@ import {
 import { esc } from "./utils";
 import { supportTicketIdFromSubject, supportTicketSubject } from "./support-email-threading";
 import { supportStaffForSender } from "./support-staff-email";
+import {
+  deleteStoredSupportAttachments,
+  inboundAttachmentSummary,
+  prepareSupportAttachments,
+  storeSupportAttachments,
+  supportAttachmentInsertStatements,
+  type PreparedSupportAttachment,
+  type SupportAttachmentInput,
+} from "./support-attachments";
 
 const SUPPORT_RECIPIENTS = new Set(["support@memboux.com", "info@memboux.com"]);
 const MAX_INBOUND_BYTES = 15 * 1024 * 1024;
@@ -31,7 +40,7 @@ export type InboundSupportEmail = {
   subject: string;
   text: string;
   messageId: string;
-  attachmentCount?: number;
+  attachments?: SupportAttachmentInput[];
 };
 
 function normalizeAddress(value: string) {
@@ -51,7 +60,7 @@ function plainTextFromHtml(value: string) {
     .replace(/&#39;/gi, "'");
 }
 
-export function cleanInboundReply(value: string, attachmentCount = 0) {
+export function cleanInboundReply(value: string, attachmentSummary = "") {
   const normalized = value.replace(/\r\n?/g, "\n").trim();
   const withoutQuotedThread = normalized
     .split(/\n(?:On .+wrote:|Στις .+έγραψε:|Le .+a écrit\s*:|Am .+schrieb .+:|El .+escribió:|Il .+ha scritto:)\s*\n/i, 1)[0]
@@ -61,9 +70,7 @@ export function cleanInboundReply(value: string, attachmentCount = 0) {
     .join("\n")
     .trim();
   const body = (withoutQuotedThread || normalized).slice(0, 8_000);
-  return attachmentCount > 0
-    ? `${body}\n\n[${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"} received; attachment import is not enabled.]`
-    : body;
+  return [body, attachmentSummary].filter(Boolean).join("\n\n");
 }
 
 async function conversationFromSubject(db: D1Database, subject: string) {
@@ -82,38 +89,46 @@ async function recordAdminEmailReply(
   admin: AdminIdentity,
   input: InboundSupportEmail,
   body: string,
+  attachments: PreparedSupportAttachment[],
 ) {
   if (!adminCanAccessSupportConversation(admin, conversation))
     throw new Error("support_email_staff_not_authorized");
   const now = Date.now();
   const messageId = crypto.randomUUID();
   const shouldEmail = Boolean(conversation.visitor_email);
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO support_messages
-       (id,conversation_id,sender_type,body,created_at,actor_admin_member_id,
-        email_delivery_status,inbound_email_message_id,inbound_email_from,inbound_email_to)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    ).bind(
-      messageId,
-      conversation.id,
-      "admin",
-      body,
-      now,
-      admin.memberId,
-      shouldEmail ? "pending" : null,
-      input.messageId,
-      input.envelopeFrom,
-      input.envelopeTo,
-    ),
-    env.DB.prepare(
-      `UPDATE support_conversations SET status='pending',user_read_at=NULL,
-       assigned_admin_member_id=COALESCE(assigned_admin_member_id,?),
-       escalated_at=COALESCE(escalated_at,?),
-       first_admin_response_at=COALESCE(first_admin_response_at,?),
-       last_message_at=?,updated_at=? WHERE id=?`,
-    ).bind(admin.memberId, now, now, now, now, conversation.id),
-  ]);
+  const stored = await storeSupportAttachments(env, conversation.id, messageId, attachments, now);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO support_messages
+         (id,conversation_id,sender_type,body,created_at,actor_admin_member_id,
+          email_delivery_status,inbound_email_message_id,inbound_email_from,inbound_email_to)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      ).bind(
+        messageId,
+        conversation.id,
+        "admin",
+        body,
+        now,
+        admin.memberId,
+        shouldEmail ? "pending" : null,
+        input.messageId,
+        input.envelopeFrom,
+        input.envelopeTo,
+      ),
+      env.DB.prepare(
+        `UPDATE support_conversations SET status='pending',user_read_at=NULL,
+         assigned_admin_member_id=COALESCE(assigned_admin_member_id,?),
+         escalated_at=COALESCE(escalated_at,?),
+         first_admin_response_at=COALESCE(first_admin_response_at,?),
+         last_message_at=?,updated_at=? WHERE id=?`,
+      ).bind(admin.memberId, now, now, now, now, conversation.id),
+      ...supportAttachmentInsertStatements(env.DB, stored),
+    ]);
+  } catch (error) {
+    await deleteStoredSupportAttachments(env, stored).catch(() => undefined);
+    throw error;
+  }
   await env.DB.prepare(
     `INSERT INTO admin_audit_log
      (id,actor_user_id,action,target_type,target_id,metadata_json,ip_hash,created_at)
@@ -161,32 +176,41 @@ async function recordCustomerEmail(
   conversation: Conversation,
   input: InboundSupportEmail,
   body: string,
+  attachments: PreparedSupportAttachment[],
 ) {
   if (normalizeAddress(conversation.visitor_email) !== input.envelopeFrom)
     throw new Error("support_email_sender_mismatch");
   const now = Date.now();
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO support_messages
-       (id,conversation_id,sender_type,body,created_at,
-        inbound_email_message_id,inbound_email_from,inbound_email_to)
-       VALUES (?,?,?,?,?,?,?,?)`,
-    ).bind(
-      crypto.randomUUID(),
-      conversation.id,
-      "user",
-      body,
-      now,
-      input.messageId,
-      input.envelopeFrom,
-      input.envelopeTo,
-    ),
-    env.DB.prepare(
-      `UPDATE support_conversations SET status='open',admin_read_at=NULL,
-       notification_sent_at=NULL,notification_delivery_status=NULL,
-       notification_last_error=NULL,last_message_at=?,updated_at=? WHERE id=?`,
-    ).bind(now, now, conversation.id),
-  ]);
+  const messageId = crypto.randomUUID();
+  const stored = await storeSupportAttachments(env, conversation.id, messageId, attachments, now);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO support_messages
+         (id,conversation_id,sender_type,body,created_at,
+          inbound_email_message_id,inbound_email_from,inbound_email_to)
+         VALUES (?,?,?,?,?,?,?,?)`,
+      ).bind(
+        messageId,
+        conversation.id,
+        "user",
+        body,
+        now,
+        input.messageId,
+        input.envelopeFrom,
+        input.envelopeTo,
+      ),
+      env.DB.prepare(
+        `UPDATE support_conversations SET status='open',admin_read_at=NULL,
+         notification_sent_at=NULL,notification_delivery_status=NULL,
+         notification_last_error=NULL,last_message_at=?,updated_at=? WHERE id=?`,
+      ).bind(now, now, conversation.id),
+      ...supportAttachmentInsertStatements(env.DB, stored),
+    ]);
+  } catch (error) {
+    await deleteStoredSupportAttachments(env, stored).catch(() => undefined);
+    throw error;
+  }
   await escalateSupportConversation(
     env,
     conversation.id,
@@ -201,25 +225,34 @@ async function createEmailConversation(
   env: Bindings,
   input: InboundSupportEmail,
   body: string,
+  attachments: PreparedSupportAttachment[],
 ) {
   const now = Date.now();
   const conversationId = crypto.randomUUID();
+  const messageId = crypto.randomUUID();
   const subject = input.subject.replace(/^\s*(re|fwd?)\s*:\s*/i, "").trim().slice(0, 120) || "Email support request";
   const category = classifySupportRequest(subject, body);
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO support_conversations
-       (id,user_id,visitor_token_hash,visitor_name,visitor_email,subject,status,
-        category,source,last_message_at,created_at,updated_at)
-       VALUES (?,NULL,NULL,?,?,?,'open',?,'email',?,?,?)`,
-    ).bind(conversationId, input.envelopeFrom.split("@", 1)[0].slice(0, 80), input.envelopeFrom, subject, category, now, now, now),
-    env.DB.prepare(
-      `INSERT INTO support_messages
-       (id,conversation_id,sender_type,body,created_at,
-        inbound_email_message_id,inbound_email_from,inbound_email_to)
-       VALUES (?,?,?,?,?,?,?,?)`,
-    ).bind(crypto.randomUUID(), conversationId, "user", body, now, input.messageId, input.envelopeFrom, input.envelopeTo),
-  ]);
+  const stored = await storeSupportAttachments(env, conversationId, messageId, attachments, now);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO support_conversations
+         (id,user_id,visitor_token_hash,visitor_name,visitor_email,subject,status,
+          category,source,last_message_at,created_at,updated_at)
+         VALUES (?,NULL,NULL,?,?,?,'open',?,'email',?,?,?)`,
+      ).bind(conversationId, input.envelopeFrom.split("@", 1)[0].slice(0, 80), input.envelopeFrom, subject, category, now, now, now),
+      env.DB.prepare(
+        `INSERT INTO support_messages
+         (id,conversation_id,sender_type,body,created_at,
+          inbound_email_message_id,inbound_email_from,inbound_email_to)
+         VALUES (?,?,?,?,?,?,?,?)`,
+      ).bind(messageId, conversationId, "user", body, now, input.messageId, input.envelopeFrom, input.envelopeTo),
+      ...supportAttachmentInsertStatements(env.DB, stored),
+    ]);
+  } catch (error) {
+    await deleteStoredSupportAttachments(env, stored).catch(() => undefined);
+    throw error;
+  }
   await escalateSupportConversation(
     env,
     conversationId,
@@ -245,20 +278,24 @@ export async function ingestInboundSupportEmail(env: Bindings, raw: InboundSuppo
     "SELECT id FROM support_messages WHERE inbound_email_message_id=?",
   ).bind(input.messageId).first<{ id: string }>();
   if (duplicate) return { status: "duplicate" as const };
-  const body = cleanInboundReply(input.text, input.attachmentCount);
+  const prepared = prepareSupportAttachments(input.attachments);
+  const body = cleanInboundReply(
+    input.text,
+    inboundAttachmentSummary(prepared.accepted.length, prepared.skipped),
+  );
   if (!body) throw new Error("support_email_body_empty");
   const conversation = await conversationFromSubject(env.DB, input.subject);
   const staff = await supportStaffForSender(env.DB, input.envelopeFrom);
   if (staff) {
     if (!conversation) throw new Error("support_email_ticket_required_for_staff");
-    await recordAdminEmailReply(env, conversation, staff, input, body);
+    await recordAdminEmailReply(env, conversation, staff, input, body, prepared.accepted);
     return { status: "admin_reply" as const, conversationId: conversation.id };
   }
   if (conversation) {
-    await recordCustomerEmail(env, conversation, input, body);
+    await recordCustomerEmail(env, conversation, input, body, prepared.accepted);
     return { status: "customer_reply" as const, conversationId: conversation.id };
   }
-  await createEmailConversation(env, input, body);
+  await createEmailConversation(env, input, body, prepared.accepted);
   return { status: "created" as const };
 }
 
@@ -285,7 +322,7 @@ export async function handleSupportEmailMessage(
       subject: parsed.subject || message.headers.get("subject") || "",
       text,
       messageId: message.headers.get("message-id") || `cloudflare:${crypto.randomUUID()}`,
-      attachmentCount: parsed.attachments.length,
+      attachments: parsed.attachments,
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";

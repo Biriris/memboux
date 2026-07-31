@@ -17,13 +17,13 @@ export function staffEmailReplyCopy(locale: Locale) {
       description: "Όρισε το προσωπικό email στο οποίο θέλεις να λαμβάνεις τα αιτήματα που ανατίθενται σε εσένα. Μπορείς να απαντάς απευθείας από αυτή τη διεύθυνση ή μέσα από το Admin Centre.",
       alertTitle: "Ειδοποιήσεις email ενεργές",
       alertDetail: "Θα λαμβάνεις ειδοποίηση όταν ένα νέο αίτημα ανατίθεται σε εσένα.",
-      security: "Απάντησε απευθείας σε μια ειδοποίηση ticket μόνο από το καταχωρισμένο email σου. Το Memboux ελέγχει την ταυτότητα και την ανάθεση, προσθέτει την απάντηση στο ίδιο ticket και διατηρεί ολόκληρο το ιστορικό ελέγχου. Τα συνημμένα καταγράφονται αλλά δεν εισάγονται ακόμη.",
+      security: "Απάντησε απευθείας σε ειδοποίηση ticket μόνο από το καταχωρισμένο email σου. Το Memboux ελέγχει την ταυτότητα και την ανάθεση, προσθέτει την απάντηση στο ίδιο ticket και διατηρεί ολόκληρο το ιστορικό ελέγχου. Υποστηριζόμενα screenshots και PDF προστίθενται με ασφάλεια στο ticket.",
     };
   }
   return {
     description: "Choose the personal email where you want to receive requests assigned to you. You can reply directly from that address or work inside Admin Centre.",
     alertTitle: "Email alerts enabled",
     alertDetail: "You will be notified when a new request is assigned to you.",
-    security: "Reply directly to a ticket notification only from your registered address. Memboux verifies your identity and assignment, adds the reply to the same ticket and preserves the complete audit trail. Attachments are recorded but are not imported yet.",
+    security: "Reply directly to a ticket notification only from your registered address. Memboux verifies your identity and assignment, adds the reply to the same ticket and preserves the complete audit trail. Supported screenshots and PDFs are added securely to the ticket.",
   };
 }

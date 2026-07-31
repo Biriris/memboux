@@ -3,9 +3,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { addAiReply, markSupportConversationHumanOwned, normalizeSupportMessage, validSupportEmail } from "../src/routes/support";
 import { privacySupportWidgets } from "../src/views/privacy-support";
 import { classifySupportRequest } from "../src/support-routing";
+import { SupportRepository } from "../src/support-repository";
+import { SupportService } from "../src/support-service";
 
 beforeEach(async () => {
   await env.DB.batch([
+    env.DB.prepare("DROP TABLE IF EXISTS support_attachments"),
     env.DB.prepare("DROP TABLE IF EXISTS support_messages"),
     env.DB.prepare("DROP TABLE IF EXISTS support_conversations"),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS request_rate_limits (
@@ -23,6 +26,10 @@ beforeEach(async () => {
     )`),
     env.DB.prepare(`CREATE TABLE support_messages (
       id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,sender_type TEXT NOT NULL,sender_user_id TEXT,body TEXT NOT NULL,created_at INTEGER NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE support_attachments (
+      id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,message_id TEXT NOT NULL,object_key TEXT NOT NULL UNIQUE,
+      filename TEXT NOT NULL,content_type TEXT NOT NULL,size_bytes INTEGER NOT NULL,created_at INTEGER NOT NULL
     )`),
   ]);
 });
@@ -132,6 +139,45 @@ describe("support validation and widgets", () => {
       last_message_at: repliedAt,
     });
   });
+
+  it("resolves customer conversations through the service boundary without crossing actors", async () => {
+    const now = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO support_conversations
+        (id,user_id,visitor_token_hash,visitor_name,visitor_email,subject,status,last_message_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .bind("user-ticket", "user-1", null, "Member", "member@example.com", "Member ticket", "open", now, now, now),
+      env.DB.prepare(`INSERT INTO support_conversations
+        (id,user_id,visitor_token_hash,visitor_name,visitor_email,subject,status,last_message_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .bind("visitor-ticket", null, "visitor-hash", "Guest", "guest@example.com", "Guest ticket", "open", now, now, now),
+    ]);
+    const service = new SupportService(new SupportRepository(env.DB));
+
+    await expect(service.findConversationForActor({ userId: "user-1", visitorTokenHash: "visitor-hash" }))
+      .resolves.toMatchObject({ id: "user-ticket" });
+    await expect(service.findConversationForActor({ userId: null, visitorTokenHash: "visitor-hash" }))
+      .resolves.toMatchObject({ id: "visitor-ticket" });
+    await expect(service.findConversationForActor({ userId: null, visitorTokenHash: "unknown" }))
+      .resolves.toBeNull();
+  });
+
+  it("enforces assignment access before a service status transition", async () => {
+    const now = Date.now();
+    await env.DB.prepare(`INSERT INTO support_conversations
+      (id,visitor_name,visitor_email,subject,status,last_message_at,created_at,updated_at,required_role,assigned_admin_member_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .bind("assigned-ticket", "Guest", "", "Assigned", "open", now, now, now, "support", "member-a").run();
+    const service = new SupportService(new SupportRepository(env.DB));
+    const baseAdmin = { userId: "admin-user", name: "Agent", email: "agent@example.com", role: "support" as const };
+
+    await expect(service.changeStatus({ ...baseAdmin, memberId: "member-b" }, "assigned-ticket", "closed"))
+      .resolves.toMatchObject({ kind: "forbidden" });
+    await expect(service.changeStatus({ ...baseAdmin, memberId: "member-a" }, "assigned-ticket", "closed", now + 1))
+      .resolves.toMatchObject({ kind: "ok" });
+    await expect(env.DB.prepare("SELECT status,resolved_at FROM support_conversations WHERE id=?")
+      .bind("assigned-ticket").first()).resolves.toMatchObject({ status: "closed", resolved_at: now + 1 });
+  });
 });
 
 describe("guest support conversation API", () => {
@@ -155,5 +201,65 @@ describe("guest support conversation API", () => {
     const restored = await response.json<{ conversation: { id: string }; messages: Array<{ body: string }> }>();
     expect(restored.conversation.id).toBe(payload.conversation.id);
     expect(restored.messages).toHaveLength(1);
+  });
+
+  it("serves ticket attachments only to the visitor who owns the conversation", async () => {
+    const created = await SELF.fetch("https://memboux.com/api/support/conversation", {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Attachment guest",
+        email: "attachment@example.com",
+        category: "technical",
+        subject: "Screenshot",
+        message: "Please inspect this screenshot.",
+      }),
+    });
+    const cookie = (created.headers.get("set-cookie") ?? "").split(";")[0];
+    const payload = await created.json<{
+      conversation: { id: string };
+      messages: Array<{ id: string }>;
+    }>();
+    const objectKey = `support-attachments/${payload.conversation.id}/${payload.messages[0].id}/attachment-id`;
+    await env.MEDIA.put(objectKey, new Uint8Array([137, 80, 78, 71]), {
+      httpMetadata: { contentType: "image/png" },
+    });
+    await env.DB.prepare(
+      `INSERT INTO support_attachments
+       (id,conversation_id,message_id,object_key,filename,content_type,size_bytes,created_at)
+       VALUES (?,?,?,?,?,?,?,?)`,
+    ).bind(
+      "attachment-id",
+      payload.conversation.id,
+      payload.messages[0].id,
+      objectKey,
+      "error screenshot.png",
+      "image/png",
+      4,
+      Date.now(),
+    ).run();
+
+    const restored = await SELF.fetch("https://memboux.com/api/support/conversation", {
+      headers: { Cookie: cookie },
+    });
+    const restoredPayload = await restored.json<{
+      messages: Array<{ attachments: Array<{ href: string; filename: string }> }>;
+    }>();
+    expect(restoredPayload.messages[0].attachments[0]).toMatchObject({
+      href: "/api/support/attachments/attachment-id",
+      filename: "error screenshot.png",
+    });
+
+    const authorized = await SELF.fetch("https://memboux.com/api/support/attachments/attachment-id", {
+      headers: { Cookie: cookie },
+    });
+    expect(authorized.status).toBe(200);
+    expect(authorized.headers.get("content-type")).toBe("image/png");
+    expect(authorized.headers.get("content-disposition")).toContain("attachment");
+    expect(authorized.headers.get("x-content-type-options")).toBe("nosniff");
+    expect([...new Uint8Array(await authorized.arrayBuffer())]).toEqual([137, 80, 78, 71]);
+
+    const anonymous = await SELF.fetch("https://memboux.com/api/support/attachments/attachment-id");
+    expect(anonymous.status).toBe(404);
   });
 });

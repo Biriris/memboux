@@ -15,6 +15,7 @@ const ticketId = "11111111-2222-4333-8444-555555555555";
 beforeAll(async () => {
   await env.DB.batch([
     env.DB.prepare("DROP TABLE IF EXISTS email_delivery_attempts"),
+    env.DB.prepare("DROP TABLE IF EXISTS support_attachments"),
     env.DB.prepare("DROP TABLE IF EXISTS support_messages"),
     env.DB.prepare("DROP TABLE IF EXISTS support_conversations"),
     env.DB.prepare("DROP TABLE IF EXISTS admin_members"),
@@ -48,6 +49,10 @@ beforeAll(async () => {
       email_provider_message_id TEXT,email_delivery_event_at INTEGER,
       inbound_email_message_id TEXT UNIQUE,inbound_email_from TEXT,inbound_email_to TEXT
     )`),
+    env.DB.prepare(`CREATE TABLE support_attachments (
+      id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,message_id TEXT NOT NULL,object_key TEXT NOT NULL UNIQUE,
+      filename TEXT NOT NULL,content_type TEXT NOT NULL,size_bytes INTEGER NOT NULL,created_at INTEGER NOT NULL
+    )`),
     env.DB.prepare(`CREATE TABLE email_delivery_attempts (
       id TEXT PRIMARY KEY,recipient_hash TEXT,purpose TEXT,status TEXT,
       provider_message_id TEXT,error_code TEXT,created_at INTEGER,
@@ -67,8 +72,10 @@ describe("inbound support email", () => {
     const subject = supportTicketSubject(ticketId, "Re: Login problem");
     expect(subject).toBe(`[MBX:${ticketId}] Login problem`);
     expect(supportTicketIdFromSubject(`Re: ${subject}`)).toBe(ticketId);
-    expect(cleanInboundReply("My new answer\n\nOn Monday Alice wrote:\n> old answer", 1))
-      .toBe("My new answer\n\n[1 attachment received; attachment import is not enabled.]");
+    expect(cleanInboundReply(
+      "My new answer\n\nOn Monday Alice wrote:\n> old answer",
+      "[1 attachment added securely to this ticket.]",
+    )).toBe("My new answer\n\n[1 attachment added securely to this ticket.]");
   });
 
   it("explains secure personal-email replies without contradicting the inbound workflow", () => {
@@ -77,9 +84,10 @@ describe("inbound support email", () => {
 
     expect(greek.description).toContain("απαντάς απευθείας");
     expect(greek.security).toContain("καταχωρισμένο email");
-    expect(greek.security).toContain("δεν εισάγονται ακόμη");
+    expect(greek.security).toContain("screenshots και PDF");
     expect(english.description).toContain("reply directly");
     expect(english.security).toContain("verifies your identity and assignment");
+    expect(english.security).toContain("added securely");
     expect(english.security).not.toContain("Replies remain inside");
   });
 
@@ -108,6 +116,62 @@ describe("inbound support email", () => {
       visitor_email: "customer@example.com",
       assigned_admin_member_id: null,
     });
+  });
+
+  it("imports safe email attachments into private storage and skips unsafe content", async () => {
+    const input = {
+      envelopeFrom: "files@example.com",
+      envelopeTo: "support@memboux.com",
+      subject: "Screenshots for upload issue",
+      text: "",
+      messageId: "<attachments@example.com>",
+      attachments: [
+        {
+          filename: "../upload error.png",
+          mimeType: "image/png",
+          disposition: "attachment" as const,
+          content: new Uint8Array([137, 80, 78, 71]),
+        },
+        {
+          filename: "unsafe.html",
+          mimeType: "text/html",
+          disposition: "attachment" as const,
+          content: new TextEncoder().encode("<script>alert(1)</script>"),
+        },
+        {
+          filename: "fake-screenshot.png",
+          mimeType: "image/png",
+          disposition: "attachment" as const,
+          content: new TextEncoder().encode("<script>alert(1)</script>"),
+        },
+      ],
+    };
+    expect(await ingestInboundSupportEmail(env, input)).toMatchObject({ status: "created" });
+    expect(await ingestInboundSupportEmail(env, input)).toEqual({ status: "duplicate" });
+
+    const message = await env.DB.prepare(
+      "SELECT id,conversation_id,body FROM support_messages WHERE inbound_email_message_id=?",
+    ).bind(input.messageId).first<{ id: string; conversation_id: string; body: string }>();
+    expect(message?.body).toContain("[1 attachment added securely to this ticket.]");
+    expect(message?.body).toContain("[2 unsupported, embedded, or oversized attachments skipped.]");
+
+    const rows = await env.DB.prepare(
+      "SELECT object_key,filename,content_type,size_bytes FROM support_attachments WHERE message_id=?",
+    ).bind(message?.id).all<{
+      object_key: string;
+      filename: string;
+      content_type: string;
+      size_bytes: number;
+    }>();
+    expect(rows.results).toHaveLength(1);
+    expect(rows.results[0]).toMatchObject({
+      filename: "upload error.png",
+      content_type: "image/png",
+      size_bytes: 4,
+    });
+    const object = await env.MEDIA.get(rows.results[0].object_key);
+    expect(object).not.toBeNull();
+    expect([...new Uint8Array(await object!.arrayBuffer())]).toEqual([137, 80, 78, 71]);
   });
 
   it("adds customer and authorized personal-email replies to the same audit trail", async () => {

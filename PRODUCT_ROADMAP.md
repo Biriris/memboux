@@ -22,9 +22,11 @@ This is the durable product backlog and priority order for the Memboux platform.
 - [x] Verify active Cloudflare routing rules for `support@` and `info@`, add strict alias tests, and expose 30-day delivery metrics in Admin Readiness.
 - [x] Route real inbound `support@` and `info@` email into the role-based helpdesk, deduplicate provider retries and keep customer or authorized staff email replies in the same auditable ticket.
 - [x] Make assignment and SLA notification emails safely replyable from each employee's registered personal address, with ticket threading, role/assignment verification and a complete audit trail.
+- [x] Import verified screenshots and PDFs from inbound support email into private R2 storage, and expose them only through ticket-authorized customer and admin download routes.
 - [x] Publish a staged DMARC monitoring policy for `memboux.com` without changing the active MX, SPF or DKIM records.
 - [x] Configure the signed Resend webhook secret before declaring email delivery fully production-ready.
 - [x] Complete production email delivery for `support@memboux.com` and `info@memboux.com`.
+- [x] Establish tested Support route/service/repository boundaries for customer conversations, role-scoped inbox and thread reads, claim/reassignment, single-attempt email retries, staff replies, private attachments and status transitions.
 
 ## P1 — Event lifecycle and monetization foundation
 
