@@ -4,8 +4,28 @@ import type { Locale } from "./i18n";
 
 export type EventRole = "owner" | "editor" | "viewer";
 export type CloudProvider = "google_drive" | "dropbox";
+export type EventAccessState = "preview" | "trial" | "unlocked" | "expired";
+export type EventAccessEnforcement = "observe" | "enforced";
+
+export type EventAccessRow = {
+  event_id: string;
+  access_state: EventAccessState;
+  enforcement_state: EventAccessEnforcement;
+  media_limit: number;
+  media_uploads_consumed: number;
+  guest_access_enabled: 0 | 1;
+  guest_uploads_enabled: 0 | 1;
+  original_downloads_enabled: 0 | 1;
+  trial_started_at: number | null;
+  trial_ends_at: number | null;
+  unlocked_at: number | null;
+  expires_at: number | null;
+  created_at: number;
+  updated_at: number;
+};
 
 export type Bindings = AuthEnv & {
+  AI?: Ai;
   MEDIA: R2Bucket;
   IMAGES: ImagesBinding;
   ASSETS: Fetcher;
@@ -14,11 +34,11 @@ export type Bindings = AuthEnv & {
   DROPBOX_APP_KEY?: string;
   DROPBOX_APP_SECRET?: string;
   GOOGLE_MAPS_API_KEY?: string;
-  ADMIN_PASSWORD?: string;
   BUSINESS_LEGAL_NAME?: string;
   BUSINESS_POSTAL_ADDRESS?: string;
   PRIVACY_EMAIL?: string;
   SUPPORT_EMAIL?: string;
+  RESEND_WEBHOOK_SECRET?: string;
 };
 
 export type CloudConnectionRow = {

@@ -6,7 +6,7 @@ const technicalEnvironment = {
   GOOGLE_CLIENT_ID: "google-client",
   GOOGLE_CLIENT_SECRET: "google-secret",
   RESEND_API_KEY: "resend-key",
-  ADMIN_PASSWORD: "a-strong-admin-password",
+  RESEND_WEBHOOK_SECRET: `whsec_${"a".repeat(32)}`,
 };
 
 describe("launch readiness", () => {
@@ -34,7 +34,6 @@ describe("launch readiness", () => {
   it("rejects weak or malformed configuration", () => {
     const result = getLaunchReadiness({
       BETTER_AUTH_SECRET: "short",
-      ADMIN_PASSWORD: "short",
       PRIVACY_EMAIL: "not-an-email",
     });
     expect(result.technicalReady).toBe(false);

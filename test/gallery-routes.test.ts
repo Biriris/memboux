@@ -9,6 +9,10 @@ const pinnedCode = "PIN901";
 const pinnedEventId = "gallery-pinned-event";
 const expiredCode = "OLD901";
 const weddingCode = "WED901";
+const trialCode = "TRY901";
+const trialEventId = "gallery-trial-event";
+const previewCode = "PRE901";
+const previewEventId = "gallery-preview-event";
 const pin = "2468";
 let pinHash = "";
 let galleryCookie = "";
@@ -59,6 +63,13 @@ beforeAll(async () => {
       request_count INTEGER NOT NULL, expires_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT,created_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE event_access (
+      event_id TEXT PRIMARY KEY,access_state TEXT NOT NULL,enforcement_state TEXT NOT NULL,
+      media_limit INTEGER NOT NULL,guest_access_enabled INTEGER NOT NULL,
+      guest_uploads_enabled INTEGER NOT NULL,original_downloads_enabled INTEGER NOT NULL,
+      trial_started_at INTEGER,trial_ends_at INTEGER,unlocked_at INTEGER,expires_at INTEGER,
+      created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
+    )`),
     env.DB.prepare(`CREATE TABLE account_notifications (id TEXT PRIMARY KEY,user_id TEXT,event_id TEXT,invitation_id TEXT,actor_user_id TEXT,actor_name TEXT,type TEXT,item_count INTEGER,created_at INTEGER,read_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_entitlements (user_id TEXT PRIMARY KEY,plan_key TEXT,storage_limit_bytes INTEGER,event_limit INTEGER,member_limit INTEGER,updated_at INTEGER)`),
     env.DB.prepare(`CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)`),
@@ -87,7 +98,15 @@ beforeAll(async () => {
     insertEvent.bind(pinnedEventId, pinnedCode, "Pinned gallery", "Pinned gallery", "", now, now + 86_400_000, now, pinHash),
     insertEvent.bind("gallery-expired-event", expiredCode, "Expired gallery", "Expired gallery", "", now - 172_800_000, now - 86_400_000, now, null),
     insertEvent.bind("gallery-wedding-event", weddingCode, "Wedding gallery", "Wedding gallery", "", now, now + 86_400_000, now, null),
+    insertEvent.bind(trialEventId, trialCode, "Trial gallery", "Trial gallery", "", now, now + 86_400_000, now, null),
+    insertEvent.bind(previewEventId, previewCode, "Preview gallery", "Preview gallery", "", now, now + 86_400_000, now, null),
     env.DB.prepare("UPDATE events SET event_type='wedding' WHERE id='gallery-wedding-event'"),
+    env.DB.prepare(`INSERT INTO event_access VALUES (
+      ?,'trial','enforced',20,1,1,0,?,?,NULL,NULL,?,?
+    )`).bind(trialEventId, now, now + 86_400_000, now, now),
+    env.DB.prepare(`INSERT INTO event_access VALUES (
+      ?,'preview','enforced',20,0,0,0,NULL,NULL,NULL,NULL,?,?
+    )`).bind(previewEventId, now, now),
   ]);
   await env.DB.batch([
     env.DB.prepare("INSERT INTO event_members VALUES (?,?,?,?)").bind(publicEventId,"gallery-owner","owner",now),
@@ -109,6 +128,9 @@ beforeAll(async () => {
     insertMedia.bind("public-report-media", publicEventId, "test/public-report.jpg", "image", "image/jpeg", "Guest", now, "public-report-hash", 12),
     insertMedia.bind("public-legacy-video", publicEventId, "test/public-legacy.mp4", "video", "video/mp4", "Guest", now, "public-legacy-video-hash", 12),
     insertMedia.bind("pinned-stream-media", pinnedEventId, "test/pinned-stream.jpg", "image", "image/jpeg", "Guest", now, "pinned-stream-hash", 12),
+    insertMedia.bind("trial-stream-media", trialEventId, "test/trial-stream.jpg", "image", "image/jpeg", "Guest", now, "trial-stream-hash", 12),
+    insertMedia.bind("expired-stream-media", "gallery-expired-event", "test/expired-stream.jpg", "image", "image/jpeg", "Guest", now, "expired-stream-hash", 12),
+    insertMedia.bind("preview-stream-media", previewEventId, "test/preview-stream.jpg", "image", "image/jpeg", "Guest", now, "preview-stream-hash", 12),
     env.DB.prepare(`INSERT INTO media (
       id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,
       captured_at,content_hash,reported_at,size_bytes,title,deleted_at,purge_at,origin
@@ -128,12 +150,71 @@ beforeAll(async () => {
     env.MEDIA.put("test/public-report.jpg", new TextEncoder().encode("report-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/public-legacy.mp4", new TextEncoder().encode("legacy-video"), { httpMetadata: { contentType: "video/mp4" } }),
     env.MEDIA.put("test/pinned-stream.jpg", new TextEncoder().encode("pinned-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/trial-stream.jpg", new TextEncoder().encode("trial-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/expired-stream.jpg", new TextEncoder().encode("expired-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/preview-stream.jpg", new TextEncoder().encode("preview-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/official-stream.jpg", new TextEncoder().encode("official-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("covers/public/selected.jpg", new TextEncoder().encode("selected-cover"), { httpMetadata: { contentType: "image/jpeg" } }),
   ]);
 });
 
 describe("gallery, upload, and media routes", () => {
+  it("keeps trial previews usable while hiding and enforcing original downloads", async () => {
+    const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
+    const html = await gallery.text();
+    expect(gallery.status).toBe(200);
+    expect(html).toContain("Originals unlock with upgrade");
+    expect(html).not.toContain('id="lightbox-download"');
+    expect(html).toContain("#select-media,#download-selected{display:none!important}");
+
+    const preview = await SELF.fetch("https://memboux.com/media/trial-stream-media?variant=preview");
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("x-memboux-media-access")).toBe("preview-only");
+    expect(new TextDecoder().decode(await preview.arrayBuffer())).not.toBe("trial-image");
+
+    const constructedOriginalUrl = await SELF.fetch("https://memboux.com/media/trial-stream-media");
+    expect(constructedOriginalUrl.status).toBe(200);
+    expect(constructedOriginalUrl.headers.get("x-memboux-media-access")).toBe("preview-only");
+    expect(constructedOriginalUrl.headers.get("content-type")).toBe("image/webp");
+    expect(new TextDecoder().decode(await constructedOriginalUrl.arrayBuffer())).not.toBe("trial-image");
+
+    const original = await SELF.fetch("https://memboux.com/media/trial-stream-media?download=1");
+    expect(original.status).toBe(403);
+
+    const official = await SELF.fetch(`https://memboux.com/gallery/${trialCode}/official?lang=en`);
+    expect(official.status).toBe(200);
+    expect(await official.text()).not.toContain('id="lightbox-download"');
+  });
+
+  it("does not expose media through a direct URL after guest access expires", async () => {
+    const response = await SELF.fetch("https://memboux.com/media/expired-stream-media?variant=preview");
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("not available to guests");
+  });
+
+  it("keeps every guest endpoint closed while an event is still a private preview", async () => {
+    const [gallery, media, unlock, like, removal] = await Promise.all([
+      SELF.fetch(`https://memboux.com/gallery/${previewCode}?lang=en`),
+      SELF.fetch("https://memboux.com/media/preview-stream-media?variant=preview"),
+      SELF.fetch(`https://memboux.com/gallery/${previewCode}/unlock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "https://memboux.com" },
+        body: new URLSearchParams({ locale: "en" }),
+      }),
+      SELF.fetch(`https://memboux.com/api/gallery/${previewCode}/media/preview-stream-media/like`, {
+        method: "POST",
+        headers: { Origin: "https://memboux.com" },
+      }),
+      SELF.fetch(`https://memboux.com/gallery/${previewCode}/removal/preview-stream-media`),
+    ]);
+
+    expect(gallery.status).toBe(403);
+    expect(media.status).toBe(403);
+    expect(unlock.status).toBe(403);
+    expect(like.status).toBe(403);
+    expect(removal.status).toBe(403);
+  });
+
   it("sends wedding guest links to the unified wedding experience", async () => {
     const response = await SELF.fetch(`https://memboux.com/gallery/${weddingCode}?lang=fr`, { redirect: "manual" });
     expect(response.status).toBe(302);
@@ -162,6 +243,25 @@ describe("gallery, upload, and media routes", () => {
     expect(html).not.toContain('<summary class="cursor-pointer font-semibold">Privacy and confirmation</summary>');
     expect(html).toContain("Up to 100 photos or videos");
     expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif,video/mp4');
+  });
+
+  it("localizes the core guest upload journey in every supported language", async () => {
+    for (const [locale, expected] of [
+      ["fr", ["Ajoutez vos moments", "Inviter d’autres personnes", "Télécharger la sélection", "Collection officielle", "Galerie", "Aimer la photo"]],
+      ["de", ["Füge deine Momente hinzu", "Weitere Gäste einladen", "Auswahl herunterladen", "Offizielle Sammlung", "Galerie", "Foto liken"]],
+      ["es", ["Añade tus momentos", "Invitar a más personas", "Descargar selección", "Colección oficial", "Galería", "Dar me gusta"]],
+      ["it", ["Aggiungi i tuoi momenti", "Invita altre persone", "Scarica selezione", "Raccolta ufficiale", "Galleria", "Metti Mi piace"]],
+    ] as const) {
+      const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}?lang=${locale}`);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expected.forEach((text) => expect(html).toContain(text));
+      expect(html).not.toContain("No app and no account required.");
+      expect(html).not.toContain("Invite more guests");
+      expect(html).not.toContain("Download selected");
+      expect(html).not.toContain('aria-label="Like photo"');
+      expect(html.split(`<option value="/gallery/${publicCode}?lang=`)).toHaveLength(7);
+    }
   });
 
   it("serves the selected cover through the gallery access boundary", async () => {
@@ -220,9 +320,26 @@ describe("gallery, upload, and media routes", () => {
     const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/official?lang=en`);
     const html = await response.text();
     expect(response.status).toBe(200);
-    expect(html).toContain("Official album");
+    expect(html).toContain("The official album");
     expect(html).toContain("official-stream-media");
     expect(html).toContain("public-legacy-video");
+  });
+
+  it("localizes the official album and keeps the six-language picker", async () => {
+    for (const [locale, expected] of [
+      ["fr", ["Collection officielle", "L’histoire officielle", "Moments sélectionnés", "Moments des invités"]],
+      ["de", ["Offizielle Sammlung", "Die offizielle Geschichte", "Ausgewählte Momente", "Gästemomente"]],
+      ["es", ["Colección oficial", "La historia oficial", "Momentos seleccionados", "Momentos de invitados"]],
+      ["it", ["Raccolta ufficiale", "La storia ufficiale", "Momenti selezionati", "Momenti degli invitati"]],
+    ] as const) {
+      const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/official?lang=${locale}`);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expected.forEach((text) => expect(html).toContain(text));
+      expect(html).not.toContain("The official story");
+      expect(html).not.toContain("Curated moments");
+      expect(html.split(`<option value="/gallery/${publicCode}/official?lang=`)).toHaveLength(7);
+    }
   });
 
   it("expires galleries according to the event expiration", async () => {

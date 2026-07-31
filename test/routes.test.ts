@@ -1,5 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { eventVerticals } from "../src/event-verticals";
 
 describe("public Worker routes", () => {
   it("exposes dependency-free liveness and D1 readiness checks", async () => {
@@ -12,6 +13,27 @@ describe("public Worker routes", () => {
     expect(ready.status).toBe(200);
     expect(await ready.json()).toEqual({ status: "ready" });
     expect(ready.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("exposes a secret-safe email readiness check", async () => {
+    const response = await SELF.fetch("https://memboux.com/health/email");
+    const body = await response.json<{
+      status: string;
+      checkedAt: number;
+      outboundConfigured: boolean;
+      deliveryTrackingConfigured: boolean;
+      dns: Record<string, string>;
+    }>();
+
+    expect([200, 503]).toContain(response.status);
+    expect(["ready", "action_required"]).toContain(body.status);
+    expect(body.checkedAt).toBeTypeOf("number");
+    expect(body.outboundConfigured).toBeTypeOf("boolean");
+    expect(body.deliveryTrackingConfigured).toBeTypeOf("boolean");
+    expect(Object.keys(body.dns).sort()).toEqual(["dkim", "dmarc", "mx", "spf"]);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(JSON.stringify(body)).not.toContain("whsec_");
+    expect(JSON.stringify(body)).not.toContain("re_");
   });
 
   it("redirects the root URL to the English homepage", async () => {
@@ -51,10 +73,163 @@ describe("public Worker routes", () => {
     expect(homeHtml).toContain('hreflang="x-default"');
     expect(homeHtml).toContain('property="og:title"');
     expect(homeHtml).toContain('content="index,follow,max-image-preview:large"');
+    expect(homeHtml).toContain("Don’t leave your memories on everyone else’s phone.");
+    expect(homeHtml).toContain("Why Memboux exists");
+    expect(homeHtml).toContain("Photos and videos from everyone");
+    expect(greekHomeHtml).toContain("Μην αφήσεις τις αναμνήσεις σου στα κινητά των άλλων.");
+    expect(greekHomeHtml).toContain("Γιατί υπάρχει το Memboux");
+    expect(greekHomeHtml).toContain("Φωτογραφίες και βίντεο από όλους");
 
     const login = await SELF.fetch("https://memboux.com/en/login");
     expect(await login.text()).toContain('content="noindex,nofollow,noarchive"');
   });
+
+  it("renders the indexable wedding landing and its creation funnel", async () => {
+    const response = await SELF.fetch("https://memboux.com/el/wedding");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Η κοινή μνήμη του γάμου σας");
+    expect(html).toContain("φωτογραφίες και βίντεο από κάθε καλεσμένο");
+    expect(html).toContain('href="/el/register?redirect=');
+    expect(html).toContain('<link rel="canonical" href="https://memboux.com/el/wedding">');
+    expect(html).toContain('content="index,follow,max-image-preview:large"');
+    expect(html).toContain('"@type":"SoftwareApplication"');
+  });
+
+  it.each([
+    ["fr", "Votre mariage à travers les yeux de tous ceux qui y étaient."],
+    ["de", "Eure Hochzeit durch die Augen aller, die dabei waren."],
+    ["es", "Vuestra boda desde la mirada de todos los que estuvieron allí."],
+    ["it", "Il vostro matrimonio attraverso gli occhi di tutti."],
+  ])("uses native flagship Wedding messaging in %s", async (locale, headline) => {
+    const response = await SELF.fetch(`https://memboux.com/${locale}/wedding`);
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain(`lang="${locale}"`);
+    expect(html).toContain(headline);
+    expect(html).not.toContain("Your wedding through the eyes of everyone who was there.");
+  });
+
+  it("renders specialized event landing pages and rejects unknown verticals", async () => {
+    const response = await SELF.fetch("https://memboux.com/el/events/birthday");
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('<link rel="canonical" href="https://memboux.com/el/events/birthday">');
+    expect(html).toContain("create%3Dbirthday");
+    expect(html).toContain("14 ημέρες");
+
+    const unknown = await SELF.fetch("https://memboux.com/en/events/unknown");
+    expect(unknown.status).toBe(404);
+
+    const sitemap = await SELF.fetch("https://memboux.com/sitemap.xml");
+    expect(await sitemap.text()).toContain("https://memboux.com/en/events/corporate");
+  });
+
+  it("serves interactive pre-creation demos without authentication", async () => {
+    const demo = await SELF.fetch("https://memboux.com/el/events/trip/preview");
+    const demoHtml = await demo.text();
+    expect(demo.status).toBe(200);
+    expect(demoHtml).toContain('data-demo-theme="editorial"');
+    expect(demoHtml).toContain('data-demo-width="390px"');
+    expect(demoHtml).toContain('content="noindex,nofollow,noarchive"');
+
+    const frame = await SELF.fetch("https://memboux.com/el/events/trip/demo-frame?theme=editorial");
+    const frameHtml = await frame.text();
+    expect(frame.status).toBe(200);
+    expect(frameHtml).toContain('data-event-preview="trip"');
+    expect(frameHtml).toContain('data-event-theme="editorial"');
+    expect(frame.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
+
+    const wedding = await SELF.fetch("https://memboux.com/en/wedding/preview");
+    const weddingHtml = await wedding.text();
+    expect(wedding.status).toBe(200);
+    expect(weddingHtml.match(/data-wedding-demo-theme=/g)).toHaveLength(15);
+
+    const weddingFrame = await SELF.fetch("https://memboux.com/en/wedding/demo-frame?theme=nocturne");
+    expect(await weddingFrame.text()).toContain('data-wedding-theme="nocturne"');
+  });
+
+  it("serves every preview language without losing the selected theme", async () => {
+    for (const locale of ["en", "el", "fr", "de", "es", "it"]) {
+      const event = await SELF.fetch(`https://memboux.com/${locale}/events/bachelor/preview?theme=vivid`);
+      expect(event.status).toBe(200);
+      const eventHtml = await event.text();
+      expect(eventHtml).toContain(`/${locale}/events/bachelor/demo-frame?theme=vivid`);
+      expect(eventHtml).toContain("/fr/events/bachelor/preview?theme=vivid");
+
+      const wedding = await SELF.fetch(`https://memboux.com/${locale}/wedding/preview?theme=nocturne`);
+      expect(wedding.status).toBe(200);
+      const weddingHtml = await wedding.text();
+      expect(weddingHtml).toContain(`/${locale}/wedding/demo-frame?theme=nocturne`);
+      expect(weddingHtml).toContain("/it/wedding/preview?theme=nocturne");
+    }
+  });
+
+  it("serves the complete event-type × locale preview matrix without fallback corruption", async () => {
+    const locales = ["en", "el", "fr", "de", "es", "it"] as const;
+    const latinLocales = new Set(["fr", "de", "es", "it"]);
+    const mojibake = /[\u039e\u039f\u0393]|\u03b2[\u20ac\u2122\u2019]/;
+
+    for (const locale of locales) {
+      const eventChecks = await Promise.all(eventVerticals.map(async (vertical) => {
+        const [preview, frame] = await Promise.all([
+          SELF.fetch(`https://memboux.com/${locale}/events/${vertical.type}/preview?theme=vivid`),
+          SELF.fetch(`https://memboux.com/${locale}/events/${vertical.type}/demo-frame?theme=vivid`),
+        ]);
+        return {
+          vertical,
+          preview,
+          frame,
+          previewHtml: await preview.text(),
+          frameHtml: await frame.text(),
+        };
+      }));
+
+      for (const check of eventChecks) {
+        expect(check.preview.status).toBe(200);
+        expect(check.frame.status).toBe(200);
+        expect(check.previewHtml).toContain(`<html lang="${locale}">`);
+        expect(check.frameHtml).toContain(`<html lang="${locale}">`);
+        expect(check.previewHtml).toContain(
+          `/${locale}/events/${check.vertical.type}/demo-frame?theme=vivid`,
+        );
+        for (const targetLocale of locales) {
+          expect(check.previewHtml).toContain(
+            `/${targetLocale}/events/${check.vertical.type}/preview?theme=vivid`,
+          );
+        }
+        expect(check.frameHtml).toContain(
+          `data-event-preview="${check.vertical.type}"`,
+        );
+        expect(check.frameHtml).toContain('data-event-theme="vivid"');
+        expect(check.previewHtml).not.toContain("\uFFFD");
+        expect(check.frameHtml).not.toContain("\uFFFD");
+        if (latinLocales.has(locale)) {
+          expect(check.previewHtml).not.toMatch(mojibake);
+          expect(check.frameHtml).not.toMatch(mojibake);
+        }
+      }
+
+      const [weddingPreview, weddingFrame] = await Promise.all([
+        SELF.fetch(`https://memboux.com/${locale}/wedding/preview?theme=nocturne`),
+        SELF.fetch(`https://memboux.com/${locale}/wedding/demo-frame?theme=nocturne`),
+      ]);
+      const [weddingPreviewHtml, weddingFrameHtml] = await Promise.all([
+        weddingPreview.text(),
+        weddingFrame.text(),
+      ]);
+      expect(weddingPreview.status).toBe(200);
+      expect(weddingFrame.status).toBe(200);
+      expect(weddingPreviewHtml).toContain(`/${locale}/wedding/demo-frame?theme=nocturne`);
+      expect(weddingFrameHtml).toContain('data-wedding-theme="nocturne"');
+      for (const targetLocale of locales) {
+        expect(weddingPreviewHtml).toContain(
+          `/${targetLocale}/wedding/preview?theme=nocturne`,
+        );
+      }
+    }
+  }, 15_000);
 
   it("returns 404 for an unknown route", async () => {
     const response = await SELF.fetch("https://memboux.com/route-that-does-not-exist");
@@ -97,8 +272,8 @@ describe("public Worker routes", () => {
   });
 
   it.each([
-    ["/en", "Collect every moment. Keep it yours."],
-    ["/el", "Συγκέντρωσε κάθε στιγμή. Κράτησέ τη δική σου."],
+    ["/en", "Don’t leave your memories on everyone else’s phone."],
+    ["/el", "Μην αφήσεις τις αναμνήσεις σου στα κινητά των άλλων."],
     ["/en/login", "Continue with Google"],
     ["/el/register", "Συνέχεια με Google"],
     ["/en/verify-email", "Check your email"],
@@ -133,9 +308,9 @@ describe("public Worker routes", () => {
     expect(html).toContain('id="how-it-works"');
     expect(html).toContain('id="features"');
     expect(html).toContain('id="privacy"');
-    expect(html).toContain("No guest app required");
+    expect(html).toContain("No app required");
     expect(html).toContain("Memboux Studio");
-    expect(html).toContain("Create your first event gallery.");
+    expect(html).toContain("Your next big event starts here.");
     expect(html).toContain('/en/register');
     expect(html).toContain('/el');
   });

@@ -2,23 +2,25 @@
 
 :root {
   color-scheme: light dark;
-  --canvas: #f6f9f7;
+  --canvas: #fbf9ff;
   --surface: #ffffff;
-  --surface-soft: #eef4f1;
-  --line: #dde7e2;
-  --accent-soft: #b9d3c8;
-  --accent: #397765;
-  --accent-deep: #2b6253;
-  --ink: #183c33;
-  --muted: #697a74;
+  --surface-soft: #f2efff;
+  --line: #e4ddf5;
+  --accent-soft: #d8ceff;
+  --accent: #6c4cf1;
+  --accent-deep: #4c2cb3;
+  --accent-aqua: #20bfa9;
+  --accent-coral: #ff6b7a;
+  --ink: #251547;
+  --muted: #726985;
   --font-primary: "Manrope", sans-serif;
 
   /* Enhanced shadow system */
-  --shadow-sm: 0 1px 3px rgba(24, 60, 51, .06);
-  --shadow-md: 0 4px 12px rgba(24, 60, 51, .08);
-  --shadow-lg: 0 8px 24px rgba(24, 60, 51, .10);
-  --shadow-xl: 0 14px 38px rgba(24, 60, 51, .12);
-  --shadow-2xl: 0 24px 60px rgba(24, 60, 51, .16);
+  --shadow-sm: 0 1px 3px rgba(37, 21, 71, .06);
+  --shadow-md: 0 4px 12px rgba(37, 21, 71, .08);
+  --shadow-lg: 0 8px 24px rgba(37, 21, 71, .10);
+  --shadow-xl: 0 14px 38px rgba(37, 21, 71, .12);
+  --shadow-2xl: 0 24px 60px rgba(37, 21, 71, .16);
 
   /* Animation durations */
   --duration-fast: .15s;
@@ -56,6 +58,89 @@ input::file-selector-button { font: inherit; }
 }
 button { letter-spacing: .025em; }
 
+/* ============================================================
+   Memboux violet rebrand
+   Maps legacy green utilities used by older screens onto the
+   current product palette, so every surface stays consistent.
+   Event-specific template palettes remain intentionally isolated.
+   ============================================================ */
+:where(
+  [class~="bg-[#2b174d]"], [class~="bg-[#24143b]"], [class~="bg-[#17352d]"],
+  [class~="bg-[#2b174d]/95"], [class~="bg-[#2b174d]/90"], [class~="bg-[#2b174d]/80"]
+) { background-color: var(--ink) !important; }
+
+:where(
+  [class~="bg-[#7c3aed]"], [class~="bg-[#6d28d9]"], [class~="bg-[#583a78]"],
+  [class~="bg-[#2c473e]"], [class~="bg-[#8b5cf6]"], [class~="bg-[#315d50]"],
+  [class~="bg-[#29463d]"], [class~="bg-[#304c43]"]
+) { background-color: var(--accent) !important; }
+
+:where(
+  [class~="bg-[#f2ecff]"], [class~="bg-[#efe8f8]"], [class~="bg-[#f4effc]"],
+  [class~="bg-[#f3effa]"], [class~="bg-[#f6f2fc]"], [class~="bg-[#f7f3ff]"],
+  [class~="bg-[#f1eaff]"], [class~="bg-[#e8efec]"], [class~="bg-[#d9e7e1]"],
+  [class~="bg-[#cfe1da]"], [class~="bg-[#cfe1da]/55"], [class~="bg-[#9dbbad]"],
+  [class~="bg-[#9dbbad]/30"]
+) { background-color: var(--surface-soft) !important; }
+
+:where(
+  [class~="bg-[#f8f5ff]"], [class~="bg-[#f8f5ff]"], [class~="bg-[#f5f8f6]"],
+  [class~="bg-[#faf8ff]"], [class~="bg-[#f7faf8]"]
+) { background-color: var(--canvas) !important; }
+
+:where(
+  [class~="text-[#2b174d]"], [class~="text-[#24143b]"], [class~="text-[#17352d]"],
+  [class~="text-[#29463d]"], [class~="text-[#49395a]"], [class~="text-[#304c43]"]
+) { color: var(--ink) !important; }
+
+:where(
+  [class~="text-[#7c3aed]"], [class~="text-[#6d28d9]"], [class~="text-[#583a78]"],
+  [class~="text-[#2c473e]"], [class~="text-[#8b5cf6]"], [class~="text-[#315d50]"],
+  [class~="text-[#6d28d9]"], [class~="text-[#7c3aed]"], [class~="text-[#d4c5eb]"]
+) { color: var(--accent-deep) !important; }
+
+:where(
+  [class~="text-[#675a72]"], [class~="text-[#4b645b]"], [class~="text-[#6b5d76]"],
+  [class~="text-[#556b63]"], [class~="text-[#746a80]"], [class~="text-[#596d65]"],
+  [class~="text-[#5f7069]"], [class~="text-[#5f786f]"], [class~="text-[#60736c]"],
+  [class~="text-[#6f657c]"], [class~="text-[#667970]"], [class~="text-[#687970]"],
+  [class~="text-[#776c81]"], [class~="text-[#786d82]"], [class~="text-[#7d7188]"],
+  [class~="text-[#7f7489]"], [class~="text-[#807588]"], [class~="text-[#877d91]"],
+  [class~="text-[#84978f]"], [class~="text-[#a1ada8]"]
+) { color: var(--muted) !important; }
+
+:where(
+  [class~="border-[#eae4f3]"], [class~="border-[#e9e2f2]"], [class~="border-[#e7e0f0]"],
+  [class~="border-[#e3dced]"], [class~="border-[#e2dbec]"], [class~="border-[#e2dbec]"],
+  [class~="border-[#e2dcef]"], [class~="border-[#e1d9eb]"], [class~="border-[#cfdfd8]"],
+  [class~="border-[#ccdcd5]"], [class~="border-[#ddcff5]"], [class~="border-[#bdcec7]"],
+  [class~="border-[#c4b5fd]"], [class~="border-[#e4ebe8]"], [class~="border-[#eee8f5]"]
+) { border-color: var(--line) !important; }
+
+:where(
+  [class~="focus-visible:ring-[#8b5cf6]/35"], [class~="focus-visible:ring-[#a78bfa]"],
+  [class~="focus:ring-[#8b5cf6]"], [class~="ring-[#8b5cf6]"]
+) { --tw-ring-color: rgba(108, 76, 241, .38) !important; }
+
+:where(
+  [class~="shadow-[#2b174d]/15"], [class~="shadow-[#2b174d]/20"],
+  [class~="shadow-[#7c3aed]/20"], [class~="shadow-[#7c3aed]/25"]
+) { --tw-shadow-color: rgba(108, 76, 241, .24) !important; }
+
+.m-support-button,
+.m-support-head,
+.m-primary { background: var(--ink) !important; }
+.m-support-button { box-shadow: 0 12px 35px rgba(37, 21, 71, .34) !important; }
+.m-support-panel { border-color: var(--line) !important; background: var(--canvas) !important; }
+.m-support-form input,
+.m-support-form select,
+.m-support-form textarea,
+.m-chat-compose textarea { border-color: var(--line) !important; color: var(--ink) !important; }
+.m-chat-user { background: var(--accent) !important; }
+.m-chat-admin { border-color: var(--line) !important; color: var(--ink) !important; }
+.m-typing { background: var(--surface-soft) !important; }
+.m-typing span { background: var(--accent) !important; }
+
 /* Every genuinely interactive control uses the conventional pointer cursor.
    Text-entry fields intentionally keep their native text cursor. */
 :where(
@@ -83,25 +168,25 @@ input:disabled { cursor: not-allowed; }
    ============================================================ */
 .memboux-ui {
   background:
-    radial-gradient(circle at 8% 0%, rgba(47, 107, 91, .08), transparent 24rem),
-    radial-gradient(circle at 92% 8%, rgba(106, 157, 139, .07), transparent 28rem),
+    radial-gradient(circle at 8% 0%, rgba(108, 76, 241, .10), transparent 24rem),
+    radial-gradient(circle at 92% 8%, rgba(32, 191, 169, .08), transparent 28rem),
     var(--canvas);
 }
 .memboux-ui .app-shell-header {
   position: sticky;
   top: 0;
-  box-shadow: 0 10px 32px rgba(24, 60, 51, .12);
+  box-shadow: 0 10px 32px rgba(37, 21, 71, .14);
 }
 .memboux-ui > header.border-b.bg-white,
 .memboux-ui > .admin-ui > header,
-.memboux-ui > div > header.bg-\[\#183c33\] {
+.memboux-ui > div > header.bg-\[\#2b174d\] {
   position: sticky;
   top: 0;
   z-index: 40;
   border-color: rgba(255, 255, 255, .1);
-  background: rgba(24, 60, 51, .96);
+  background: rgba(37, 21, 71, .96);
   color: #fff;
-  box-shadow: 0 10px 32px rgba(24, 60, 51, .12);
+  box-shadow: 0 10px 32px rgba(37, 21, 71, .14);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -120,11 +205,11 @@ input:disabled { cursor: not-allowed; }
 .memboux-ui section.rounded-3xl,
 .memboux-ui article.rounded-3xl {
   border-color: rgba(207, 220, 214, .9);
-  box-shadow: 0 18px 50px rgba(24, 60, 51, .075);
+  box-shadow: 0 18px 50px rgba(37, 21, 71, .075);
 }
 .memboux-ui .rounded-3xl.bg-white:hover,
 .memboux-ui article.rounded-3xl.bg-white:hover {
-  box-shadow: 0 22px 58px rgba(24, 60, 51, .105);
+  box-shadow: 0 22px 58px rgba(37, 21, 71, .105);
 }
 .memboux-ui input:not([type="checkbox"]):not([type="radio"]),
 .memboux-ui select,
@@ -138,10 +223,10 @@ input:disabled { cursor: not-allowed; }
 .memboux-ui dialog {
   border: 1px solid rgba(221, 231, 226, .8);
   border-radius: 1.5rem;
-  box-shadow: 0 32px 90px rgba(24, 60, 51, .28);
+  box-shadow: 0 32px 90px rgba(37, 21, 71, .28);
 }
 .memboux-ui dialog::backdrop {
-  background: rgba(13, 30, 25, .58);
+  background: rgba(20, 10, 43, .60);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
@@ -155,15 +240,15 @@ input:disabled { cursor: not-allowed; }
 }
 .memboux-ui tbody tr { transition: background-color .18s ease; }
 .memboux-ui tbody tr:hover { background: rgba(240, 245, 242, .7); }
-.memboux-ui .bg-\[\#2f6b5b\],
-.memboux-ui .bg-\[\#255848\] {
+.memboux-ui .bg-\[\#7c3aed\],
+.memboux-ui .bg-\[\#6d28d9\] {
   background-color: var(--accent);
-  box-shadow: 0 10px 24px rgba(47, 107, 91, .24);
+  box-shadow: 0 10px 24px rgba(108, 76, 241, .24);
 }
-.memboux-ui .bg-\[\#2f6b5b\]:hover,
-.memboux-ui .bg-\[\#255848\]:hover { background-color: var(--accent-deep); }
-.memboux-ui .text-\[\#2f6b5b\] { color: var(--accent-deep); }
-.memboux-ui .bg-\[\#183c33\] { background-color: #183c33; }
+.memboux-ui .bg-\[\#7c3aed\]:hover,
+.memboux-ui .bg-\[\#6d28d9\]:hover { background-color: var(--accent-deep); }
+.memboux-ui .text-\[\#7c3aed\] { color: var(--accent-deep); }
+.memboux-ui .bg-\[\#2b174d\] { background-color: var(--ink); }
 .memboux-ui .page-kicker {
   color: var(--accent-deep);
   font-size: .7rem;
@@ -201,7 +286,7 @@ input:disabled { cursor: not-allowed; }
   margin-right: .8rem;
   border: 0;
   border-radius: .75rem;
-  background: #183c33;
+  background: var(--ink);
   color: #fff;
   padding: .65rem .9rem;
   cursor: pointer;
@@ -275,14 +360,14 @@ input:disabled { cursor: not-allowed; }
 .memboux-ui [data-gallery-filter] {
   background: rgba(255, 255, 255, .85);
   border-color: var(--line);
-  color: #344941;
+  color: var(--ink);
   font-weight: 600;
 }
 .memboux-ui [data-gallery-filter][aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-  box-shadow: 0 8px 20px rgba(47, 107, 91, .24);
+  box-shadow: 0 8px 20px rgba(108, 76, 241, .24);
 }
 .memboux-ui [data-gallery-filter][aria-pressed="true"]:hover {
   background: var(--accent-deep);
@@ -301,7 +386,7 @@ input:disabled { cursor: not-allowed; }
   justify-content: flex-start;
 }
 .memboux-ui .event-sort-toolbar select:focus {
-  outline: 2px solid rgba(47, 107, 91, .2);
+  outline: 2px solid rgba(108, 76, 241, .22);
   outline-offset: 1px;
 }
 
@@ -325,7 +410,7 @@ input:disabled { cursor: not-allowed; }
   inset: 0 0 auto;
   height: 5rem;
   padding: 1.1rem 2rem 0 5rem;
-  background: #183c33 url('/brand/memboux-icon.png') no-repeat 1.6rem 1.05rem / 2.5rem;
+  background: var(--ink) url('/brand/memboux-icon.png') no-repeat 1.6rem 1.05rem / 2.5rem;
   color: #fff;
   white-space: pre;
   font-size: .9rem;
@@ -353,7 +438,7 @@ input:disabled { cursor: not-allowed; }
     position: fixed;
     inset: 0;
     z-index: 90;
-    background: rgba(13, 30, 25, .22);
+    background: rgba(37, 21, 71, .22);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
   }
@@ -367,8 +452,8 @@ input:disabled { cursor: not-allowed; }
 }
 
 [data-open-new-event]:is(:hover, :focus-visible) [data-new-event-plus] {
-  background-color: #2f6b5b;
-  border-color: #2f6b5b;
+  background-color: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -432,38 +517,38 @@ a, button, input, select, textarea {
 .border { border-color: var(--line); }
 input, select, textarea {
   background-color: #fff;
-  caret-color: #2f6b5b;
+  caret-color: var(--accent);
 }
-input:hover, select:hover, textarea:hover { border-color: #8cb7a6; }
+input:hover, select:hover, textarea:hover { border-color: #a895f7; }
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
-  outline: 3px solid rgba(47, 107, 91, .17);
+  outline: 3px solid rgba(108, 76, 241, .17);
   outline-offset: 1px;
 }
 a:focus-visible, button:focus-visible {
-  outline: 3px solid rgba(47, 107, 91, .32);
+  outline: 3px solid rgba(108, 76, 241, .32);
   outline-offset: 3px;
 }
-.shadow, .shadow-lg, .shadow-xl { box-shadow: 0 14px 38px rgba(18, 43, 36, .09); }
+.shadow, .shadow-lg, .shadow-xl { box-shadow: 0 14px 38px rgba(37, 21, 71, .09); }
 ::selection {
-  background: #d8e9e2;
-  color: #183c33;
+  background: #ddd4ff;
+  color: var(--ink);
 }
 
 /* Guest and official galleries: editorial, low-friction album journeys. */
 body:has(.guest-album-page),
 body:has(.official-album-page) {
   background:
-    radial-gradient(circle at 12% 4%, rgba(47, 107, 91, .13), transparent 30rem),
-    linear-gradient(180deg, #f8faf9 0%, #eef4f1 100%);
+    radial-gradient(circle at 12% 4%, rgba(108, 76, 241, .13), transparent 30rem),
+    linear-gradient(180deg, #fdfbff 0%, #f1edff 100%);
 }
 .guest-event-hero {
   position: relative;
   border: 1px solid rgba(255,255,255,.1);
   background:
-    radial-gradient(circle at 88% 8%, rgba(105,154,137,.32), transparent 22rem),
-    #183c33;
-  box-shadow: 0 34px 90px rgba(18,43,36,.2);
+    radial-gradient(circle at 88% 8%, rgba(32,191,169,.26), transparent 22rem),
+    var(--ink);
+  box-shadow: 0 34px 90px rgba(37,21,71,.22);
 }
 .guest-event-hero::after {
   content: "";
@@ -481,13 +566,13 @@ body:has(.official-album-page) {
   border-radius: 0;
   background: transparent;
   padding: 0;
-  color: #2b443c;
+  color: var(--ink);
   box-shadow: none;
 }
 .gallery-upload input[type="file"] {
   min-height: 6rem;
-  border: 1px dashed #a8b8b3;
-  background: #f7faf8;
+  border: 1px dashed #b9abea;
+  background: var(--canvas);
   cursor: pointer;
 }
 .guest-share-card > .mt-5.flex {
@@ -580,7 +665,7 @@ body:has(.official-album-page) .memboux-media-card,
   }
   .card-lift:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 50px rgba(24, 60, 51, .12);
+    box-shadow: 0 20px 50px rgba(37, 21, 71, .12);
   }
 }
 
@@ -599,7 +684,7 @@ html {
    Focus ring improvements
    ============================================================ */
 *:focus-visible {
-  outline: 3px solid rgba(47, 107, 91, .32);
+  outline: 3px solid rgba(108, 76, 241, .34);
   outline-offset: 2px;
   border-radius: .25rem;
 }
@@ -621,62 +706,62 @@ html {
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #0d1714;
-    --surface: #182923;
-    --surface-soft: #202f2a;
-    --line: #364841;
-    --ink: #f3f7f5;
-    --muted: #a8b8b2;
-    --accent-soft: #4f796a;
-    --accent: #6fa18f;
-    --accent-deep: #9fc3b5;
+    --canvas: #10091f;
+    --surface: #1b1230;
+    --surface-soft: #271a43;
+    --line: #49376e;
+    --ink: #f7f3ff;
+    --muted: #b8aecb;
+    --accent-soft: #7d68d8;
+    --accent: #9277ff;
+    --accent-deep: #c2b4ff;
   }
   html, body,
   body:has(.guest-album-page),
   body:has(.official-album-page),
   .memboux-ui {
-    background: #0d1714;
+    background: #10091f;
     color: var(--ink);
   }
   .memboux-ui {
     background:
-      radial-gradient(circle at 8% 0%, rgba(111, 161, 143, .13), transparent 26rem),
-      radial-gradient(circle at 92% 8%, rgba(106, 157, 139, .08), transparent 30rem),
+      radial-gradient(circle at 8% 0%, rgba(146, 119, 255, .17), transparent 26rem),
+      radial-gradient(circle at 92% 8%, rgba(32, 191, 169, .09), transparent 30rem),
       var(--canvas);
   }
   .memboux-ui [class~="bg-white"],
-  .memboux-ui [class~="bg-[#f1f6f3]"],
+  .memboux-ui [class~="bg-[#f7f3ff]"],
   .memboux-ui [class~="bg-[#f7faf8]"],
-  .memboux-ui [class~="bg-[#f8faf9]"],
+  .memboux-ui [class~="bg-[#faf8ff]"],
   .memboux-ui [class~="bg-[#fafcfb]"],
   .memboux-ui [class~="bg-[#f2f6f4]"],
-  .memboux-ui [class~="bg-[#e9f2ee]"],
-  .memboux-ui [class~="bg-[#e8f3ee]"] {
+  .memboux-ui [class~="bg-[#f2ecff]"],
+  .memboux-ui [class~="bg-[#f1eaff]"] {
     background-color: var(--surface) !important;
   }
-  .memboux-ui [class~="text-[#183c33]"],
-  .memboux-ui [class~="text-[#2b443c]"],
-  .memboux-ui [class~="text-[#344941]"] { color: var(--ink) !important; }
-  .memboux-ui [class~="text-[#586c65]"],
-  .memboux-ui [class~="text-[#65756f]"],
-  .memboux-ui [class~="text-[#687a74]"],
-  .memboux-ui [class~="text-[#697a74]"],
-  .memboux-ui [class~="text-[#6c7b76]"],
-  .memboux-ui [class~="text-[#74847f]"],
-  .memboux-ui [class~="text-[#7b8a85]"],
+  .memboux-ui [class~="text-[#2b174d]"],
+  .memboux-ui [class~="text-[#49395a]"],
+  .memboux-ui [class~="text-[#443653]"] { color: var(--ink) !important; }
+  .memboux-ui [class~="text-[#746a80]"],
+  .memboux-ui [class~="text-[#6f657c]"],
+  .memboux-ui [class~="text-[#756b82]"],
+  .memboux-ui [class~="text-[#756b82]"],
+  .memboux-ui [class~="text-[#7a7085]"],
+  .memboux-ui [class~="text-[#807588]"],
+  .memboux-ui [class~="text-[#877d91]"],
   .memboux-ui [class~="text-[#8b9994]"] { color: var(--muted) !important; }
   .memboux-ui input:not([type="checkbox"]):not([type="radio"]),
   .memboux-ui select,
   .memboux-ui textarea,
   .memboux-ui dialog {
     border-color: var(--line);
-    background: #13231e;
+    background: #21163a;
     color: var(--ink);
   }
   .memboux-ui .gallery-upload,
   .memboux-ui .gallery-upload input[type="file"] {
     border-color: var(--line);
-    background: #13231e;
+    background: #21163a;
     color: var(--ink);
   }
   .memboux-ui section,
@@ -684,9 +769,9 @@ html {
   .memboux-ui aside { border-color: var(--line); }
   .memboux-ui [data-gallery-filter] {
     border-color: var(--line);
-    background: #182923;
+    background: #1b1230;
     color: var(--ink);
   }
   .memboux-ui .empty-state { border-color: var(--line); background: rgba(23, 27, 36, .82); }
-  ::selection { background: #2b6253; color: #fff; }
+  ::selection { background: #5d43c7; color: #fff; }
 }

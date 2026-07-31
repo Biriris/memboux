@@ -39,7 +39,7 @@ const name = (value: string): ThemeCopy => ({ en: value, el: value, fr: value, d
 export const weddingThemes: readonly WeddingTheme[] = [
   {
     key: "cypress", name: name("Cypress"), layout: "centered", font: "garamond",
-    description: copy("Editorial botanicals with quiet Mediterranean luxury.", "Editorial βοτανική αισθητική με ήσυχη μεσογειακή πολυτέλεια.", "Botanique éditoriale au luxe méditerranéen discret.", "Editoriale Botanik mit stiller mediterraner Eleganz.", "Botánica editorial con lujo mediterráneo sereno.", "Botanica editoriale dal lusso mediterraneo discreto."),
+    description: copy("Editorial botanicals with quiet Mediterranean luxury.", "Βοτανική αισθητική περιοδικού με διακριτική μεσογειακή πολυτέλεια.", "Botanique éditoriale au luxe méditerranéen discret.", "Editoriale Botanik mit stiller mediterraner Eleganz.", "Botánica editorial con lujo mediterráneo sereno.", "Botanica editoriale dal lusso mediterraneo discreto."),
     palette: ["#173d34", "#c8b7a6", "#f4f0e7"], defaultAccent: "#8f6d55",
   },
   {
@@ -49,27 +49,27 @@ export const weddingThemes: readonly WeddingTheme[] = [
   },
   {
     key: "lumiere", name: name("Lumière"), layout: "centered", font: "didot",
-    description: copy("Airy blush tones and softly romantic movement.", "Ανάλαφροι blush τόνοι και απαλά ρομαντική κίνηση.", "Tons poudrés aériens et mouvement délicatement romantique.", "Luftige Pudertöne und sanft romantische Bewegung.", "Tonos empolvados y movimiento suavemente romántico.", "Toni cipria ariosi e movimento delicatamente romantico."),
+    description: copy("Airy blush tones and softly romantic movement.", "Ανάλαφροι ρόδινοι τόνοι και απαλή ρομαντική κίνηση.", "Tons poudrés aériens et mouvement délicatement romantique.", "Luftige Pudertöne und sanft romantische Bewegung.", "Tonos empolvados y movimiento suavemente romántico.", "Toni cipria ariosi e movimento delicatamente romantico."),
     palette: ["#6d514c", "#d6b8ae", "#fbf6f1"], defaultAccent: "#a46f65",
   },
   {
     key: "atelier", name: name("Atelier"), layout: "editorial", font: "modern",
-    description: copy("High-fashion monochrome with a magazine-cover composition.", "High-fashion μονόχρωμο με σύνθεση εξωφύλλου περιοδικού.", "Monochrome haute couture composé comme une couverture de magazine.", "High-Fashion-Monochrom im Stil eines Magazincovers.", "Monocromo de alta moda con composición de portada.", "Monocromia haute couture con composizione da copertina."),
+    description: copy("High-fashion monochrome with a magazine-cover composition.", "Μονόχρωμη υψηλή αισθητική με σύνθεση εξωφύλλου περιοδικού.", "Monochrome haute couture composé comme une couverture de magazine.", "High-Fashion-Monochrom im Stil eines Magazincovers.", "Monocromo de alta moda con composición de portada.", "Monocromia haute couture con composizione da copertina."),
     palette: ["#111111", "#a9a9a7", "#f7f5f0"], defaultAccent: "#6f6f6b",
   },
   {
     key: "aegean", name: name("Aegean"), layout: "split", font: "noto-serif",
-    description: copy("Sea blue, sun-washed ivory and a destination feel.", "Μπλε του Αιγαίου, ηλιόλουστο ivory και destination αίσθηση.", "Bleu Égée, ivoire solaire et esprit destination.", "Ägäisblau, sonniges Elfenbein und Destination-Flair.", "Azul Egeo, marfil soleado y espíritu de destino.", "Blu Egeo, avorio solare e atmosfera destination."),
+    description: copy("Sea blue, sun-washed ivory and a destination feel.", "Μπλε του Αιγαίου, ηλιόλουστο εκρού και αίσθηση νησιωτικού προορισμού.", "Bleu Égée, ivoire solaire et esprit destination.", "Ägäisblau, sonniges Elfenbein und Destination-Flair.", "Azul Egeo, marfil soleado y espíritu de destino.", "Blu Egeo, avorio solare e atmosfera destination."),
     palette: ["#153b56", "#8fb7c5", "#f7f2e8"], defaultAccent: "#d09b63",
   },
   {
     key: "champagne", name: name("Champagne"), layout: "framed", font: "didot",
-    description: copy("Warm metallic details and timeless ballroom elegance.", "Ζεστές μεταλλικές λεπτομέρειες και διαχρονική ballroom κομψότητα.", "Détails métalliques chauds et élégance intemporelle de ballroom.", "Warme Metalldetails und zeitlose Ballsaal-Eleganz.", "Detalles metálicos cálidos y elegancia de salón atemporal.", "Dettagli metallici caldi ed eleganza senza tempo."),
+    description: copy("Warm metallic details and timeless ballroom elegance.", "Ζεστές μεταλλικές λεπτομέρειες και διαχρονική κομψότητα αίθουσας χορού.", "Détails métalliques chauds et élégance intemporelle de ballroom.", "Warme Metalldetails und zeitlose Ballsaal-Eleganz.", "Detalles metálicos cálidos y elegancia de salón atemporal.", "Dettagli metallici caldi ed eleganza senza tempo."),
     palette: ["#4b3b2f", "#c7aa79", "#f7f0e3"], defaultAccent: "#b38a4e",
   },
   {
     key: "wildflower", name: name("Wildflower"), layout: "centered", font: "garamond",
-    description: copy("A joyful garden palette with expressive romantic type.", "Χαρούμενη garden παλέτα με εκφραστική ρομαντική γραφή.", "Palette de jardin joyeuse et typographie romantique expressive.", "Fröhliche Gartenpalette mit expressiver romantischer Schrift.", "Paleta de jardín alegre y tipografía romántica expresiva.", "Palette da giardino gioiosa e caratteri romantici espressivi."),
+    description: copy("A joyful garden palette with expressive romantic type.", "Χαρούμενη ανθισμένη παλέτα με εκφραστική ρομαντική γραφή.", "Palette de jardin joyeuse et typographie romantique expressive.", "Fröhliche Gartenpalette mit expressiver romantischer Schrift.", "Paleta de jardín alegre y tipografía romántica expresiva.", "Palette da giardino gioiosa e caratteri romantici espressivi."),
     palette: ["#334f3d", "#efb8bd", "#fff8ed"], defaultAccent: "#c75f74",
   },
   {
@@ -79,17 +79,17 @@ export const weddingThemes: readonly WeddingTheme[] = [
   },
   {
     key: "monogram", name: name("Monogram"), layout: "framed", font: "noto-serif",
-    description: copy("Invitation-suite minimalism with precise lines and spacing.", "Μινιμαλισμός invitation suite με ακριβείς γραμμές και αποστάσεις.", "Minimalisme de papeterie avec lignes et espacements précis.", "Einladungs-Minimalismus mit präzisen Linien und Abständen.", "Minimalismo de invitación con líneas y espacios precisos.", "Minimalismo da invito con linee e spaziature precise."),
+    description: copy("Invitation-suite minimalism with precise lines and spacing.", "Μινιμαλισμός προσκλητηρίου με ακριβείς γραμμές και αποστάσεις.", "Minimalisme de papeterie avec lignes et espacements précis.", "Einladungs-Minimalismus mit präzisen Linien und Abständen.", "Minimalismo de invitación con líneas y espacios precisos.", "Minimalismo da invito con linee e spaziature precise."),
     palette: ["#2d3431", "#b9b7ae", "#faf9f4"], defaultAccent: "#77756d",
   },
   {
     key: "deco", name: name("Deco"), layout: "poster", font: "didot",
-    description: copy("Geometric black and gold inspired by evening glamour.", "Γεωμετρικό μαύρο και χρυσό εμπνευσμένο από evening glamour.", "Noir et or géométriques inspirés du glamour nocturne.", "Geometrisches Schwarz und Gold mit Abendglamour.", "Negro y oro geométricos con glamour nocturno.", "Nero e oro geometrici ispirati al glamour serale."),
+    description: copy("Geometric black and gold inspired by evening glamour.", "Γεωμετρικό μαύρο και χρυσό, εμπνευσμένο από τη λάμψη της βραδιάς.", "Noir et or géométriques inspirés du glamour nocturne.", "Geometrisches Schwarz und Gold mit Abendglamour.", "Negro y oro geométricos con glamour nocturno.", "Nero e oro geometrici ispirati al glamour serale."),
     palette: ["#0b1212", "#b99455", "#eee3ce"], defaultAccent: "#c49b55",
   },
   {
     key: "celeste", name: name("Celeste"), layout: "centered", font: "noto-serif",
-    description: copy("Powder blue, clean light and effortless modern romance.", "Powder blue, καθαρό φως και ανεπιτήδευτος σύγχρονος ρομαντισμός.", "Bleu poudré, lumière pure et romance moderne sans effort.", "Puderblau, klares Licht und mühelose moderne Romantik.", "Azul empolvado, luz limpia y romance moderno natural.", "Azzurro polvere, luce pulita e romanticismo moderno."),
+    description: copy("Powder blue, clean light and effortless modern romance.", "Απαλό γαλάζιο, καθαρό φως και ανεπιτήδευτος σύγχρονος ρομαντισμός.", "Bleu poudré, lumière pure et romance moderne sans effort.", "Puderblau, klares Licht und mühelose moderne Romantik.", "Azul empolvado, luz limpia y romance moderno natural.", "Azzurro polvere, luce pulita e romanticismo moderno."),
     palette: ["#334855", "#b9ced8", "#f7faf9"], defaultAccent: "#718f9d",
   },
   {
@@ -99,17 +99,17 @@ export const weddingThemes: readonly WeddingTheme[] = [
   },
   {
     key: "pearl", name: name("Pearl"), layout: "framed", font: "noto-serif",
-    description: copy("Ultra-minimal ivory with pearl highlights and quiet type.", "Ultra-minimal ivory με pearl ανταύγειες και ήσυχη τυπογραφία.", "Ivoire ultra-minimal, reflets nacrés et typographie discrète.", "Ultra-minimales Elfenbein mit Perlschimmer und ruhiger Typografie.", "Marfil ultraminimal con reflejos perlados y tipografía serena.", "Avorio ultra-minimal con riflessi perlati e tipografia discreta."),
+    description: copy("Ultra-minimal ivory with pearl highlights and quiet type.", "Απόλυτα λιτό εκρού με περλέ ανταύγειες και ήσυχη τυπογραφία.", "Ivoire ultra-minimal, reflets nacrés et typographie discrète.", "Ultra-minimales Elfenbein mit Perlschimmer und ruhiger Typografie.", "Marfil ultraminimal con reflejos perlados y tipografía serena.", "Avorio ultra-minimal con riflessi perlati e tipografia discreta."),
     palette: ["#4d504e", "#d8d7d0", "#fdfcf8"], defaultAccent: "#a3a198",
   },
   {
     key: "solstice", name: name("Solstice"), layout: "poster", font: "modern",
-    description: copy("Sunset rust, plum shadows and bold contemporary energy.", "Sunset rust, plum σκιές και τολμηρή σύγχρονη ενέργεια.", "Rouille coucher de soleil, ombres prune et énergie contemporaine.", "Sonnenuntergangsrost, Pflaumenschatten und moderne Energie.", "Óxido de atardecer, sombras ciruela y energía contemporánea.", "Ruggine al tramonto, ombre prugna ed energia contemporanea."),
+    description: copy("Sunset rust, plum shadows and bold contemporary energy.", "Κεραμιδί ηλιοβασίλεμα, δαμασκηνί σκιές και τολμηρή σύγχρονη ενέργεια.", "Rouille coucher de soleil, ombres prune et énergie contemporaine.", "Sonnenuntergangsrost, Pflaumenschatten und moderne Energie.", "Óxido de atardecer, sombras ciruela y energía contemporánea.", "Ruggine al tramonto, ombre prugna ed energia contemporanea."),
     palette: ["#432a38", "#d07b5d", "#f6d9c8"], defaultAccent: "#d46f50",
   },
   {
     key: "alpine", name: name("Alpine"), layout: "split", font: "modern",
-    description: copy("Cool stone, deep forest and architectural restraint.", "Cool stone, βαθύ δάσος και αρχιτεκτονική λιτότητα.", "Pierre froide, forêt profonde et retenue architecturale.", "Kühler Stein, tiefer Wald und architektonische Zurückhaltung.", "Piedra fría, bosque profundo y sobriedad arquitectónica.", "Pietra fredda, bosco profondo e rigore architettonico."),
+    description: copy("Cool stone, deep forest and architectural restraint.", "Ψυχρή πέτρα, βαθύ δάσος και αρχιτεκτονική λιτότητα.", "Pierre froide, forêt profonde et retenue architecturale.", "Kühler Stein, tiefer Wald und architektonische Zurückhaltung.", "Piedra fría, bosque profundo y sobriedad arquitectónica.", "Pietra fredda, bosco profondo e rigore architettonico."),
     palette: ["#233a36", "#8b9992", "#e8e9e4"], defaultAccent: "#697c74",
   },
 ] as const;

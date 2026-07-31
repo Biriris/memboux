@@ -1,4 +1,9 @@
-export type AccountNotificationType = "invitation_accepted" | "media_uploaded";
+export type AccountNotificationType =
+  | "invitation_accepted"
+  | "media_uploaded"
+  | "trial_ending_3d"
+  | "trial_ending_1d"
+  | "trial_expired";
 
 type DirectNotificationInput = {
   userId: string;

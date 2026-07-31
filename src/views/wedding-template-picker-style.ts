@@ -1,8 +1,8 @@
 /** Keeps the 15 template choices aligned and previews their distinct composition. */
 export const weddingTemplatePickerStyles = `<style>
   .w-template-card{position:relative;display:flex;min-width:0;height:100%;flex-direction:column;isolation:isolate;transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
-  .w-template-card[data-selected="true"]{border-color:#2f6b5b!important;box-shadow:0 0 0 3px #b9d5ca,0 16px 38px #183c3324!important;transform:translateY(-2px) scale(1.01)}
-  .w-template-selected{position:absolute;z-index:8;right:.7rem;top:.7rem;display:inline-flex;align-items:center;gap:.35rem;border:1px solid #ffffff80;border-radius:999px;background:#183c33e8;padding:.42rem .65rem;color:#fff;font:700 .62rem/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 6px 18px #10292045;opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease;backdrop-filter:blur(10px)}
+  .w-template-card[data-selected="true"]{border-color:#7c3aed!important;box-shadow:0 0 0 3px #cfc0e9,0 16px 38px #2b174d24!important;transform:translateY(-2px) scale(1.01)}
+  .w-template-selected{position:absolute;z-index:8;right:.7rem;top:.7rem;display:inline-flex;align-items:center;gap:.35rem;border:1px solid #ffffff80;border-radius:999px;background:#2b174de8;padding:.42rem .65rem;color:#fff;font:700 .62rem/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 6px 18px #20133145;opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease;backdrop-filter:blur(10px)}
   .w-template-card[data-selected="true"] .w-template-selected{opacity:1;transform:none}
   .w-template-card:focus-within{outline:3px solid #8bb9a8;outline-offset:3px}
   .w-template-card>label{display:flex;min-height:0;flex:1;flex-direction:column}

@@ -6,8 +6,8 @@ describe("shared views", () => {
     const html = page(`Memboux <script>alert("x")</script>`, "<main>safe body</main>");
 
     expect(html).toContain('family=Manrope:wght@200..800&display=swap');
-    expect(html).toContain('<link rel="stylesheet" href="/app-midnight.css?v=20260718-1">');
-    expect(html).toContain('<meta name="theme-color" content="#183c33">');
+    expect(html).toContain('<link rel="stylesheet" href="/app-midnight.css?v=20260728-violet">');
+    expect(html).toContain('<meta name="theme-color" content="#251547">');
     expect(html).toContain("Memboux &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
     expect(html).not.toContain("cdn.tailwindcss.com");
     expect(html).toContain('name="robots" content="noindex,nofollow,noarchive"');

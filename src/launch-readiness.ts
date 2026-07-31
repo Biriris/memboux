@@ -3,7 +3,7 @@ export type LaunchReadinessEnvironment = {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
-  ADMIN_PASSWORD?: string;
+  RESEND_WEBHOOK_SECRET?: string;
   BUSINESS_LEGAL_NAME?: string;
   BUSINESS_POSTAL_ADDRESS?: string;
   PRIVACY_EMAIL?: string;
@@ -44,10 +44,16 @@ export function getLaunchReadiness(env: LaunchReadinessEnvironment) {
       label: "Transactional email",
     },
     {
-      key: "admin_secret",
+      key: "transactional_email_webhooks",
       category: "technical",
-      ready: configured(env.ADMIN_PASSWORD, 12),
-      label: "Admin authentication",
+      ready: configured(env.RESEND_WEBHOOK_SECRET, 20),
+      label: "Verified email delivery webhooks",
+    },
+    {
+      key: "admin_identity",
+      category: "technical",
+      ready: configured(env.BETTER_AUTH_SECRET, 32),
+      label: "Personal admin identity and role access",
     },
     {
       key: "legal_identity",

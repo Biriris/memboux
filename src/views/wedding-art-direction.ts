@@ -367,9 +367,9 @@ export const weddingArtDirectionStyles = `
     .w-page[data-wedding-theme="deco"] .w-top,.w-page[data-wedding-theme="champagne"] .w-top{width:calc(100% - 3rem)}
   }
   @media(max-width:759px){
-    .w-page{--w-section-space:clamp(4rem,16vw,6rem);--w-title-size:clamp(1.95rem,8.2vw,3.1rem);--w-hero-size:clamp(2.6rem,10.8vw,4.2rem)}
+    .w-page{--w-section-space:clamp(4rem,16vw,6rem);--w-title-size:clamp(1.95rem,8.2vw,3.1rem);--w-hero-size:clamp(2.6rem,10.8vw,4.2rem);overflow-x:hidden}
     .w-page[data-wedding-theme]{--w-title-size:clamp(1.95rem,8.2vw,3.1rem);--w-hero-size:clamp(2.6rem,10.8vw,4.2rem)}
-    .w-page .w-top{display:grid}.w-page .w-nav{display:flex}
+    .w-page .w-top{display:grid;grid-template-columns:minmax(0,1fr) auto}.w-page .w-top>.brand-mark{min-width:0;max-width:8.5rem;overflow:hidden}.w-page .w-top>.brand-mark strong+span{display:none!important}.w-page .w-nav{display:none}
     .w-page .w-hero-copy{width:100%;min-height:100svh;padding:9.5rem 1.15rem 4rem}
     .w-page .w-hero h1{max-width:100%;font-size:var(--w-hero-size);line-height:.9}
     .w-page[data-wedding-name-scale="compact"]{--w-hero-size:clamp(2.45rem,10.5vw,4.15rem)}

@@ -1,0 +1,1 @@
+Upload, validation, storage, processing, delivery.

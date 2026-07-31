@@ -5,7 +5,7 @@ import { supportedLocales } from "../src/i18n";
 describe("event types", () => {
   it("keeps a stable, filterable event taxonomy", () => {
     expect(eventTypes).toEqual([
-      "wedding", "engagement", "birthday", "party", "baptism", "baby", "graduation",
+      "wedding", "engagement", "bachelor", "birthday", "party", "baptism", "baby", "graduation",
       "corporate", "trip", "reunion", "community", "memorial", "other",
     ]);
     expect(isEventType("trip")).toBe(true);

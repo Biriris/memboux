@@ -106,6 +106,9 @@ describe("media views", () => {
     const script = galleryFilterScript(items, "guest");
     expect(greek).toContain("1 φωτογραφία");
     expect(greek).toContain("1 βίντεο");
+    expect(greek).toContain("Πιο πρόσφατα");
+    expect(greek).toContain("Παλαιότερα");
+    expect(greek).not.toMatch(/\buploads?\b/i);
     expect(english).toContain("1 photo");
     expect(english).toContain("1 video");
     expect(english).toContain('data-gallery-photo-count="1"');
@@ -170,6 +173,39 @@ describe("media views", () => {
     const html = cards([{ ...media(), like_count: 12, viewer_liked: 0 }], { lightbox: true });
     expect(html).toContain("data-media-like");
     expect(html).toContain("data-like-count>12</span>");
+  });
+
+  it("localizes media interactions and lightbox controls in every supported language", () => {
+    for (const [locale, expected] of [
+      ["en", ["Like photo", "Report", "Uploaded by", "Download original", "Previous"]],
+      ["el", ["Βάλε καρδιά", "Αναφορά", "Ανέβηκε από", "Λήψη πρωτότυπου", "Προηγούμενο"]],
+      ["fr", ["Aimer la photo", "Signaler", "Ajouté par", "Télécharger l’original", "Précédent"]],
+      ["de", ["Foto liken", "Melden", "Hochgeladen von", "Original herunterladen", "Zurück"]],
+      ["es", ["Dar me gusta", "Denunciar", "Subido por", "Descargar original", "Anterior"]],
+      ["it", ["Metti Mi piace", "Segnala", "Caricato da", "Scarica originale", "Precedente"]],
+    ] as const) {
+      const cardHtml = cards([{ ...media(), like_count: 2, viewer_liked: 0 }], {
+        lightbox: true,
+        likes: true,
+        selectable: true,
+        reportCode: "ABC123",
+        locale,
+      });
+      const lightbox = lightboxMarkup(locale, true);
+      expect(cardHtml).toContain(expected[0]);
+      expect(cardHtml).toContain(expected[1]);
+      expect(cardHtml).toContain('aria-label="');
+      expect(mediaUploaderOverlay(locale)).toContain(expected[2]);
+      expect(lightbox).toContain(expected[3]);
+      expect(lightbox).toContain(`aria-label="${expected[4]}"`);
+      expect(mediaLikesScript("ABC123", locale)).toContain(expected[0]);
+      if (locale === "el") {
+        expect(lightbox).not.toContain("Λήψη original");
+        expect(lightbox).not.toContain("Τα original");
+      }
+      const source = lightbox.slice(lightbox.indexOf("<script>") + 8, lightbox.lastIndexOf("</script>"));
+      expect(() => new Function(source)).not.toThrow();
+    }
   });
 
   it("shows the uploader on gallery cards and in the open-photo overlay", () => {

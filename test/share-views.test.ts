@@ -24,4 +24,20 @@ describe("message sharing", () => {
     expect(html).toContain("navigator.clipboard.writeText(button.dataset.text)");
     expect(html).toContain("navigator.share(payload)");
   });
+
+  it("localizes the native sharing journey in every supported language", () => {
+    for (const [locale, expected] of [
+      ["en", ["View and add moments", 'aria-label="Share"', "Official album"]],
+      ["el", ["Δες και πρόσθεσε στιγμές", 'aria-label="Κοινοποίηση"', "Επίσημο album"]],
+      ["fr", ["Découvrez et ajoutez vos moments", 'aria-label="Partager"', "Album officiel"]],
+      ["de", ["Sieh dir Momente", 'aria-label="Teilen"', "Offizielles Album"]],
+      ["es", ["Descubre y añade momentos", 'aria-label="Compartir"', "Álbum oficial"]],
+      ["it", ["Guarda e aggiungi momenti", 'aria-label="Condividi"', "Album ufficiale"]],
+    ] as const) {
+      const html = shareIconButtons("https://memboux.com/gallery/ABC123", "Summer trip", locale);
+      expected.forEach((text) => expect(html).toContain(text));
+      const source = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
+      expect(() => new Function(source)).not.toThrow();
+    }
+  });
 });

@@ -10,10 +10,12 @@ describe("wedding template art direction", () => {
     }
   });
 
-  it("keeps translated navigation collision-safe on desktop and accessible on mobile", () => {
+  it("keeps translated navigation collision-safe on desktop and removes it from the narrow mobile header", () => {
     expect(weddingArtDirectionStyles).toContain("grid-template-columns:minmax(12rem,.8fr) minmax(0,2.7fr) minmax(5.5rem,.65fr)");
     expect(weddingArtDirectionStyles).toContain("overflow-x:auto");
-    expect(weddingArtDirectionStyles).toContain(".w-page .w-nav{display:flex}");
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-nav{display:none}");
+    expect(weddingArtDirectionStyles).toContain("grid-template-columns:minmax(0,1fr) auto");
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-top>.brand-mark strong+span{display:none!important}");
   });
 
   it("normalizes picker card height and previews all fifteen distinct editions", () => {

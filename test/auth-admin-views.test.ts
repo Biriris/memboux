@@ -67,7 +67,7 @@ describe("authentication and admin views", () => {
     expect(english.indexOf("Registered users")).toBeLessThan(english.indexOf("Event library"));
     expect(english).toContain("Reported media");
     expect(english).toContain('<main><a href="/admin/events">content</a></main>');
-    expect(greek).toContain("Βιβλιοθήκη events");
-    expect(greek).toContain("Κάδος φωτογραφιών");
+    expect(greek).toContain("Βιβλιοθήκη εκδηλώσεων");
+    expect(greek).toContain("Κάδος πολυμέσων");
   });
 });

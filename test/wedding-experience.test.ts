@@ -70,4 +70,71 @@ describe("integrated wedding guest experience", () => {
     expect(result.html).toContain('data-gallery-deferred="true"');
     expect(result.scripts).toContain('data-gallery-grid="wedding-guest-gallery"');
   });
+
+  it("localizes every integrated Wedding section and the visible media picker", () => {
+    const expectations = {
+      en: ["Guest experience", "Guest uploads", "QR &amp; Share", "Guest moments", "Choose photos or videos"],
+      el: ["Εμπειρία καλεσμένων", "Περιεχόμενο καλεσμένων", "QR &amp; κοινοποίηση", "Στιγμές καλεσμένων", "Επίλεξε φωτογραφίες ή βίντεο"],
+      fr: ["Expérience invités", "Contenu des invités", "QR et partage", "Moments des invités", "Choisir des photos ou vidéos"],
+      de: ["Gästeerlebnis", "Beiträge der Gäste", "QR &amp; Teilen", "Gästemomente", "Fotos oder Videos auswählen"],
+      es: ["Experiencia de invitados", "Contenido de invitados", "QR y compartir", "Momentos de invitados", "Elegir fotos o vídeos"],
+      it: ["Esperienza ospiti", "Contenuti degli ospiti", "QR e condivisione", "Momenti degli ospiti", "Scegli foto o video"],
+    } as const;
+
+    for (const [locale, labels] of Object.entries(expectations)) {
+      const result = renderWeddingExperience({
+        code: "ABC123",
+        eventName: "Alex & Sam",
+        locale: locale as keyof typeof expectations,
+        guestUrl: "https://memboux.com/wedding/ABC123",
+        guestQrSvg: "<svg></svg>",
+        guestItems: [],
+        officialItems: [],
+        guestbookEntries: [],
+        settings: { rsvp_enabled: 0, guestbook_enabled: 0, comments_enabled: 0, slideshow_enabled: 0 },
+        curatorName: "Memboux Studio",
+      });
+      for (const label of labels) expect(result.html).toContain(label);
+      expect(result.html).toContain('input name="file" required multiple type="file"');
+      expect(result.html).toContain('class="sr-only"');
+      if (locale !== "en") {
+        expect(result.html).not.toContain(">Guest experience<");
+        expect(result.html).not.toContain(">Guest uploads<");
+        expect(result.html).not.toContain(">Guest moments<");
+      }
+    }
+  });
+
+  it("uses natural Greek and Italian copy without mixed-language fallbacks", () => {
+    const render = (locale: "el" | "it") => renderWeddingExperience({
+      code: "ABC123",
+      eventName: "Alex & Sam",
+      locale,
+      guestUrl: "https://memboux.com/wedding/ABC123",
+      guestQrSvg: "<svg></svg>",
+      guestItems: [],
+      officialItems: [],
+      guestbookEntries: [],
+      settings: { rsvp_enabled: 0, guestbook_enabled: 0, comments_enabled: 0, slideshow_enabled: 1 },
+      curatorName: "Memboux Studio",
+    });
+
+    const greek = render("el");
+    for (const phrase of [
+      "Το επαγγελματικό άλμπουμ",
+      "Ζωντανές στιγμές",
+      "Οι νέες φωτογραφίες και τα βίντεο θα εμφανίζονται εδώ αυτόματα.",
+      "Προσθήκη στο άλμπουμ",
+      "Αντιγραφή συνδέσμου εκδήλωσης",
+      "Κοινό άλμπουμ",
+    ]) expect(greek.html).toContain(phrase);
+    expect(greek.scripts).toContain("Ο σύνδεσμος αντιγράφηκε");
+    for (const fallback of ["professional album", "Live στιγμές", "νέα uploads", "σελίδα του event", "στο album", "link event", "Κοινό gallery"]) {
+      expect(`${greek.html}${greek.scripts}`).not.toContain(fallback);
+    }
+
+    const italian = render("it");
+    expect(italian.html).toContain("Galleria condivisa");
+    expect(italian.html).not.toContain("Gallery condivisa");
+  });
 });

@@ -66,7 +66,7 @@ describe("global security middleware", () => {
     });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin/login");
+    expect(response.headers.get("location")).toBe("/el/account");
   });
 
   it("does not expose cross-origin API access", async () => {

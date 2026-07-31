@@ -1,5 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
+import { mediaDetailActions } from "../src/routes/event-media";
 
 const code = "EVT901";
 const eventId = "event-route-boundary";
@@ -46,6 +47,18 @@ beforeAll(async () => {
 });
 
 describe("event route boundaries", () => {
+  it("turns a locked original into an upgrade path without exposing mutation controls", () => {
+    const locked = mediaDetailActions("en", code, "media-1", false, false);
+    expect(locked).toContain("Full-resolution download unlocks");
+    expect(locked).toContain(`/dashboard/${code}/checkout?lang=en`);
+    expect(locked).not.toContain("/media/media-1?download=1");
+    expect(locked).not.toContain("/trash");
+
+    const unlocked = mediaDetailActions("en", code, "media-1", true, true);
+    expect(unlocked).toContain("/media/media-1?download=1");
+    expect(unlocked).toContain(`/api/account/events/${code}/media/media-1/trash`);
+  });
+
   it.each([
     `/dashboard/${code}`,
     `/dashboard/${code}/edit`,

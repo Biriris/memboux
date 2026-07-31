@@ -20,6 +20,8 @@ describe("admin route boundaries", () => {
     "/admin/users",
     "/admin/users/user-1",
     "/admin/readiness",
+    "/admin/profile",
+    "/admin/support/conversation-1/activity",
     "/admin/professionals",
     "/admin/trash",
     "/admin/events/ABC123",
@@ -58,7 +60,25 @@ describe("admin route boundaries", () => {
     expect(response.headers.get("location")).toBe("/admin/login");
   });
 
-  it("clears the admin cookie during logout", async () => {
+  it("does not allow anonymous alias delivery tests", async () => {
+    const response = await SELF.fetch(
+      "https://memboux.com/admin/readiness/test-alias",
+      {
+        method: "POST",
+        headers: {
+          Origin: "https://memboux.com",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "alias=support",
+        redirect: "manual",
+      },
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/admin/login");
+  });
+
+  it("exits the admin area without using a shared admin cookie", async () => {
     const response = await SELF.fetch("https://memboux.com/admin/logout", {
       method: "POST",
       headers: { Origin: "https://memboux.com" },
@@ -66,8 +86,7 @@ describe("admin route boundaries", () => {
     });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin/login");
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
-    expect(response.headers.get("set-cookie")).toContain("SameSite=Strict");
+    expect(response.headers.get("location")).toBe("/el/account");
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

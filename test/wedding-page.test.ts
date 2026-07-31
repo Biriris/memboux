@@ -56,7 +56,7 @@ const preWeddingMedia: WeddingMediaRow[] = ["hero-photo", "story-photo", "galler
 
 describe("wedding event page", () => {
   it("renders the selected template, cover and enabled experiences", () => {
-    const html = renderWeddingPage({ event, profile, locale: "en", selectedFeatures: ["rsvp", "guestbook"], coverUpdatedAt: 42 });
+    const html = renderWeddingPage({ event, profile, locale: "en", selectedFeatures: ["rsvp", "guestbook", "calendar_links"], coverUpdatedAt: 42 });
     expect(html).toContain('data-wedding-theme="nocturne"');
     expect(html).toContain('data-wedding-layout="editorial"');
     expect(html).toContain('data-wedding-font="didot"');
@@ -67,6 +67,9 @@ describe("wedding event page", () => {
     expect(html).not.toContain("5:00 PM");
     expect(html).toContain("RSVP");
     expect(html).toContain("Guestbook");
+    expect(html).toContain(`/wedding/${event.code}/calendar/ceremony.ics?lang=en`);
+    expect(html).toContain("Add to calendar");
+    expect(html).not.toContain(`/wedding/${event.code}/calendar/reception.ics`);
     expect(html).not.toContain("Travel &amp; transport");
     expect(html).toContain("data-luxury-hero");
     expect(html).toContain('data-wedding-name-scale="standard"');
@@ -164,6 +167,7 @@ describe("wedding event page", () => {
     expect(html).not.toContain('id="schedule"');
     expect(html).toContain("Ιδιωτική προεπισκόπηση");
     expect(html).toContain('id="moments"');
+    expect(html).toContain(`/wedding/${event.code}?lang=fr&preview=1&theme=${profile.template_key}`);
   });
 
   it("places the complete guest experience inside the wedding page", () => {
@@ -181,5 +185,69 @@ describe("wedding event page", () => {
     expect(html).toContain('href="#live"');
     expect(html.indexOf('id="guest-experience"')).toBeLessThan(html.indexOf('class="w-footer"'));
     expect(html).toContain("data-integrated-experience");
+  });
+
+  it("localizes the Wedding navigation and language controls in every locale", () => {
+    const labels = {
+      en: ["Wedding navigation", "Language", "Continue to the event details"],
+      el: ["Πλοήγηση γάμου", "Γλώσσα", "Συνέχεια στις λεπτομέρειες"],
+      fr: ["Navigation du mariage", "Langue", "Voir les détails de l’événement"],
+      de: ["Hochzeitsnavigation", "Sprache", "Weiter zu den Veranstaltungsdetails"],
+      es: ["Navegación de la boda", "Idioma", "Continuar a los detalles del evento"],
+      it: ["Navigazione del matrimonio", "Lingua", "Continua ai dettagli dell’evento"],
+    } as const;
+
+    for (const [locale, expected] of Object.entries(labels)) {
+      const html = renderWeddingPage({
+        event,
+        profile,
+        locale: locale as keyof typeof labels,
+        selectedFeatures: [],
+        coverUpdatedAt: null,
+      });
+      for (const label of expected) expect(html).toContain(label);
+      expect(html.split(`<option value="/wedding/${event.code}?lang=`)).toHaveLength(7);
+      if (locale !== "en") {
+        expect(html).not.toContain('aria-label="Wedding navigation"');
+        expect(html).not.toContain('aria-label="Language"');
+        expect(html).not.toContain('aria-label="Scroll"');
+      }
+    }
+  });
+
+  it("uses natural Greek and Italian Wedding terminology", () => {
+    const greek = renderWeddingPage({
+      event,
+      profile: { ...profile, welcome_message: "", story: "" },
+      locale: "el",
+      selectedFeatures: ["guestbook"],
+      coverUpdatedAt: null,
+      preview: true,
+      menu: {
+        event_id: event.id,
+        object_key: "wedding-menus/event-1/menu.pdf",
+        content_type: "application/pdf",
+        original_filename: "menu.pdf",
+        size_bytes: 1024,
+        updated_by: "user-1",
+        updated_at: 1,
+      },
+    });
+    for (const phrase of ["Επεξεργασία σελίδας", "Μενού γάμου", "Δες το μενού", "Μια ιδιωτική εμπειρία γάμου στο Memboux."]) {
+      expect(greek).toContain(phrase);
+    }
+    for (const fallback of ["Επεξεργασία website", "Menu γάμου", "Δες το menu", "wedding εμπειρία"]) {
+      expect(greek).not.toContain(fallback);
+    }
+
+    const italian = renderWeddingPage({
+      event,
+      profile,
+      locale: "it",
+      selectedFeatures: ["guestbook"],
+      coverUpdatedAt: null,
+    });
+    expect(italian).toContain("Libro degli ospiti");
+    expect(italian).not.toContain(">Guestbook<");
   });
 });

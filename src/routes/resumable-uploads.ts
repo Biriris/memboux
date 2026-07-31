@@ -7,6 +7,7 @@ import {
   MULTIPART_UPLOAD_TTL_MS,
 } from "../config";
 import type { Bindings, EventRow } from "../domain";
+import { eventMediaCapacity, isTrialMediaLimitConstraint } from "../event-access";
 import { hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
@@ -119,6 +120,9 @@ async function authorizeUpload(
   if (!event) return jsonError("Event not found.", 404);
   if (Date.now() > event.expires_at) return jsonError("This event has expired.", 410);
   const uploader = await currentUser(c);
+  const capacity = await eventMediaCapacity(c.env.DB, event.id, 1, input.origin === "official");
+  if (!capacity.allowed)
+    return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
   if (input.origin === "official") {
     if (!uploader) return jsonError("Sign in to upload official media.", 401);
     if (!(await canManageOfficialAlbum(c.env.DB, event.id, uploader.id)))
@@ -337,6 +341,8 @@ resumableUploadRoutes.post("/api/upload/:code/multipart", async (c) => {
   } catch (error) {
     if (multipart) await multipart.abort().catch(() => undefined);
     await releaseStorage(c.env.DB, reservation.ownerId, size);
+    if (isTrialMediaLimitConstraint(error))
+      return jsonError("This trial event has no remaining media slots.", 409);
     console.error(JSON.stringify({
       event: "multipart_upload_create_failed",
       eventId: context.event.id,
@@ -458,6 +464,11 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
     return c.json({ ok: true, uploaded: 0, duplicate: true });
   if (session.status !== "uploading" && session.status !== "completing")
     return jsonError("This upload cannot be completed.", 409);
+  const capacity = await eventMediaCapacity(c.env.DB, session.event_id, 0, session.origin === "official");
+  if (!capacity.allowed) {
+    await abortSession(c.env, session);
+    return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+  }
 
   const parts = await c.env.DB.prepare(
     "SELECT part_number,etag,size_bytes,client_hash FROM multipart_upload_parts WHERE session_id=? ORDER BY part_number",
@@ -546,6 +557,10 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
     ).bind(now, now, session.id));
     await c.env.DB.batch(statements);
   } catch (error) {
+    if (isTrialMediaLimitConstraint(error)) {
+      await abortSession(c.env, session);
+      return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+    }
     if (!isCanonicalDuplicateConstraint(error)) throw error;
     await c.env.MEDIA.delete(mediaObjectKeys(session.object_key));
     await releaseStorage(c.env.DB, session.reservation_owner_id, session.size_bytes);

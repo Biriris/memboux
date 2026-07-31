@@ -23,7 +23,10 @@ export type EmailPurpose =
   | "password_reset"
   | "account_deletion"
   | "event_invitation"
-  | "professional_assignment";
+  | "professional_assignment"
+  | "support_staff_notification"
+  | "support_customer_reply"
+  | "support_staff_test";
 
 type SendEmailInput = {
   to: string;
@@ -31,6 +34,8 @@ type SendEmailInput = {
   subject: string;
   html: string;
   text: string;
+  from?: string;
+  replyTo?: string;
 };
 
 const emailEsc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
@@ -50,7 +55,7 @@ function accountEmail(options: {
   secondary: string;
 }) {
   const url = emailEsc(options.url);
-  return `<!doctype html><html><body style="margin:0;background:#f4f8f6;color:#183c33;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${emailEsc(options.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8f6;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e2ebe7;border-radius:20px"><tr><td style="padding:34px"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:#183c33">Memboux</div><div style="margin-top:4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#3f7d6c">Collecting moments</div><h1 style="margin:32px 0 12px;font-size:28px;line-height:1.2;color:#172d27">${emailEsc(options.title)}</h1><p style="margin:0;color:#4a6159;font-size:16px;line-height:1.7">${emailEsc(options.intro)}</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#2f6b5b;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px">${emailEsc(options.actionLabel)}</a></p><p style="margin:0 0 8px;color:#65756f;font-size:13px;line-height:1.6">${emailEsc(options.secondary)}</p><p style="margin:0;word-break:break-all;color:#3f7d6c;font-size:12px;line-height:1.6"><a href="${url}" style="color:#3f7d6c">${url}</a></p><hr style="margin:30px 0;border:0;border-top:1px solid #e2ebe7"><p style="margin:0;color:#94a79f;font-size:12px;line-height:1.6">This is a transactional account email from memboux.com.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f8f5ff;color:#2b174d;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${emailEsc(options.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f5ff;padding:32px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #ece5f4;border-radius:20px"><tr><td style="padding:34px"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:#2b174d">Memboux</div><div style="margin-top:4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8b5cf6">Collecting moments</div><h1 style="margin:32px 0 12px;font-size:28px;line-height:1.2;color:#24143b">${emailEsc(options.title)}</h1><p style="margin:0;color:#675a72;font-size:16px;line-height:1.7">${emailEsc(options.intro)}</p><p style="margin:28px 0"><a href="${url}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:12px">${emailEsc(options.actionLabel)}</a></p><p style="margin:0 0 8px;color:#6f657c;font-size:13px;line-height:1.6">${emailEsc(options.secondary)}</p><p style="margin:0;word-break:break-all;color:#8b5cf6;font-size:12px;line-height:1.6"><a href="${url}" style="color:#8b5cf6">${url}</a></p><hr style="margin:30px 0;border:0;border-top:1px solid #ece5f4"><p style="margin:0;color:#94a79f;font-size:12px;line-height:1.6">This is a transactional account email from memboux.com.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 async function recordEmailAttempt(
@@ -65,7 +70,9 @@ async function recordEmailAttempt(
       `memboux-email:${env.BETTER_AUTH_SECRET}:${message.to.trim().toLowerCase()}`,
     );
     await env.DB.prepare(
-      "INSERT INTO email_delivery_attempts (id,recipient_hash,purpose,status,provider_message_id,error_code,created_at) VALUES (?,?,?,?,?,?,?)",
+      `INSERT INTO email_delivery_attempts
+       (id,recipient_hash,purpose,status,provider_message_id,error_code,created_at,delivery_outcome,delivery_event_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
     ).bind(
       crypto.randomUUID(),
       recipientHash,
@@ -73,6 +80,8 @@ async function recordEmailAttempt(
       status,
       providerMessageId,
       errorCode,
+      Date.now(),
+      status === "sent" ? "accepted" : "failed",
       Date.now(),
     ).run();
   } catch (error) {
@@ -90,8 +99,9 @@ export async function sendEmail(env: AuthEnv, message: SendEmailInput) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Memboux Accounts <accounts@mail.memboux.com>",
+        from: message.from ?? "Memboux Accounts <accounts@mail.memboux.com>",
         to: [message.to],
+        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
         subject: message.subject,
         html: message.html,
         text: message.text,

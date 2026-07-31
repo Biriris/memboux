@@ -1,4 +1,20 @@
 const baseUrl = (process.env.BASE_URL || "https://memboux.com").replace(/\/$/, "");
+const locales = ["en", "el", "fr", "de", "es", "it"];
+const eventVerticals = [
+  "engagement",
+  "bachelor",
+  "birthday",
+  "party",
+  "baptism",
+  "baby",
+  "graduation",
+  "corporate",
+  "trip",
+  "reunion",
+  "community",
+  "memorial",
+  "other",
+];
 
 const checks = [
   {
@@ -92,6 +108,71 @@ const checks = [
     location: "/en/login",
   },
 ];
+
+for (const [index, type] of eventVerticals.entries()) {
+  const locale = locales[index % locales.length];
+  checks.push(
+    {
+      name: `${type} landing (${locale})`,
+      path: `/${locale}/events/${type}`,
+      status: 200,
+      body: `/${locale}/events/${type}/preview`,
+    },
+    {
+      name: `${type} preview shell (${locale})`,
+      path: `/${locale}/events/${type}/preview`,
+      status: 200,
+      body: 'id="demo-frame"',
+    },
+    {
+      name: `${type} preview frame (${locale})`,
+      path: `/${locale}/events/${type}/demo-frame?theme=signature`,
+      status: 200,
+      body: `data-event-preview="${type}"`,
+    },
+  );
+}
+
+for (const locale of locales) {
+  checks.push(
+    {
+      name: `wedding landing (${locale})`,
+      path: `/${locale}/wedding`,
+      status: 200,
+      body: `/${locale}/wedding/preview`,
+    },
+    {
+      name: `wedding preview shell (${locale})`,
+      path: `/${locale}/wedding/preview`,
+      status: 200,
+      body: 'id="wedding-demo-frame"',
+    },
+    {
+      name: `wedding preview frame (${locale})`,
+      path: `/${locale}/wedding/demo-frame?theme=cypress`,
+      status: 200,
+      body: 'data-wedding-theme="cypress"',
+    },
+    {
+      name: `bachelor landing (${locale})`,
+      path: `/${locale}/events/bachelor`,
+      status: 200,
+      body: `/${locale}/events/bachelor/preview`,
+    },
+    {
+      name: `bachelor preview shell (${locale})`,
+      path: `/${locale}/events/bachelor/preview`,
+      status: 200,
+      body: 'id="demo-frame"',
+    },
+    {
+      name: `bachelor preview frame (${locale})`,
+      path: `/${locale}/events/bachelor/demo-frame?theme=signature`,
+      status: 200,
+      body: 'data-event-preview="bachelor"',
+    },
+  );
+}
 
 if (process.env.SMOKE_GALLERY_CODE) {
   const code = encodeURIComponent(process.env.SMOKE_GALLERY_CODE);

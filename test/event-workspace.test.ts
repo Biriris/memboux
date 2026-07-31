@@ -64,8 +64,10 @@ describe("event workspace", () => {
     expect(html).toContain("Trip &amp; vacation");
     expect(html).toContain("cannot be changed");
     expect(html).toContain('id="template"');
-    expect(html).toContain('data-event-template="generic"');
-    expect(html).toContain("Set up your event");
+    expect(html).toContain('data-event-template="trip"');
+    expect(html).toContain("Build the complete event page");
+    expect(html).toContain(`/dashboard/${event.code}/setup?lang=en`);
+    expect(html).toContain(`/event/${event.code}?lang=en&amp;preview=1`);
     expect(html).toContain('data-event-metadata');
     expect(html).toContain("Zanzibar, Tanzania");
     expect(html).toContain('data-gallery-sort="owner-gallery"');
@@ -143,6 +145,8 @@ describe("event workspace", () => {
     expect(html).toContain("dashboard-video");
     expect(html).toContain("1 video");
     expect(html).toContain("1 photo");
+    expect(html).toContain("Perspectives collected");
+    expect(html).toContain("people who contributed");
     expect(html).toContain('data-gallery-photo-count="1"');
     expect(html).toContain("data-media-cover");
     expect(html).toContain("Set as cover");
@@ -165,7 +169,60 @@ describe("event workspace", () => {
     expect(html).not.toContain("data-media-cover");
   });
 
-  it("uses the specialized wedding checklist without changing the existing gallery workspace", () => {
+  it("replaces original-download actions with an upgrade path during an enforced trial", () => {
+    const html = renderEventWorkspace({
+      ...baseInput,
+      membership: "owner",
+      eventAccess: {
+        event_id: event.id,
+        access_state: "trial",
+        enforcement_state: "enforced",
+        media_limit: 20,
+        guest_access_enabled: 1,
+        guest_uploads_enabled: 1,
+        original_downloads_enabled: 0,
+        trial_started_at: 1,
+        trial_ends_at: Date.now() + 86_400_000,
+        unlocked_at: null,
+        expires_at: null,
+        created_at: 1,
+        updated_at: 1,
+      },
+    });
+
+    expect(html).toContain("Originals unlock with upgrade");
+    expect(html).toContain(`/dashboard/${event.code}/checkout?lang=en`);
+    expect(html).not.toContain('id="owner-download-selected"');
+    expect(html).not.toContain('id="lightbox-download"');
+    expect(html).toContain('id="owner-delete-selected"');
+  });
+
+  it("routes private previews through an explicit trial review instead of starting the clock immediately", () => {
+    const html = renderEventWorkspace({
+      ...baseInput,
+      membership: "owner",
+      eventAccess: {
+        event_id: event.id,
+        access_state: "preview",
+        enforcement_state: "enforced",
+        media_limit: 20,
+        guest_access_enabled: 0,
+        guest_uploads_enabled: 0,
+        original_downloads_enabled: 0,
+        trial_started_at: null,
+        trial_ends_at: null,
+        unlocked_at: null,
+        expires_at: null,
+        created_at: 1,
+        updated_at: 1,
+      },
+    });
+    expect(html).toContain(`/dashboard/${event.code}/trial?lang=en`);
+    expect(html).toContain("complete private preview with no timer");
+    expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
+  });
+
+  it("uses the specialized wedding management workspace without changing the gallery", () => {
     const html = renderEventWorkspace({
       ...baseInput,
       event: { ...event, event_type: "wedding", eventName: "Our wedding" },
@@ -176,12 +233,12 @@ describe("event workspace", () => {
 
     expect(html).toContain('data-event-template="wedding"');
     expect(html).toContain("Build your wedding experience");
-    expect(html).toContain("Couple &amp; story");
-    expect(html).toContain("Ceremony &amp; reception");
-    expect(html).toContain("Features &amp; estimate");
-    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=1`);
-    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=3`);
-    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en&amp;step=5`);
+    expect(html).toContain("Event management");
+    expect(html).toContain("Publish & plan");
+    expect(html).toContain("Gallery & photos");
+    expect(html).toContain("Team & access");
+    expect(html).toContain(`/dashboard/${event.code}/wedding/setup?lang=en`);
+    expect(html).not.toContain("Wedding basics");
     expect(html).toContain('id="gallery"');
     expect(html).toContain('id="share"');
     expect(html).toContain('data-test="wedding-qr"');

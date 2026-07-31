@@ -23,11 +23,17 @@ describe("new event controls", () => {
     expect(greek).toContain('<option value="wedding">Γάμος</option>');
   });
 
+  it("preselects bachelor when creation starts from its landing page", () => {
+    const field = renderNewEventTypeField("el", "bachelor");
+    expect(field).toContain('<option value="bachelor" selected>');
+    expect(field).not.toContain('<option value="" selected');
+  });
+
   it("keeps the plus white when its circle turns green", () => {
     const html = renderCreateEventTile("New event", "en");
 
     expect(html).toContain("data-new-event-plus");
-    expect(html).toContain("group-hover:bg-[#2f6b5b]");
+    expect(html).toContain("group-hover:bg-[#7c3aed]");
     expect(html).toContain("group-hover:text-white");
     expect(html).toContain("group-hover:stroke-white");
   });

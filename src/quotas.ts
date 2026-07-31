@@ -77,6 +77,14 @@ export async function releaseStorage(db:D1Database,userId:string|null,bytes:numb
   await db.prepare("UPDATE account_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE user_id=?").bind(bytes,Date.now(),userId).run();
 }
 
+export async function releaseStorageForEvent(db: D1Database, eventId: string, bytes: number) {
+  if (bytes <= 0) return;
+  const owner = await db.prepare(
+    "SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1",
+  ).bind(eventId).first<{ user_id: string }>();
+  await releaseStorage(db, owner?.user_id ?? null, bytes);
+}
+
 export async function reserveOwnedEvent(db:D1Database,userId:string) {
   await ensureQuotaRows(db,userId);
   const row=await db.prepare(`UPDATE account_event_usage SET active_events=active_events+1,updated_at=? WHERE user_id=? AND active_events+1<=COALESCE((SELECT event_limit FROM account_entitlements WHERE user_id=?),?) RETURNING active_events`).bind(Date.now(),userId,userId,DEFAULT_ENTITLEMENT.eventLimit).first<{active_events:number}>();
@@ -92,7 +100,11 @@ export async function reconcileQuotaUsage(db:D1Database,now=Date.now()) {
     db.prepare("INSERT OR IGNORE INTO account_entitlements (user_id,plan_key,storage_limit_bytes,event_limit,member_limit,updated_at) SELECT id,'beta',?,?,?,? FROM \"user\"").bind(DEFAULT_ENTITLEMENT.storageLimitBytes,DEFAULT_ENTITLEMENT.eventLimit,DEFAULT_ENTITLEMENT.memberLimit,now),
     db.prepare("INSERT OR IGNORE INTO account_storage_usage (user_id,used_bytes,updated_at) SELECT id,0,? FROM \"user\"").bind(now),
     db.prepare("INSERT OR IGNORE INTO account_event_usage (user_id,active_events,updated_at) SELECT id,0,? FROM \"user\"").bind(now),
-    db.prepare(`UPDATE account_storage_usage SET used_bytes=COALESCE((SELECT SUM(m.size_bytes) FROM event_members em JOIN media m ON m.event_id=em.event_id WHERE em.user_id=account_storage_usage.user_id AND em.role='owner'),0),updated_at=?`).bind(now),
+    db.prepare(`UPDATE account_storage_usage SET used_bytes=
+      COALESCE((SELECT SUM(m.size_bytes) FROM event_members em JOIN media m ON m.event_id=em.event_id WHERE em.user_id=account_storage_usage.user_id AND em.role='owner'),0)+
+      COALESCE((SELECT SUM(wm.size_bytes) FROM event_members em JOIN event_wedding_media wm ON wm.event_id=em.event_id WHERE em.user_id=account_storage_usage.user_id AND em.role='owner'),0)+
+      COALESCE((SELECT SUM(menu.size_bytes) FROM event_members em JOIN event_wedding_menus menu ON menu.event_id=em.event_id WHERE em.user_id=account_storage_usage.user_id AND em.role='owner'),0),
+      updated_at=?`).bind(now),
     db.prepare(`UPDATE account_event_usage SET active_events=COALESCE((SELECT COUNT(*) FROM event_members em JOIN events e ON e.id=em.event_id WHERE em.user_id=account_event_usage.user_id AND em.role='owner' AND e.deleted_at IS NULL),0),updated_at=?`).bind(now),
   ]);
 }

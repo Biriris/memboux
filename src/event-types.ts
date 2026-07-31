@@ -3,6 +3,7 @@ import type { Locale } from "./i18n";
 export const eventTypes = [
   "wedding",
   "engagement",
+  "bachelor",
   "birthday",
   "party",
   "baptism",
@@ -22,6 +23,7 @@ const labels: Record<Locale, Record<EventType, string>> = {
   en: {
     wedding: "Wedding",
     engagement: "Engagement & pre-wedding",
+    bachelor: "Bachelor / bachelorette party",
     birthday: "Birthday",
     party: "Party & celebration",
     baptism: "Baptism / christening",
@@ -36,15 +38,16 @@ const labels: Record<Locale, Record<EventType, string>> = {
   },
   el: {
     wedding: "Γάμος",
-    engagement: "Αρραβώνας & pre-wedding",
+    engagement: "Αρραβώνας & προετοιμασία γάμου",
+    bachelor: "Bachelor / bachelorette πάρτι",
     birthday: "Γενέθλια",
     party: "Πάρτι & γιορτή",
     baptism: "Βάπτιση",
-    baby: "Baby shower & οικογενειακό ορόσημο",
+    baby: "Baby shower & οικογενειακή στιγμή",
     graduation: "Αποφοίτηση & σχολική εκδήλωση",
     corporate: "Εταιρικό & επαγγελματικό",
     trip: "Ταξίδι & διακοπές",
-    reunion: "Reunion & συνάντηση",
+    reunion: "Επανένωση & συνάντηση",
     community: "Φεστιβάλ, συναυλία & κοινότητα",
     memorial: "Μνημόσυνο / γιορτή ζωής",
     other: "Άλλο",
@@ -52,6 +55,7 @@ const labels: Record<Locale, Record<EventType, string>> = {
   fr: {
     wedding: "Mariage",
     engagement: "Fiançailles et avant-mariage",
+    bachelor: "EVG / EVJF",
     birthday: "Anniversaire",
     party: "Fête et célébration",
     baptism: "Baptême",
@@ -67,6 +71,7 @@ const labels: Record<Locale, Record<EventType, string>> = {
   de: {
     wedding: "Hochzeit",
     engagement: "Verlobung & Vorhochzeit",
+    bachelor: "Junggesellen- / Junggesellinnenabschied",
     birthday: "Geburtstag",
     party: "Party & Feier",
     baptism: "Taufe",
@@ -82,6 +87,7 @@ const labels: Record<Locale, Record<EventType, string>> = {
   es: {
     wedding: "Boda",
     engagement: "Compromiso y preboda",
+    bachelor: "Despedida de soltero/a",
     birthday: "Cumpleaños",
     party: "Fiesta y celebración",
     baptism: "Bautizo",
@@ -97,6 +103,7 @@ const labels: Record<Locale, Record<EventType, string>> = {
   it: {
     wedding: "Matrimonio",
     engagement: "Fidanzamento e pre-matrimonio",
+    bachelor: "Addio al celibato / nubilato",
     birthday: "Compleanno",
     party: "Festa e celebrazione",
     baptism: "Battesimo",
