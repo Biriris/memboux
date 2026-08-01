@@ -18,8 +18,10 @@ Supported event types are defined in [`src/event-types.ts`](../../src/event-type
 ## Setup and preview
 
 - Generic event setup uses `/dashboard/:code/setup` and `POST /api/account/events/:code/setup/:step` (plus autosave) in [`src/routes/event-setup.ts`](../../src/routes/event-setup.ts), persisting `event_vertical_profiles`.
-- Wedding setup uses `/dashboard/:code/wedding/setup` and its wedding API routes, persisting wedding profile/features/media/menu/portraits.
+- Wedding setup uses `/dashboard/:code/wedding/setup` and its wedding API routes, persisting wedding profile/features/media/menu/portraits. Completing step 6 records `wizard_completed_at` but leaves `publish_status = draft`.
 - Owners can preview unpublished specialized pages because the page routes check event-management permission. Guests cannot see unpublished wedding pages.
+- Wedding publication is explicit: `POST /api/account/events/:code/wedding/publish` requires completed/readiness-valid setup plus active guest access from trial or unlock. `POST /api/account/events/:code/wedding/unpublish` returns the site to draft without deleting its data.
+- Wedding step 5 snapshots the current base and feature prices in `event_wedding_price_snapshots`; revisiting the feature step uses the active event snapshot rather than silently adopting current catalog prices.
 - Public landing-page previews under `/:locale/events/:type/preview` and wedding preview routes are product demos, not previews of a user's persisted event.
 
 The exact product rule for when a generic vertical page should be considered “published” is encoded in `event_vertical_profiles.publish_status`; no separate publication audit/history table exists.
@@ -40,6 +42,14 @@ The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_s
 - `events.expires_at` is legacy/general event access metadata and is still read by media delivery; its precise relationship to paid `event_access.expires_at` is not centralized and is therefore **ambiguous**.
 
 During `trial`, guests can access/upload, owners can manage the event, and original exports remain disabled. `unlocked` or `observe` mode allows all lifecycle capabilities. See [`eventAccessAllows`](../../src/event-access.ts).
+
+For weddings, lifecycle access and publication are separate gates: trial/unlock makes guest capabilities eligible, while `event_wedding_profiles.publish_status` controls whether the wedding site and personalized invitations are publicly available.
+
+## Wedding guest planning and RSVP
+
+Owners manage households, contacts, personalized invitation links and tables at `/dashboard/:code/wedding/guests` in [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). Raw invitation tokens are returned only when generated; D1 stores their SHA-256 hashes. A token-bound RSVP in [`src/routes/experience.ts`](../../src/routes/experience.ts) updates both `event_rsvps` and the matching `event_wedding_guests` record. Seating capacity counts the guest record's current party size; a decline or an RSVP increase that would overfill a table saves the response and removes that seating assignment for replanning.
+
+Direct SMS delivery, bulk contact import, a drag-and-drop room canvas and venue-owned reusable layouts are **not implemented**.
 
 ## Expiry and notification
 
@@ -72,4 +82,4 @@ The daily [`purgeExpiredTrash`](../../src/repositories.ts) permanently deletes e
 
 ## Lifecycle tests
 
-Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`trial-lifecycle.test.ts`](../../test/trial-lifecycle.test.ts), [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
+Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`account-routes.test.ts`](../../test/account-routes.test.ts), [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`trial-lifecycle.test.ts`](../../test/trial-lifecycle.test.ts), [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).

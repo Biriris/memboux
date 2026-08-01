@@ -67,6 +67,12 @@ This register contains conditions visible in the audited source. It does not tre
 - **Impact:** cross-request and Workflow incident diagnosis is limited.
 - **Required follow-up:** standardize structured fields, request/job IDs, redaction, metrics, and alerts before higher traffic.
 
+### Wedding guest contact retention is not yet operationalized
+
+- **Evidence:** [`0061_wedding_guest_planning.sql`](../../migrations/0061_wedding_guest_planning.sql) stores names, email addresses, phone numbers, dietary notes and invitation-token hashes under the event. Owners can edit/delete directory records and linked RSVP data through [`wedding-planning.ts`](../../src/routes/wedding-planning.ts), but no guest-specific retention, export or formal data-rights workflow is documented.
+- **Impact:** the product now holds additional personal and dietary data without a source-defined minimization or retention policy.
+- **Required follow-up:** approve purposes and retention periods, define guest data-rights handling, document SMS consent before delivery exists, and include the tables in privacy/export review.
+
 ## Lower priority / contained debt
 
 ### Generated and source CSS names are not a single obvious contract

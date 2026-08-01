@@ -20,6 +20,8 @@ import {
   calculateWeddingEstimate,
   defaultWeddingFeatures,
   formatWeddingPrice,
+  WEDDING_BASE_PRICE_MINOR,
+  WEDDING_CATALOG_VERSION,
   weddingCatalogText,
   weddingFeatureCatalog,
   type WeddingFeatureKey,
@@ -815,13 +817,43 @@ weddingRoutes.post("/api/account/events/:code/wedding/setup/:step", async (c) =>
     await c.env.DB.prepare("UPDATE event_wedding_profiles SET contact_name=?,contact_email=?,contact_phone=?,travel_notes=?,accommodation_notes=?,gift_message=?,gift_url=?,wizard_step=MAX(wizard_step,5),updated_at=? WHERE event_id=?")
       .bind(String(form.get("contactName") ?? "").trim().slice(0, 100), email, String(form.get("contactPhone") ?? "").trim().slice(0, 40), String(form.get("travelNotes") ?? "").trim().slice(0, 1500), String(form.get("accommodationNotes") ?? "").trim().slice(0, 1500), String(form.get("giftMessage") ?? "").trim().slice(0, 800), giftUrl, now, event.id).run();
   } else if (step === 5) {
-    const estimate = calculateWeddingEstimate(form.getAll("feature").map(String));
+    const requestedFeatures = form.getAll("feature").map(String);
+    const selectedKeys = [...new Set(requestedFeatures.filter((value): value is WeddingFeatureKey =>
+      weddingFeatureCatalog.some((feature) => feature.key === value && feature.available)))];
+    const existingPrices = await c.env.DB.prepare(`SELECT item_key,price_minor,currency,catalog_version,locked_until
+      FROM event_wedding_price_snapshots WHERE event_id=?`).bind(event.id).all<{
+        item_key: string; price_minor: number; currency: string; catalog_version: string; locked_until: number;
+      }>();
+    const activeSnapshot = existingPrices.results.length > 0 && existingPrices.results.every((row) => row.locked_until >= now);
+    const currentEstimate = calculateWeddingEstimate(selectedKeys);
+    const snapshotPrices = new Map(existingPrices.results.map((row) => [row.item_key, row.price_minor]));
+    const selectedTotal = selectedKeys.reduce((total, key) => total + (activeSnapshot
+      ? (snapshotPrices.get(key) ?? weddingFeatureCatalog.find((feature) => feature.key === key)!.priceMinor)
+      : weddingFeatureCatalog.find((feature) => feature.key === key)!.priceMinor), 0);
+    const estimate = {
+      ...currentEstimate,
+      catalogVersion: activeSnapshot ? existingPrices.results[0]!.catalog_version : WEDDING_CATALOG_VERSION,
+      currency: activeSnapshot ? existingPrices.results[0]!.currency : currentEstimate.currency,
+      basePriceMinor: activeSnapshot ? (snapshotPrices.get("base") ?? WEDDING_BASE_PRICE_MINOR) : WEDDING_BASE_PRICE_MINOR,
+      featurePriceMinor: selectedTotal,
+      totalMinor: (activeSnapshot ? (snapshotPrices.get("base") ?? WEDDING_BASE_PRICE_MINOR) : WEDDING_BASE_PRICE_MINOR) + selectedTotal,
+      selected: selectedKeys,
+    };
+    const eventMoment = event.event_start_date ? new Date(`${event.event_start_date}T23:59:59Z`).getTime() : now + 365 * 86_400_000;
+    const lockedUntil = Math.max(now, Math.min(now + 365 * 86_400_000, Number.isFinite(eventMoment) ? eventMoment : now + 365 * 86_400_000));
     const statements = [
+      ...(!existingPrices.results.length ? [
+        c.env.DB.prepare(`INSERT INTO event_wedding_price_snapshots
+          (event_id,item_key,item_type,price_minor,currency,catalog_version,locked_at,locked_until)
+          VALUES (?,'base','base',?,?,?,?,?)`).bind(event.id, WEDDING_BASE_PRICE_MINOR, estimate.currency, WEDDING_CATALOG_VERSION, now, lockedUntil),
+        ...weddingFeatureCatalog.map((feature) => c.env.DB.prepare(`INSERT INTO event_wedding_price_snapshots
+          (event_id,item_key,item_type,price_minor,currency,catalog_version,locked_at,locked_until)
+          VALUES (?,?,'feature',?,?,?,?,?)`).bind(event.id, feature.key, feature.priceMinor, estimate.currency, WEDDING_CATALOG_VERSION, now, lockedUntil)),
+      ] : []),
       c.env.DB.prepare("DELETE FROM event_wedding_features WHERE event_id=?").bind(event.id),
       ...estimate.selected.map((key) => {
-        const feature = weddingFeatureCatalog.find((item) => item.key === key)!;
         return c.env.DB.prepare("INSERT INTO event_wedding_features (event_id,feature_key,enabled,price_minor,catalog_version,updated_at) VALUES (?,?,?,?,?,?)")
-          .bind(event.id, key, 1, feature.priceMinor, estimate.catalogVersion, now);
+          .bind(event.id, key, 1, activeSnapshot ? (snapshotPrices.get(key) ?? 0) : weddingFeatureCatalog.find((item) => item.key === key)!.priceMinor, estimate.catalogVersion, now);
       }),
       c.env.DB.prepare("UPDATE event_wedding_profiles SET catalog_version=?,estimated_total_minor=?,currency=?,wizard_step=MAX(wizard_step,6),updated_at=? WHERE event_id=?")
         .bind(estimate.catalogVersion, estimate.totalMinor, estimate.currency, now, event.id),
@@ -834,14 +866,46 @@ weddingRoutes.post("/api/account/events/:code/wedding/setup/:step", async (c) =>
     const latest = await c.env.DB.prepare("SELECT * FROM event_wedding_profiles WHERE event_id=?").bind(event.id).first<WeddingProfile>();
     const missing = latest ? weddingReadiness(latest, locale).filter((item) => !item.complete) : [];
     if (!latest || missing.length) {
-      return c.text(localized(locale, "Complete the required wedding details before publishing.", "Συμπλήρωσε τα υποχρεωτικά στοιχεία του γάμου πριν τη δημοσίευση.", "Complétez les informations requises avant de publier.", "Vervollständige die Pflichtangaben vor der Veröffentlichung.", "Completa los datos obligatorios antes de publicar.", "Completa i dati obbligatori prima di pubblicare."), 400);
+      return c.text(localized(locale, "Complete the required wedding details before finishing setup.", "Συμπλήρωσε τα υποχρεωτικά στοιχεία του γάμου πριν ολοκληρώσεις το setup.", "Complétez les informations requises.", "Vervollständige die Pflichtangaben.", "Completa los datos obligatorios.", "Completa i dati obbligatori."), 400);
     }
-    await c.env.DB.prepare("UPDATE event_wedding_profiles SET wizard_completed_at=COALESCE(wizard_completed_at,?),publish_status='published',wizard_step=6,updated_at=? WHERE event_id=?")
+    await c.env.DB.prepare("UPDATE event_wedding_profiles SET wizard_completed_at=COALESCE(wizard_completed_at,?),publish_status='draft',wizard_step=6,updated_at=? WHERE event_id=?")
       .bind(now, now, event.id).run();
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#template`, 303);
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}#overview`, 303);
   } else {
     return c.text("Invalid step", 400);
   }
   if (intent === "exit") return c.redirect(`/dashboard/${event.code}?lang=${locale}#template`, 303);
   return c.redirect(`/dashboard/${event.code}/wedding/setup?lang=${locale}&step=${next}`, 303);
+});
+
+weddingRoutes.post("/api/account/events/:code/wedding/publish", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await ownedWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const [profile, access] = await Promise.all([
+    c.env.DB.prepare("SELECT * FROM event_wedding_profiles WHERE event_id=?").bind(event.id).first<WeddingProfile>(),
+    getEventAccess(c.env.DB, event.id),
+  ]);
+  if (!profile?.wizard_completed_at || weddingReadiness(profile, locale).some((item) => !item.complete))
+    return c.text(localized(locale, "Finish the wedding setup first.", "Ολοκλήρωσε πρώτα το setup του γάμου.", "Terminez d'abord la configuration.", "Schließe zuerst die Einrichtung ab.", "Completa primero la configuración.", "Completa prima la configurazione."), 409);
+  if (!eventAccessAllows(access, "guest_access"))
+    return c.text(localized(locale, "Start the trial or unlock the event before publishing.", "Ξεκίνα το trial ή ξεκλείδωσε το event πριν τη δημοσίευση.", "Activez l'essai ou débloquez l'événement.", "Starte die Testphase oder schalte das Event frei.", "Inicia la prueba o desbloquea el evento.", "Avvia la prova o sblocca l'evento."), 409);
+  await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='published',updated_at=? WHERE event_id=?")
+    .bind(Date.now(), event.id).run();
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+});
+
+weddingRoutes.post("/api/account/events/:code/wedding/unpublish", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await ownedWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='draft',updated_at=? WHERE event_id=?")
+    .bind(Date.now(), event.id).run();
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
 });

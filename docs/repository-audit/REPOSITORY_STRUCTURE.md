@@ -6,7 +6,7 @@
 | --- | --- |
 | [`.github/`](../../.github/) | GitHub Actions quality and production-smoke workflows plus Dependabot configuration. |
 | [`docs/`](../) | Operating manual and this source-verified audit. |
-| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0060`. |
+| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0061`. |
 | [`public/`](../../public/) | Worker static assets: generated CSS and font CSS. Served through the `ASSETS` binding. |
 | [`scripts/`](../../scripts/) | Production smoke test and a production-media deduplication utility. |
 | [`src/`](../../src/) | Worker entry point, domain/application modules, Hono routes, server-rendered views, and CSS source. |
@@ -17,7 +17,7 @@
 | [`wrangler.jsonc`](../../wrangler.jsonc) | Worker, domain, asset, D1, R2, Images, AI, Workflow, cron, and observability configuration. |
 | [`worker-configuration.d.ts`](../../worker-configuration.d.ts) | Generated Cloudflare runtime type declarations. |
 
-At audit time, `rg --files` reported 444 non-hidden files: 106 under `src`, 74 under `test`, 60 migrations, 187 under `docs`, four under `public`, and two under `scripts`. Hidden `.github` files are additional.
+At the 2026-08-01 update, `rg --files` reported 463 non-hidden files: 108 under `src`, 75 under `test`, 61 migrations, 202 under `docs`, four under `public`, and two under `scripts`. Hidden `.github` files are additional.
 
 ## `src` organization
 
@@ -37,7 +37,7 @@ The most important domain groupings are:
 | Events and membership | [`access.ts`](../../src/access.ts), [`event-access.ts`](../../src/event-access.ts), [`event-people.ts`](../../src/event-people.ts), [`routes/events.ts`](../../src/routes/events.ts) |
 | Event verticals/wizards | [`event-types.ts`](../../src/event-types.ts), [`event-verticals.ts`](../../src/event-verticals.ts), [`event-wizard-schema.ts`](../../src/event-wizard-schema.ts), [`routes/event-setup.ts`](../../src/routes/event-setup.ts) |
 | Gallery/media | [`media-fingerprint.ts`](../../src/media-fingerprint.ts), [`media-variants.ts`](../../src/media-variants.ts), [`media-trash.ts`](../../src/media-trash.ts), [`routes/gallery.ts`](../../src/routes/gallery.ts), [`routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) |
-| Wedding specialization | [`routes/wedding.ts`](../../src/routes/wedding.ts), [`wedding-portraits.ts`](../../src/wedding-portraits.ts), [`wedding-menu.ts`](../../src/wedding-menu.ts), [`wedding-themes.ts`](../../src/wedding-themes.ts) |
+| Wedding specialization | [`routes/wedding.ts`](../../src/routes/wedding.ts), [`routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts), [`wedding-portraits.ts`](../../src/wedding-portraits.ts), [`wedding-menu.ts`](../../src/wedding-menu.ts), [`wedding-themes.ts`](../../src/wedding-themes.ts) |
 | Support/helpdesk | [`support-repository.ts`](../../src/support-repository.ts), [`support-service.ts`](../../src/support-service.ts), [`support-ai.ts`](../../src/support-ai.ts), [`support-routing.ts`](../../src/support-routing.ts), [`inbound-support-email.ts`](../../src/inbound-support-email.ts), [`routes/support.ts`](../../src/routes/support.ts) |
 | Commerce/trials | [`commerce.ts`](../../src/commerce.ts), [`event-access.ts`](../../src/event-access.ts), [`trial-lifecycle.ts`](../../src/trial-lifecycle.ts), [`routes/commerce.ts`](../../src/routes/commerce.ts) |
 | Cloud backups | [`cloud-backups.ts`](../../src/cloud-backups.ts), [`cloud-backup-access.ts`](../../src/cloud-backup-access.ts), [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), [`routes/backups.ts`](../../src/routes/backups.ts) |

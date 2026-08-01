@@ -67,6 +67,10 @@ The verified endpoint list is in [API route inventory](API_ROUTE_INVENTORY.md).
 - Trial-to-paid unlock orchestration, refund/revocation effects, and entitlement expiry.
 - Whether archived events remain guest-accessible.
 - Service-level expectations for support AI, human assignment, and attachments.
+- Wedding guest contact/dietary-data purpose, retention, export, correction and deletion policy.
+- SMS invitation provider, sender identity, consent evidence, opt-out behavior, delivery retries and cost controls.
+- Product communication when a decline or RSVP party-size change invalidates an existing seating assignment; current code safely unassigns it for replanning, but no owner notification is emitted.
+- Ownership and versioning rules for future venue-provided room layouts and reusable table templates.
 
 ## Documentation/code inconsistencies
 

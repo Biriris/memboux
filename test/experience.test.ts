@@ -34,6 +34,7 @@ beforeAll(async () => {
       id TEXT PRIMARY KEY,event_id TEXT NOT NULL,name TEXT NOT NULL,email TEXT NOT NULL,
       response TEXT NOT NULL,guest_count INTEGER NOT NULL,dietary_notes TEXT NOT NULL,
       message TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,
+      wedding_guest_id TEXT,
       UNIQUE(event_id,email)
     )`),
     env.DB.prepare(`CREATE TABLE event_guestbook_entries (

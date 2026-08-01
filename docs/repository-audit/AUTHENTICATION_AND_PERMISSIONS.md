@@ -74,6 +74,7 @@ Support conversation access is narrower than general `support.read`: owner/admin
 - Event invitations use hashed tokens and expiry, then require an authenticated account to accept or decline. See [`src/invitations.ts`](../../src/invitations.ts), [`src/routes/invitations.ts`](../../src/routes/invitations.ts), and migrations `0005`, `0021`, and `0023`.
 - Support chat can bind to an authenticated user or to a hashed visitor token cookie. Access checks are centralized in [`support-service.ts`](../../src/support-service.ts) and [`support-repository.ts`](../../src/support-repository.ts).
 - Inbound staff email replies are checked against the ticket assignment and registered admin email behavior in [`inbound-support-email.ts`](../../src/inbound-support-email.ts). The external guarantee that only intended mail reaches the Worker is **Unknown** because Email Routing configuration is not in the repository.
+- Wedding guest-directory records are not account members and grant no dashboard permission. Their personalized invitation URLs are bearer capabilities backed by SHA-256 token hashes; [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts) additionally requires an unexpired event, published wedding profile and active guest access before rendering them.
 
 ## Permission tests
 

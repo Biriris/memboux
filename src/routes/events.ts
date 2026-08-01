@@ -42,7 +42,7 @@ eventRoutes.get("/dashboard/:code", async (c) => {
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage] = await Promise.all([
+  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     canManageEvent
       ? c.env.DB.prepare(`SELECT * FROM (
@@ -70,6 +70,10 @@ eventRoutes.get("/dashboard/:code", async (c) => {
       .first<{ source_media_id: string | null; updated_at: number }>(),
     getEventAccess(c.env.DB, event.id),
     eventMediaUsage(c.env.DB, event.id),
+    event.event_type === "wedding"
+      ? c.env.DB.prepare("SELECT wizard_completed_at,publish_status,estimated_total_minor,currency FROM event_wedding_profiles WHERE event_id=?")
+        .bind(event.id).first<{ wizard_completed_at: number | null; publish_status: "draft" | "published"; estimated_total_minor: number; currency: string }>()
+      : Promise.resolve(null),
   ]);
   const origin = new URL(c.req.url).origin;
   const guestUrl = `${origin}/gallery/${event.code}`;
@@ -102,6 +106,7 @@ eventRoutes.get("/dashboard/:code", async (c) => {
     coverUpdatedAt: cover?.updated_at ?? null,
     eventAccess,
     mediaUsageTotal: mediaUsage.total,
+    weddingState,
   }));
 });
 

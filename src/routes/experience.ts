@@ -1,14 +1,14 @@
 ﻿import { Hono, type Context } from "hono";
 import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
-import type { Bindings } from "../domain";
+import type { Bindings, EventRow } from "../domain";
 import { eventAccessAllows, getEventAccess } from "../event-access";
 import { hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
-import { esc, formatEventDates } from "../utils";
+import { esc, formatEventDates, sha256 } from "../utils";
 import { eventHeader, page } from "../views/shared";
 
 type ExperienceSettings = {
@@ -38,6 +38,15 @@ async function publicEvent(c: Context<{ Bindings: Bindings }>) {
   const event = await getEvent(c.env.DB, c.req.param("code") ?? "");
   if (!event) return { response: c.text("Event not found", 404) };
   if (Date.now() > event.expires_at) return { response: c.text("Event expired", 410) };
+  if (event.event_type === "wedding") {
+    const profile = await c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+      .bind(event.id).first<{ publish_status: string }>();
+    if (profile?.publish_status !== "published") {
+      const user = await currentUser(c);
+      if (!user || !roleCan(await getEventRole(c.env.DB, event.id, user.id), "view"))
+        return { response: c.text("Event not found", 404) };
+    }
+  }
   const guestAccessAllowed = eventAccessAllows(await getEventAccess(c.env.DB, event.id), "guest_access");
   if (!guestAccessAllowed) {
     const user = await currentUser(c);
@@ -55,32 +64,93 @@ async function publicEvent(c: Context<{ Bindings: Bindings }>) {
 export const experienceRoutes = new Hono<{ Bindings: Bindings }>();
 
 experienceRoutes.post("/api/gallery/:code/rsvp", async (c) => {
-  const result = await publicEvent(c);
-  if (result.response) return result.response;
-  const event = result.event!;
   const body = await c.req.parseBody();
+  const invitationToken = String(body.invitationToken ?? "").trim();
+  let invitedGuest: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    plus_one_limit: number;
+  } | null = null;
+  let event: EventRow;
+  if (invitationToken) {
+    const invitedEvent = await getEvent(c.env.DB, c.req.param("code") ?? "");
+    if (!invitedEvent || invitedEvent.event_type !== "wedding") return c.text("Invitation not found", 404);
+    if (Date.now() > invitedEvent.expires_at) return c.text("Invitation expired", 410);
+    event = invitedEvent;
+    const [profile, access, guest] = await Promise.all([
+      c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+        .bind(event.id).first<{ publish_status: string }>(),
+      getEventAccess(c.env.DB, event.id),
+      c.env.DB.prepare(`SELECT id,first_name,last_name,email,plus_one_limit
+        FROM event_wedding_guests WHERE event_id=? AND invitation_token_hash=?`)
+        .bind(event.id, await sha256(invitationToken)).first<{
+          id: string; first_name: string; last_name: string; email: string; plus_one_limit: number;
+        }>(),
+    ]);
+    if (!guest || profile?.publish_status !== "published" || !eventAccessAllows(access, "guest_access"))
+      return c.text("Invitation not available", 404);
+    invitedGuest = guest;
+  } else {
+    const result = await publicEvent(c);
+    if (result.response) return result.response;
+    event = result.event!;
+  }
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   if (!(await settings(c.env.DB, event.id)).rsvp_enabled) return c.text("RSVP is disabled", 403);
   const limit = await consumeRateLimit(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, {
     scope: `rsvp:${event.id}`, limit: 8, windowMs: 15 * 60_000,
   });
   if (!limit.allowed) return tooManyRequests(limit);
-  const name = String(body.name ?? "").trim().slice(0, 80);
-  const email = String(body.email ?? "").trim().toLowerCase().slice(0, 254);
+  const name = invitedGuest
+    ? `${invitedGuest.first_name} ${invitedGuest.last_name}`.trim().slice(0, 80)
+    : String(body.name ?? "").trim().slice(0, 80);
+  const email = invitedGuest
+    ? (invitedGuest.email || `invite+${invitedGuest.id}@memboux.invalid`)
+    : String(body.email ?? "").trim().toLowerCase().slice(0, 254);
   const response = String(body.response ?? "");
-  const guestCount = Math.min(20, Math.max(1, Number(body.guestCount) || 1));
+  const guestCount = Math.min(invitedGuest ? 1 + invitedGuest.plus_one_limit : 20, Math.max(1, Number(body.guestCount) || 1));
   const dietary = String(body.dietaryNotes ?? "").trim().slice(0, 300);
   const message = String(body.message ?? "").trim().slice(0, 500);
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !["yes", "no", "maybe"].includes(response)) {
     return c.text(text(locale, "Έλεγξε τα στοιχεία του RSVP.", "Check your RSVP details."), 400);
   }
   const now = Date.now();
-  await c.env.DB.prepare(`INSERT INTO event_rsvps
-    (id,event_id,name,email,response,guest_count,dietary_notes,message,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event_id,email) DO UPDATE SET
-    name=excluded.name,response=excluded.response,guest_count=excluded.guest_count,
-    dietary_notes=excluded.dietary_notes,message=excluded.message,updated_at=excluded.updated_at`)
-    .bind(crypto.randomUUID(), event.id, name, email, response, guestCount, dietary, message, now, now).run();
+  let releaseSeat = invitedGuest ? response === "no" : false;
+  if (invitedGuest) {
+    const seating = await c.env.DB.prepare(`SELECT t.capacity,COALESCE(SUM(other.party_size),0) assigned_elsewhere
+      FROM event_wedding_seat_assignments current
+      JOIN event_wedding_tables t ON t.id=current.table_id AND t.event_id=?
+      LEFT JOIN event_wedding_seat_assignments occupied ON occupied.table_id=t.id AND occupied.guest_id<>current.guest_id
+      LEFT JOIN event_wedding_guests other ON other.id=occupied.guest_id
+      WHERE current.guest_id=? GROUP BY t.id`).bind(event.id, invitedGuest.id).first<{ capacity: number; assigned_elsewhere: number }>();
+    releaseSeat ||= Boolean(seating && seating.assigned_elsewhere + guestCount > seating.capacity);
+  }
+  const existingInvitedRsvp = invitedGuest
+    ? await c.env.DB.prepare("SELECT id FROM event_rsvps WHERE wedding_guest_id=? AND event_id=?")
+      .bind(invitedGuest.id, event.id).first<{ id: string }>()
+    : null;
+  const rsvpStatement = existingInvitedRsvp
+    ? c.env.DB.prepare(`UPDATE event_rsvps SET name=?,response=?,guest_count=?,dietary_notes=?,message=?,updated_at=?
+      WHERE id=? AND event_id=?`).bind(name, response, guestCount, dietary, message, now, existingInvitedRsvp.id, event.id)
+    : c.env.DB.prepare(`INSERT INTO event_rsvps
+      (id,event_id,name,email,response,guest_count,dietary_notes,message,created_at,updated_at,wedding_guest_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event_id,email) DO UPDATE SET
+      name=excluded.name,response=excluded.response,guest_count=excluded.guest_count,
+      dietary_notes=excluded.dietary_notes,message=excluded.message,updated_at=excluded.updated_at,
+      wedding_guest_id=excluded.wedding_guest_id`)
+      .bind(crypto.randomUUID(), event.id, name, email, response, guestCount, dietary, message, now, now, invitedGuest?.id ?? null);
+  await c.env.DB.batch([
+    rsvpStatement,
+    ...(invitedGuest ? [c.env.DB.prepare(`UPDATE event_wedding_guests
+      SET rsvp_status=?,party_size=?,dietary_notes=?,updated_at=? WHERE id=? AND event_id=?`)
+      .bind(response, guestCount, dietary, now, invitedGuest.id, event.id)] : []),
+    ...(releaseSeat && invitedGuest ? [c.env.DB.prepare("DELETE FROM event_wedding_seat_assignments WHERE guest_id=?").bind(invitedGuest.id)] : []),
+  ]);
+  if (invitedGuest) {
+    return c.redirect(`/wedding/${event.code}/invite/${encodeURIComponent(invitationToken)}?lang=${locale}&rsvp=sent`, 303);
+  }
   const destination = event.event_type === "wedding" ? `/wedding/${event.code}` : `/gallery/${event.code}`;
   return c.redirect(`${destination}?lang=${locale}&rsvp=sent#participate`, 303);
 });
@@ -173,18 +243,27 @@ experienceRoutes.get("/dashboard/:code/engagement", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Forbidden", 403);
-  const [rsvps, guestbook, comments, eventSettings] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM event_rsvps WHERE event_id=? ORDER BY updated_at DESC").bind(event.id).all<any>(),
+  const [rsvps, guestbook, comments, eventSettings, weddingFeatures] = await Promise.all([
+    c.env.DB.prepare(`SELECT r.*,g.email wedding_guest_email,g.phone wedding_guest_phone
+      FROM event_rsvps r LEFT JOIN event_wedding_guests g ON g.id=r.wedding_guest_id
+      WHERE r.event_id=? ORDER BY r.updated_at DESC`).bind(event.id).all<any>(),
     c.env.DB.prepare("SELECT * FROM event_guestbook_entries WHERE event_id=? ORDER BY created_at DESC").bind(event.id).all<any>(),
     c.env.DB.prepare("SELECT c.*,m.media_type FROM media_comments c JOIN media m ON m.id=c.media_id WHERE c.event_id=? ORDER BY c.created_at DESC LIMIT 200").bind(event.id).all<any>(),
     settings(c.env.DB, event.id),
+    event.event_type === "wedding"
+      ? c.env.DB.prepare("SELECT feature_key FROM event_wedding_features WHERE event_id=? AND enabled=1").bind(event.id).all<{ feature_key: string }>()
+      : Promise.resolve({ results: [] as { feature_key: string }[] }),
   ]);
-  const option = (name: keyof ExperienceSettings, label: string) => `<label class="flex items-center justify-between gap-3 rounded-xl border border-[#e2e9e6] bg-white px-4 py-3"><span class="text-sm font-semibold">${label}</span><input type="checkbox" name="${name}" value="1" ${eventSettings[name] ? "checked" : ""} class="h-5 w-5"></label>`;
+  const selectedFeatures = new Set(weddingFeatures.results.map((row) => row.feature_key));
+  const option = (name: keyof ExperienceSettings, label: string, requiredFeature?: string) => {
+    const available = event.event_type !== "wedding" || !requiredFeature || selectedFeatures.has(requiredFeature);
+    return `<label class="flex items-center justify-between gap-3 rounded-xl border border-[#e2e9e6] ${available ? "bg-white" : "bg-[#f5f3f7] text-[#91889a]"} px-4 py-3"><span class="text-sm font-semibold">${label}${available ? "" : ` · ${text(locale, "δεν είναι στο πακέτο", "not in package")}`}</span><input type="checkbox" name="${name}" value="1" ${available && eventSettings[name] ? "checked" : ""} ${available ? "" : "disabled"} class="h-5 w-5"></label>`;
+  };
   const responseLabel = (value: string) => value === "yes" ? "Yes" : value === "maybe" ? "Maybe" : "No";
   const guestRows = guestbook.results.map((row: any) => `<article class="rounded-2xl border border-[#e2e9e6] bg-white p-4"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold">${esc(row.author_name)}</p><p class="mt-2 text-sm leading-6 text-[#746a80]">${esc(row.message)}</p></div><span class="rounded-full bg-[#f6f2fc] px-2.5 py-1 text-[10px] font-bold uppercase">${esc(row.status)}</span></div><div class="mt-3 flex gap-2"><form action="/api/account/events/${event.code}/guestbook/${row.id}/status" method="post"><input type="hidden" name="locale" value="${locale}"><button name="status" value="approved" class="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Approve</button></form><form action="/api/account/events/${event.code}/guestbook/${row.id}/status" method="post"><input type="hidden" name="locale" value="${locale}"><button name="status" value="hidden" class="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Hide</button></form></div></article>`).join("");
-  const rsvpRows = rsvps.results.map((row: any) => `<tr class="border-t"><td class="px-4 py-3"><strong>${esc(row.name)}</strong><br><span class="text-xs text-[#807588]">${esc(row.email)}</span></td><td class="px-4 py-3">${responseLabel(row.response)}</td><td class="px-4 py-3">${row.guest_count}</td><td class="px-4 py-3 text-sm text-[#746a80]">${esc(row.dietary_notes || row.message || "–")}</td></tr>`).join("");
+  const rsvpRows = rsvps.results.map((row: any) => `<tr class="border-t"><td class="px-4 py-3"><strong>${esc(row.name)}</strong><br><span class="text-xs text-[#807588]">${esc(row.wedding_guest_email || row.wedding_guest_phone || row.email)}</span></td><td class="px-4 py-3">${responseLabel(row.response)}</td><td class="px-4 py-3">${row.guest_count}</td><td class="px-4 py-3 text-sm text-[#746a80]">${esc(row.dietary_notes || row.message || "–")}</td></tr>`).join("");
   const commentRows = comments.results.map((row: any) => `<article class="flex items-start gap-3 rounded-2xl border border-[#e2e9e6] bg-white p-4"><img src="/media/${encodeURIComponent(row.media_id)}" alt="" class="h-16 w-16 rounded-xl object-cover"><div class="min-w-0 flex-1"><p class="font-semibold">${esc(row.author_name)}</p><p class="mt-1 text-sm text-[#746a80]">${esc(row.message)}</p></div>${row.status === "approved" ? `<form action="/api/account/events/${event.code}/comments/${row.id}/hide" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Hide</button></form>` : `<span class="text-xs font-bold text-[#9aaba4]">Hidden</span>`}</article>`).join("");
-  const body = `${eventHeader(locale, { name: user.name ?? user.email, email: user.email })}<main class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10"><div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><a href="/dashboard/${event.code}?lang=${locale}" class="text-sm font-semibold text-[#6d28d9]">← ${text(locale, "Πίσω στο event", "Back to event")}</a><p class="mt-5 text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">Engagement</p><h1 class="mt-2 text-4xl">${esc(event.eventName)}</h1></div><a href="/gallery/${event.code}/slideshow?lang=${locale}" target="_blank" class="rounded-xl bg-[#2b174d] px-5 py-3 text-center text-sm font-semibold text-white">${text(locale, "Έναρξη live slideshow", "Launch live slideshow")}</a></div><section class="mt-6 grid gap-4 lg:grid-cols-[.8fr_1.2fr]"><form action="/api/account/events/${event.code}/experience-settings" method="post" class="rounded-[2rem] border bg-[#f7f3ff] p-5 sm:p-6"><input type="hidden" name="locale" value="${locale}"><h2 class="text-2xl">${text(locale, "Ρυθμίσεις εμπειρίας", "Experience settings")}</h2><div class="mt-4 grid gap-2">${option("rsvp_enabled", "RSVP")}${option("guestbook_enabled", "Guestbook")}${option("comments_enabled", "Comments")}${option("slideshow_enabled", "Live slideshow")}${option("guestbook_moderation", text(locale, "Έγκριση guestbook πριν τη δημοσίευση", "Approve guestbook before publishing"))}</div><button class="mt-4 w-full rounded-xl bg-[#7c3aed] px-4 py-3 font-semibold text-white">${text(locale, "Αποθήκευση", "Save settings")}</button></form><section class="overflow-hidden rounded-[2rem] border bg-white"><div class="p-5 sm:p-6"><h2 class="text-2xl">RSVP <span class="text-[#929f9a]">(${rsvps.results.length})</span></h2></div><div class="overflow-x-auto"><table class="w-full min-w-[650px] text-left"><thead class="bg-[#f8f5ff] text-xs uppercase text-[#7a7085]"><tr><th class="px-4 py-3">Guest</th><th class="px-4 py-3">Answer</th><th class="px-4 py-3">People</th><th class="px-4 py-3">Notes</th></tr></thead><tbody>${rsvpRows || `<tr><td colspan="4" class="px-5 py-10 text-center text-[#807588]">${text(locale, "Δεν υπάρχουν απαντήσεις ακόμη.", "No responses yet.")}</td></tr>`}</tbody></table></div></section></section><section class="mt-6 grid gap-6 lg:grid-cols-2"><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Guestbook <span class="text-[#929f9a]">(${guestbook.results.length})</span></h2><div class="mt-4 grid gap-3">${guestRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα μήνυμα ακόμη.", "No messages yet.")}</p>`}</div></div><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Comments <span class="text-[#929f9a]">(${comments.results.length})</span></h2><div class="mt-4 grid gap-3">${commentRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα σχόλιο ακόμη.", "No comments yet.")}</p>`}</div></div></section></main>`;
+  const body = `${eventHeader(locale, { name: user.name ?? user.email, email: user.email })}<main class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10"><div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><a href="/dashboard/${event.code}?lang=${locale}" class="text-sm font-semibold text-[#6d28d9]">← ${text(locale, "Πίσω στο event", "Back to event")}</a><p class="mt-5 text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">Engagement</p><h1 class="mt-2 text-4xl">${esc(event.eventName)}</h1></div><a href="/gallery/${event.code}/slideshow?lang=${locale}" target="_blank" class="rounded-xl bg-[#2b174d] px-5 py-3 text-center text-sm font-semibold text-white">${text(locale, "Έναρξη live slideshow", "Launch live slideshow")}</a></div><section class="mt-6 grid gap-4 lg:grid-cols-[.8fr_1.2fr]"><form action="/api/account/events/${event.code}/experience-settings" method="post" class="rounded-[2rem] border bg-[#f7f3ff] p-5 sm:p-6"><input type="hidden" name="locale" value="${locale}"><h2 class="text-2xl">${text(locale, "Ρυθμίσεις εμπειρίας", "Experience settings")}</h2><div class="mt-4 grid gap-2">${option("rsvp_enabled", "RSVP", "rsvp")}${option("guestbook_enabled", "Guestbook", "guestbook")}${option("comments_enabled", "Comments", "guestbook")}${option("slideshow_enabled", "Live slideshow", "live_slideshow")}${option("guestbook_moderation", text(locale, "Έγκριση guestbook πριν τη δημοσίευση", "Approve guestbook before publishing"), "guestbook")}</div>${event.event_type === "wedding" ? `<a href="/dashboard/${event.code}/wedding/setup?lang=${locale}&amp;step=5" class="mt-3 inline-flex text-xs font-bold text-[#6d28d9]">${text(locale, "Διαχείριση λειτουργιών και τιμών →", "Manage features and pricing →")}</a>` : ""}<button class="mt-4 w-full rounded-xl bg-[#7c3aed] px-4 py-3 font-semibold text-white">${text(locale, "Αποθήκευση", "Save settings")}</button></form><section class="overflow-hidden rounded-[2rem] border bg-white"><div class="p-5 sm:p-6"><h2 class="text-2xl">RSVP <span class="text-[#929f9a]">(${rsvps.results.length})</span></h2></div><div class="overflow-x-auto"><table class="w-full min-w-[650px] text-left"><thead class="bg-[#f8f5ff] text-xs uppercase text-[#7a7085]"><tr><th class="px-4 py-3">Guest</th><th class="px-4 py-3">Answer</th><th class="px-4 py-3">People</th><th class="px-4 py-3">Notes</th></tr></thead><tbody>${rsvpRows || `<tr><td colspan="4" class="px-5 py-10 text-center text-[#807588]">${text(locale, "Δεν υπάρχουν απαντήσεις ακόμη.", "No responses yet.")}</td></tr>`}</tbody></table></div></section></section><section class="mt-6 grid gap-6 lg:grid-cols-2"><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Guestbook <span class="text-[#929f9a]">(${guestbook.results.length})</span></h2><div class="mt-4 grid gap-3">${guestRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα μήνυμα ακόμη.", "No messages yet.")}</p>`}</div></div><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Comments <span class="text-[#929f9a]">(${comments.results.length})</span></h2><div class="mt-4 grid gap-3">${commentRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα σχόλιο ακόμη.", "No comments yet.")}</p>`}</div></div></section></main>`;
   return c.html(page(`${event.eventName} – Engagement`, body, { locale }));
 });
 
@@ -196,9 +275,15 @@ experienceRoutes.post("/api/account/events/:code/experience-settings", async (c)
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? "en"));
   const value = (key: string) => body[key] === "1" ? 1 : 0;
+  const selectedFeatures = event.event_type === "wedding"
+    ? new Set((await c.env.DB.prepare("SELECT feature_key FROM event_wedding_features WHERE event_id=? AND enabled=1")
+      .bind(event.id).all<{ feature_key: string }>()).results.map((row) => row.feature_key))
+    : null;
+  const enabled = (key: string, requiredFeature?: string) =>
+    value(key) && (!selectedFeatures || !requiredFeature || selectedFeatures.has(requiredFeature)) ? 1 : 0;
   await c.env.DB.prepare(`INSERT INTO event_experience_settings (event_id,rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled,guestbook_moderation,updated_at)
     VALUES (?,?,?,?,?,?,?) ON CONFLICT(event_id) DO UPDATE SET rsvp_enabled=excluded.rsvp_enabled,guestbook_enabled=excluded.guestbook_enabled,comments_enabled=excluded.comments_enabled,slideshow_enabled=excluded.slideshow_enabled,guestbook_moderation=excluded.guestbook_moderation,updated_at=excluded.updated_at`)
-    .bind(event.id, value("rsvp_enabled"), value("guestbook_enabled"), value("comments_enabled"), value("slideshow_enabled"), value("guestbook_moderation"), Date.now()).run();
+    .bind(event.id, enabled("rsvp_enabled", "rsvp"), enabled("guestbook_enabled", "guestbook"), enabled("comments_enabled", "guestbook"), enabled("slideshow_enabled", "live_slideshow"), enabled("guestbook_moderation", "guestbook"), Date.now()).run();
   return c.redirect(`/dashboard/${event.code}/engagement?lang=${locale}`, 303);
 });
 

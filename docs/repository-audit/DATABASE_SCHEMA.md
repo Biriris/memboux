@@ -2,9 +2,9 @@
 
 ## Authority and validation
 
-The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The audit applied all 60 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0060_expand_event_types_and_locales.sql`](../../migrations/0060_expand_event_types_and_locales.sql), to an in-memory SQLite database with foreign keys enabled. The chain completed and produced the tables and triggers below.
+The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 61 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0061_wedding_guest_planning.sql`](../../migrations/0061_wedding_guest_planning.sql). Migration `0061` has dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts).
 
-This proves migration-chain compatibility with the SQLite engine used for the audit; it does not prove that remote D1 has applied migration `0060`.
+Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0061`.
 
 Notation in this document lists logical current columns. Full defaults, checks, indexes, and rebuild details remain canonical in the linked migrations.
 
@@ -35,7 +35,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `event_access` | `preview`/`trial`/`unlocked`/`expired`, observe/enforced mode, feature flags, trial dates, media limit, lifetime consumed-upload counter. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0044`](../../migrations/0044_enforce_new_event_trials.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql) |
 | `event_covers` | Event cover R2 key, source media, updater, content type, timestamp. | [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql) |
 | `event_experience_settings` | RSVP, guestbook, comments, slideshow, and moderation flags. | [`0027`](../../migrations/0027_event_engagement.sql) |
-| `event_rsvps` | Guest response, guest count, dietary notes, message, contact, timestamps. | [`0027`](../../migrations/0027_event_engagement.sql) |
+| `event_rsvps` | Guest response, guest count, dietary notes, message, contact, timestamps, and optional wedding guest-directory link. | [`0027`](../../migrations/0027_event_engagement.sql), extended by [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
 | `event_guestbook_entries` | Author/message, moderation status, creation/moderation times. | [`0027`](../../migrations/0027_event_engagement.sql) |
 | `event_vertical_profiles` | Generic event wizard copy/theme/publish state plus JSON custom fields. | [`0043`](../../migrations/0043_event_vertical_profiles.sql), [`0052`](../../migrations/0052_event_vertical_custom_fields.sql) |
 | `professional_profiles` | Professional business profile, slug, status, timestamps. | [`0016`](../../migrations/0016_professional_official_albums.sql) |
@@ -65,6 +65,11 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `event_wedding_media` | Separate pre-wedding image/video library and R2 metadata. | [`0035`](../../migrations/0035_wedding_media.sql) |
 | `event_wedding_portrait_assignments` | Composite event/slot assignment to wedding media with position. | [`0036`](../../migrations/0036_wedding_portrait_assignments.sql) |
 | `event_wedding_menus` | One wedding menu object per event with filename/type/size/updater. | [`0034`](../../migrations/0034_wedding_places_and_menu.sql) |
+| `event_wedding_guest_groups` | Event-scoped households or guest groups. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
+| `event_wedding_guests` | Guest identity/contact, invitation-token hash, plus-one limit, attendance targets and synchronized RSVP state. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
+| `event_wedding_tables` | Event-scoped seating tables, shape, capacity, order and optional layout coordinates. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
+| `event_wedding_seat_assignments` | One current table assignment per guest record. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
+| `event_wedding_price_snapshots` | Event-specific base and feature prices, currency, catalog version and lock interval. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
 
 ## Commerce
 
@@ -118,3 +123,4 @@ The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../.
 - Rollback/down migrations do not exist.
 - Backup/restore and disaster-recovery configuration for D1 is not committed.
 - Migration `0060` rebuilds `cloud_oauth_states` and retains legacy event columns; the intended removal date for legacy columns is **Unknown**.
+- Remote application status for migration `0061` is **Unknown** until deployment-time migration checks are run.

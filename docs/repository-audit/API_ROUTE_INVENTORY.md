@@ -249,7 +249,7 @@ DELETE /api/upload/:code/multipart/:sessionId
 
 ## Guest engagement — `src/routes/experience.ts` (11)
 
-Source: [`src/routes/experience.ts`](../../src/routes/experience.ts). Guest actions require the corresponding experience setting and gallery/lifecycle access. Dashboard/moderation actions require event management.
+Source: [`src/routes/experience.ts`](../../src/routes/experience.ts). Guest actions require the corresponding experience setting and gallery/lifecycle access. A wedding RSVP may instead use a hashed personalized guest token; the handler then binds the response to the matching guest-directory record and enforces that the wedding is published and guest access is active. Dashboard/moderation actions require event management.
 
 ```text
 POST  /api/gallery/:code/rsvp
@@ -291,7 +291,7 @@ POST  /studio/trash/restore
 POST  /studio/events/:code/upload
 ```
 
-## Wedding — `src/routes/wedding.ts` (14)
+## Wedding — `src/routes/wedding.ts` (16)
 
 Source: [`src/routes/wedding.ts`](../../src/routes/wedding.ts). Public wedding/media/menu/calendar reads apply publication, lifecycle, gallery PIN, or authorized preview checks. Dashboard and wedding mutations require authenticated event-management permission.
 
@@ -310,6 +310,25 @@ POST   /api/account/events/:code/wedding/portraits/:slot/delete
 POST   /api/account/events/:code/wedding/portraits
 DELETE /api/account/events/:code/wedding/portraits/:slot
 POST   /api/account/events/:code/wedding/setup/:step
+POST   /api/account/events/:code/wedding/publish
+POST   /api/account/events/:code/wedding/unpublish
+```
+
+## Wedding guest planning — `src/routes/wedding-planning.ts` (10)
+
+Source: [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). The dashboard and all planning mutations require authenticated `manage_event` permission. The personalized invitation page is public but token-bound; it is available only for a published, unexpired wedding with active guest access. Invitation tokens are stored only as SHA-256 hashes.
+
+```text
+GET   /dashboard/:code/wedding/guests
+GET   /dashboard/:code/wedding/guests/:guestId/edit
+POST  /api/account/events/:code/wedding/guest-groups
+POST  /api/account/events/:code/wedding/guests
+POST  /api/account/events/:code/wedding/guests/:guestId
+POST  /api/account/events/:code/wedding/guests/:guestId/invite-link
+POST  /api/account/events/:code/wedding/guests/:guestId/delete
+POST  /api/account/events/:code/wedding/tables
+POST  /api/account/events/:code/wedding/seating
+GET   /wedding/:code/invite/:token
 ```
 
 ## Cloud backups — `src/routes/backups.ts` (10)
