@@ -2,7 +2,7 @@
 
 ## Scope and counting
 
-[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **207 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
+[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **214 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
 
 It excludes dependency-internal Better Auth subroutes: the repository registers `GET|POST /api/auth/*`, and [`better-auth`](../../package.json) decides the concrete subpaths at runtime. It also excludes implicit Workers Assets paths because those are files/configuration, not Hono registrations.
 
@@ -164,12 +164,19 @@ POST  /admin/users/:id/subscription
 POST  /admin/users/:id/payments
 ```
 
-## Event workspace — `src/routes/events.ts` (12)
+## Event workspace — `src/routes/events.ts` (19)
 
 Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed.
 
 ```text
 GET   /dashboard/:code
+GET   /dashboard/:code/website
+GET   /dashboard/:code/guests
+GET   /dashboard/:code/media
+GET   /dashboard/:code/menu
+GET   /dashboard/:code/share
+GET   /dashboard/:code/team
+GET   /dashboard/:code/manage
 POST  /api/account/events/:code/access/start-trial
 GET   /dashboard/:code/trial
 GET   /dashboard/:code/edit

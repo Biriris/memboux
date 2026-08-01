@@ -17,7 +17,7 @@ eventProfessionalRoutes.get("/dashboard/:code/professional", async (c) => {
   if (!event) return c.text("Event not found", 404);
   if (!roleCan(await getRole(c.env.DB, event.id, user.id), "manage_members"))
     return c.text("Only the event owner can assign a professional", 403);
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 302);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 302);
 });
 
 eventProfessionalRoutes.post("/api/account/events/:code/professional/assign", async (c) => {
@@ -53,7 +53,7 @@ eventProfessionalRoutes.post("/api/account/events/:code/professional/assign", as
     text: `${user.name} assigned ${professional.business_name} to ${event.eventName}. Sign in to accept: ${url}`,
     html: `<h1>Memboux Studio</h1><p>${esc(user.name)} assigned <strong>${esc(professional.business_name)}</strong> to <strong>${esc(event.eventName)}</strong>.</p><p><a href="${url}">Open Studio</a></p>`,
   });
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
 });
 
 eventProfessionalRoutes.post("/api/account/events/:code/professional/revoke", async (c) => {
@@ -70,5 +70,5 @@ eventProfessionalRoutes.post("/api/account/events/:code/professional/revoke", as
   )
     .bind(Date.now(), event.id)
     .run();
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
 });

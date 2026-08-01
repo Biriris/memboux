@@ -988,7 +988,7 @@ weddingRoutes.post("/api/account/events/:code/wedding/publish", async (c) => {
     return c.text(localized(locale, "Start the trial or unlock the event before publishing.", "Ξεκίνα το trial ή ξεκλείδωσε το event πριν τη δημοσίευση.", "Activez l'essai ou débloquez l'événement.", "Starte die Testphase oder schalte das Event frei.", "Inicia la prueba o desbloquea el evento.", "Avvia la prova o sblocca l'evento."), 409);
   await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='published',updated_at=? WHERE event_id=?")
     .bind(Date.now(), event.id).run();
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
 });
 
 weddingRoutes.post("/api/account/events/:code/wedding/unpublish", async (c) => {
@@ -1000,5 +1000,5 @@ weddingRoutes.post("/api/account/events/:code/wedding/unpublish", async (c) => {
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='draft',updated_at=? WHERE event_id=?")
     .bind(Date.now(), event.id).run();
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
 });

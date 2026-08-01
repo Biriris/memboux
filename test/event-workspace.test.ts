@@ -45,13 +45,15 @@ describe("event workspace", () => {
     expect(html).toContain("data-event-workspace-shell");
     expect(html).toContain('data-event-role="owner"');
     expect(html).toContain('data-workspace-section-link="overview"');
-    expect(html).toContain('href="#template"');
-    expect(html).toContain('href="#gallery"');
-    expect(html).toContain('href="#engagement"');
-    expect(html).toContain('href="#share"');
-    expect(html).toContain('href="#people"');
-    expect(html).toContain('href="#event-access"');
-    expect(html).toContain('href="#settings"');
+    expect(html).toContain('data-workspace-section-link="website"');
+    expect(html).toContain(`/dashboard/${event.code}/website?lang=en`);
+    expect(html).toContain('data-workspace-section-link="guests"');
+    expect(html).toContain(`/dashboard/${event.code}/media?lang=en`);
+    expect(html).toContain('data-workspace-section-link="share"');
+    expect(html).toContain('data-workspace-section-link="team"');
+    expect(html).toContain('data-workspace-section-link="manage"');
+    expect(html).not.toContain('href="#gallery"');
+    expect(html).not.toContain('href="#share"');
     expect(html).toContain('id="gallery"');
     expect(html).toContain('id="share"');
     expect(html).toContain('id="settings"');
@@ -167,19 +169,30 @@ describe("event workspace", () => {
     expect(html).not.toContain('id="owner-set-cover"');
   });
 
+  it("renders semantic section navigation with only the selected panel visible", () => {
+    const html = renderEventWorkspace({ ...baseInput, membership: "owner", activeSection: "media" });
+
+    expect(html).toContain('data-workspace-section-link="media"');
+    expect(html).toContain('href="/dashboard/ABC123/media?lang=en" aria-current="page"');
+    expect(html).toContain('data-active-section="media"');
+    expect(html).toContain('[data-workspace-panel]:not([data-workspace-panel="media"])');
+    expect(html).toContain('id="gallery" data-workspace-panel="media"');
+    expect(html).toContain('id="overview" data-workspace-panel="overview"');
+    expect(html).toContain("location.replace('/dashboard/'");
+  });
+
   it("keeps owner-only controls hidden from viewers", () => {
     const html = renderEventWorkspace({ ...baseInput, membership: "viewer", members: [] });
 
     expect(html).toContain("data-event-workspace-shell");
     expect(html).toContain('data-event-role="viewer"');
     expect(html).toContain('data-workspace-section-link="overview"');
-    expect(html).toContain('data-workspace-section-link="gallery"');
+    expect(html).toContain('data-workspace-section-link="media"');
     expect(html).toContain('data-workspace-section-link="share"');
-    expect(html).not.toContain('data-workspace-section-link="template"');
-    expect(html).not.toContain('data-workspace-section-link="engagement"');
-    expect(html).not.toContain('data-workspace-section-link="people"');
-    expect(html).not.toContain('data-workspace-section-link="event-access"');
-    expect(html).not.toContain('data-workspace-section-link="settings"');
+    expect(html).not.toContain('data-workspace-section-link="website"');
+    expect(html).not.toContain('data-workspace-section-link="guests"');
+    expect(html).not.toContain('data-workspace-section-link="team"');
+    expect(html).not.toContain('data-workspace-section-link="manage"');
     expect(html).toContain('id="gallery"');
     expect(html).toContain("Download selected");
     expect(html).toContain("Trip &amp; vacation");
@@ -203,6 +216,7 @@ describe("event workspace", () => {
     expect(html).toContain("Guests · Invitations · RSVP");
     expect(html).toContain("Contacts, groups, delivery and seating.");
     expect(html).toContain("directory → invitations → responses → live experience");
+    expect(html).not.toContain('data-workspace-section-link="menu"');
   });
 
   it("keeps editor navigation focused on viewing, sharing and media management", () => {
@@ -210,11 +224,11 @@ describe("event workspace", () => {
 
     expect(html).toContain('data-event-role="editor"');
     expect(html).toContain('data-workspace-section-link="overview"');
-    expect(html).toContain('data-workspace-section-link="gallery"');
+    expect(html).toContain('data-workspace-section-link="media"');
     expect(html).toContain('data-workspace-section-link="share"');
-    expect(html).not.toContain('data-workspace-section-link="template"');
-    expect(html).not.toContain('data-workspace-section-link="people"');
-    expect(html).not.toContain('data-workspace-section-link="settings"');
+    expect(html).not.toContain('data-workspace-section-link="website"');
+    expect(html).not.toContain('data-workspace-section-link="team"');
+    expect(html).not.toContain('data-workspace-section-link="manage"');
     expect(html).toContain('id="owner-delete-selected"');
   });
 
@@ -291,6 +305,10 @@ describe("event workspace", () => {
     expect(html).toContain('id="gallery"');
     expect(html).toContain('id="share"');
     expect(html).toContain('data-test="wedding-qr"');
+    expect(html).toContain('data-workspace-section-link="menu"');
+    expect(html).toContain(`/dashboard/${event.code}/menu?lang=en`);
+    expect(html).toContain("Menu & print files");
+    expect(html).toContain(`/dashboard/${event.code}/wedding/menu/print?lang=en`);
     expect(html).toContain("lg:grid-cols-3");
     expect(html).toContain("flex h-full min-w-0 flex-col");
     expect(html).not.toContain('name="eventType"');

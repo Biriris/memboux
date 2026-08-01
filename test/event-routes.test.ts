@@ -61,6 +61,13 @@ describe("event route boundaries", () => {
 
   it.each([
     `/dashboard/${code}`,
+    `/dashboard/${code}/website`,
+    `/dashboard/${code}/guests`,
+    `/dashboard/${code}/media`,
+    `/dashboard/${code}/menu`,
+    `/dashboard/${code}/share`,
+    `/dashboard/${code}/team`,
+    `/dashboard/${code}/manage`,
     `/dashboard/${code}/edit`,
     `/dashboard/${code}/professional`,
     `/dashboard/${code}/media/11111111-1111-4111-8111-111111111111`,

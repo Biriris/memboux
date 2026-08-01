@@ -1,5 +1,6 @@
 ﻿import { Hono } from "hono";
 import QRCode from "qrcode";
+import type { Context } from "hono";
 import { getEventRole, roleCan } from "../access";
 import { sendEmail } from "../auth";
 import { TRASH_RETENTION_MS } from "../config";
@@ -18,6 +19,7 @@ import { canManageOfficialAlbum } from "../studio";
 import { trialCopy } from "../trial-copy";
 import { esc, formatEventDates, sha256, validEventDate } from "../utils";
 import { renderEventWorkspace } from "../views/event-workspace";
+import type { EventWorkspaceSection } from "../views/event-workspace-shell";
 import { eventHeader, logoutScript, page } from "../views/shared";
 
 export const eventRoutes = new Hono<{ Bindings: Bindings }>();
@@ -28,14 +30,19 @@ export function eventInvitationInstruction(existingUser: boolean, locale: Locale
     : (locale === "el" ? "Δημιούργησε λογαριασμό με αυτό το email και αποδέξου την πρόσκληση." : "Create an account with this email and accept the invitation.");
 }
 
-eventRoutes.get("/dashboard/:code", async (c) => {
+async function eventDashboard(c: Context<{ Bindings: Bindings }>) {
   const locale = normalizeLocale(c.req.query("lang") ?? "en");
-  const event = await getEvent(c.env.DB, c.req.param("code"));
+  const event = await getEvent(c.env.DB, c.req.param("code") ?? "");
   if (!event) return c.text(locale === "el" ? "Το event δεν βρέθηκε." : "Event not found.", 404);
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   const membership = await getEventRole(c.env.DB, event.id, user.id);
   if (!membership) return c.text("Forbidden", 403);
+  const activeSection = (c.req.param("section") || "overview") as EventWorkspaceSection;
+  const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "menu", "team", "manage"]);
+  if (ownerOnlySections.has(activeSection) && membership !== "owner") return c.text("Forbidden", 403);
+  if (activeSection === "menu" && event.event_type !== "wedding")
+    return c.text(locale === "el" ? "Το μενού δεν είναι διαθέσιμο για αυτό το event." : "Menu tools are not available for this event.", 404);
 
   const canManageEvent = roleCan(membership, "manage_event");
   const likeVisitor = existingMediaLikeVisitor(c.req.raw);
@@ -104,11 +111,21 @@ eventRoutes.get("/dashboard/:code", async (c) => {
     weddingQrSvg: weddingQrSvg ? responsiveQr(weddingQrSvg) : null,
     coverSourceMediaId: cover?.source_media_id ?? null,
     coverUpdatedAt: cover?.updated_at ?? null,
+    activeSection,
     eventAccess,
     mediaUsageTotal: mediaUsage.total,
     weddingState,
   }));
-});
+}
+
+eventRoutes.get("/dashboard/:code", eventDashboard);
+eventRoutes.get("/dashboard/:code/website", eventDashboard);
+eventRoutes.get("/dashboard/:code/guests", eventDashboard);
+eventRoutes.get("/dashboard/:code/media", eventDashboard);
+eventRoutes.get("/dashboard/:code/menu", eventDashboard);
+eventRoutes.get("/dashboard/:code/share", eventDashboard);
+eventRoutes.get("/dashboard/:code/team", eventDashboard);
+eventRoutes.get("/dashboard/:code/manage", eventDashboard);
 
 eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
   const user = await currentUser(c);
@@ -123,12 +140,12 @@ eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
     return c.text(copy.confirmationRequired, 400);
   const access = await getEventAccess(c.env.DB, event.id);
   if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+    return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
   const usage = await eventMediaUsage(c.env.DB, event.id);
   if (usage.total > EVENT_TRIAL_MEDIA_LIMIT)
     return c.text(copy.capacityError(EVENT_TRIAL_MEDIA_LIMIT), 409);
   await startEventTrial(c.env.DB, event.id);
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
 });
 
 eventRoutes.get("/dashboard/:code/trial", async (c) => {
@@ -145,7 +162,7 @@ eventRoutes.get("/dashboard/:code/trial", async (c) => {
     eventMediaUsage(c.env.DB, event.id),
   ]);
   if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 302);
+    return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 302);
 
   const now = Date.now();
   const trialEndsAt = now + EVENT_TRIAL_DAYS * 86_400_000;
@@ -176,7 +193,7 @@ eventRoutes.get("/dashboard/:code/edit", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Only the event owner can edit this event", 403);
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#settings`, 302);
+  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 302);
 });
 
 eventRoutes.get("/event-cover/:code", async (c) => {
@@ -243,7 +260,7 @@ eventRoutes.post("/api/account/events/:code/cover", async (c) => {
   if (previous?.object_key && previous.object_key !== objectKey) {
     c.executionCtx.waitUntil(c.env.MEDIA.delete(previous.object_key));
   }
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#gallery`, 303);
+  return c.redirect(`/dashboard/${event.code}/media?lang=${locale}`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/privacy", async (c) => {
@@ -270,7 +287,7 @@ eventRoutes.post("/api/account/events/:code/privacy", async (c) => {
     c.header("Cache-Control", "private, no-store");
     return c.json({ enabled: action !== "remove" });
   }
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#share`, 303);
+  return c.redirect(`/dashboard/${event.code}/share?lang=${locale}`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/removal/:requestId/:action{approve|dismiss}", async (c) => {
@@ -292,7 +309,7 @@ eventRoutes.post("/api/account/events/:code/removal/:requestId/:action{approve|d
   } else {
     await c.env.DB.prepare("UPDATE media_removal_requests SET status='dismissed',resolved_at=? WHERE id=?").bind(now, c.req.param("requestId")).run();
   }
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#requests`, 303);
+  return c.redirect(`/dashboard/${event.code}/media?lang=${locale}`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/details", async (c) => {
@@ -388,7 +405,7 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
     const existingMember = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, existingUser.id).first();
     if (existingMember) return wantsJson
       ? c.json({ message: locale === "el" ? "Ο χρήστης έχει ήδη πρόσβαση σε αυτό το album." : "This user already has access to the album." }, 409)
-      : c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+      : c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
   }
   const invitationId = crypto.randomUUID();
   const invitationToken = createInvitationToken();
@@ -427,7 +444,7 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
       delivery: existingUser ? "email_and_notification" : "email",
     }, 201);
   }
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/members/remove", async (c) => {
@@ -442,7 +459,7 @@ eventRoutes.post("/api/account/events/:code/members/remove", async (c) => {
   const invitationId = String(body.invitationId ?? "");
   if (userId) await removeEventPersonAccess(c.env.DB, event.id, userId, Date.now());
   if (invitationId) await c.env.DB.prepare("DELETE FROM event_invitations WHERE id=? AND event_id=?").bind(invitationId, event.id).run();
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
 });
 
 eventRoutes.post("/api/account/events/:code/members/role", async (c) => {
@@ -463,5 +480,5 @@ eventRoutes.post("/api/account/events/:code/members/role", async (c) => {
       ? await changePendingInvitationRole(c.env.DB, event.id, invitationId, role)
       : false;
   if (!changed) return c.text(locale === "el" ? "Το άτομο ή η πρόσκληση δεν βρέθηκε." : "Person or invitation not found.", 404);
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#people`, 303);
+  return c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
 });

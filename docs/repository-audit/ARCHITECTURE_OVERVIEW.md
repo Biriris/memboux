@@ -58,9 +58,9 @@ The code has recognizable layers, but their boundaries are not consistently enfo
 
 ## Authenticated event workspace
 
-`GET /dashboard/:code` composes the event workspace in [`src/routes/events.ts`](../../src/routes/events.ts). [`src/views/event-workspace.ts`](../../src/views/event-workspace.ts) renders the event-specific sections, while [`src/views/event-workspace-shell.ts`](../../src/views/event-workspace-shell.ts) owns the responsive workspace navigation.
+`GET /dashboard/:code` renders the event overview. Exact routes below it (`/website`, `/guests`, `/media`, `/menu`, `/share`, `/team`, and `/manage`) render focused workspace areas in [`src/routes/events.ts`](../../src/routes/events.ts). [`src/views/event-workspace.ts`](../../src/views/event-workspace.ts) renders the event-specific panels, while [`src/views/event-workspace-shell.ts`](../../src/views/event-workspace-shell.ts) owns the responsive workspace navigation.
 
-The navigation is derived from the verified event membership role without changing the capability model: owners receive setup, engagement, people, lifecycle, and settings links; editors and viewers receive only overview, media, and sharing links. Existing section fragments remain stable for backward compatibility. The shell exposes `data-workspace-section-link` attributes and emits a local `memboux:workspace-navigation` browser event when a section link is selected. No analytics provider consumes that event in this repository.
+The navigation is derived from the verified event membership role without changing the capability model: owners receive website, guests, media, wedding-menu, sharing, team, and plan/settings pages; editors and viewers receive only overview, media, and sharing pages. Owner-only section requests are rejected server-side. The shell exposes `data-workspace-section-link` attributes, marks the selected page with `aria-current="page"`, and emits a local `memboux:workspace-navigation` browser event when a section link is selected. No analytics provider consumes that event in this repository.
 
 ## State and external systems
 

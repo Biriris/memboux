@@ -585,7 +585,7 @@ describe("account route boundaries", () => {
       redirect: "manual",
     });
     expect(pinRedirect.status).toBe(303);
-    expect(pinRedirect.headers.get("location")).toBe(`/dashboard/${event!.code}?lang=en#share`);
+    expect(pinRedirect.headers.get("location")).toBe(`/dashboard/${event!.code}/share?lang=en`);
 
     const removePin = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
       method: "POST",

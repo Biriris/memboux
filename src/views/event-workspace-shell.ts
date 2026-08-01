@@ -4,11 +4,14 @@ import { esc } from "../utils";
 
 type WorkspaceSection = {
   id: string;
+  path: string;
   label: string;
   hint: string;
   ownerOnly?: boolean;
   when?: boolean;
 };
+
+export type EventWorkspaceSection = "overview" | "website" | "guests" | "media" | "menu" | "share" | "team" | "manage";
 
 type EventWorkspaceShellInput = {
   locale: Locale;
@@ -17,6 +20,8 @@ type EventWorkspaceShellInput = {
   membership: EventRole;
   eventPageLabel: string;
   hasRemovalRequests: boolean;
+  activeSection: EventWorkspaceSection;
+  showMenuTools: boolean;
   content: string;
 };
 
@@ -52,30 +57,33 @@ const copy: Record<Locale, {
 function workspaceSections(input: EventWorkspaceShellInput): WorkspaceSection[] {
   const labels = copy[input.locale];
   return [
-    { id: "overview", label: labels.overview, hint: labels.overviewHint },
-    { id: "template", label: input.eventPageLabel, hint: labels.eventPageHint, ownerOnly: true },
-    { id: "gallery", label: labels.media, hint: labels.mediaHint },
-    { id: "engagement", label: labels.guests, hint: labels.guestsHint, ownerOnly: true },
-    { id: "share", label: labels.share, hint: labels.shareHint },
-    { id: "people", label: labels.team, hint: labels.teamHint, ownerOnly: true },
-    { id: "requests", label: labels.requests, hint: labels.requestsHint, ownerOnly: true, when: input.hasRemovalRequests },
-    { id: "event-access", label: labels.plan, hint: labels.planHint, ownerOnly: true },
-    { id: "settings", label: labels.settings, hint: labels.settingsHint, ownerOnly: true },
+    { id: "overview", path: "", label: labels.overview, hint: labels.overviewHint },
+    { id: "website", path: "/website", label: input.eventPageLabel, hint: labels.eventPageHint, ownerOnly: true },
+    { id: "guests", path: "/guests", label: labels.guests, hint: labels.guestsHint, ownerOnly: true },
+    { id: "media", path: "/media", label: labels.media, hint: input.hasRemovalRequests ? labels.requestsHint : labels.mediaHint },
+    { id: "menu", path: "/menu", label: input.locale === "el" ? "Μενού & εκτυπώσεις" : "Menu & print", hint: input.locale === "el" ? "Πιάτα και έντυπα" : "Courses and print files", ownerOnly: true, when: input.showMenuTools },
+    { id: "share", path: "/share", label: labels.share, hint: labels.shareHint },
+    { id: "team", path: "/team", label: labels.team, hint: labels.teamHint, ownerOnly: true },
+    { id: "manage", path: "/manage", label: `${labels.plan} · ${labels.settings}`, hint: labels.settingsHint, ownerOnly: true },
   ].filter((section) => section.when !== false && (!section.ownerOnly || input.membership === "owner"));
 }
 
-function navigationLinks(sections: WorkspaceSection[], compact: boolean) {
-  return sections.map((section, index) => `<a data-workspace-section-link="${esc(section.id)}" href="#${esc(section.id)}" class="group flex ${compact ? "min-w-[12rem]" : "w-full"} items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-[#5f536a] outline-none transition hover:bg-[#f4effc] hover:text-[#2b174d] focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#e6dff0] bg-white text-xs font-bold text-[#7c3aed] shadow-sm">${index + 1}</span><span class="min-w-0"><strong class="block truncate font-semibold">${esc(section.label)}</strong><small class="mt-0.5 block truncate text-[11px] font-normal text-[#8a8093]">${esc(section.hint)}</small></span></a>`).join("");
+function navigationLinks(input: EventWorkspaceShellInput, sections: WorkspaceSection[], compact: boolean) {
+  return sections.map((section, index) => {
+    const active = section.id === input.activeSection;
+    const href = `/dashboard/${encodeURIComponent(input.eventCode)}${section.path}?lang=${input.locale}`;
+    return `<a data-workspace-section-link="${esc(section.id)}" href="${href}"${active ? ' aria-current="page"' : ""} class="group flex ${compact ? "min-w-[12rem]" : "w-full"} items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm ${active ? "bg-[#f1eaff] text-[#2b174d]" : "text-[#5f536a]"} outline-none transition hover:bg-[#f4effc] hover:text-[#2b174d] focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${active ? "border-[#c4b5fd] bg-[#7c3aed] text-white" : "border-[#e6dff0] bg-white text-[#7c3aed]"} text-xs font-bold shadow-sm">${index + 1}</span><span class="min-w-0"><strong class="block truncate font-semibold">${esc(section.label)}</strong><small class="mt-0.5 block truncate text-[11px] font-normal text-[#8a8093]">${esc(section.hint)}</small></span></a>`;
+  }).join("");
 }
 
 export function eventWorkspaceShell(input: EventWorkspaceShellInput) {
   const labels = copy[input.locale];
   const sections = workspaceSections(input);
-  return `<main data-event-workspace-shell data-event-code="${esc(input.eventCode)}" data-event-role="${input.membership}" class="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7">
-    <div class="mb-4 xl:hidden"><details class="group rounded-2xl border border-[#e6dff0] bg-white shadow-sm"><summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold text-[#2b174d]"><span>${esc(labels.navigation)}</span><span aria-hidden="true" class="text-[#7c3aed] transition group-open:rotate-180">⌄</span></summary><nav aria-label="${esc(labels.navigation)}" class="flex gap-1 overflow-x-auto border-t border-[#eee8f5] p-2">${navigationLinks(sections, true)}</nav></details></div>
+  return `<main data-event-workspace-shell data-event-code="${esc(input.eventCode)}" data-event-role="${input.membership}" data-active-section="${input.activeSection}" class="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 sm:py-7">
+    <div class="mb-4 xl:hidden"><details class="group rounded-2xl border border-[#e6dff0] bg-white shadow-sm"><summary class="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold text-[#2b174d]"><span>${esc(labels.navigation)}</span><span aria-hidden="true" class="text-[#7c3aed] transition group-open:rotate-180">⌄</span></summary><nav aria-label="${esc(labels.navigation)}" class="flex gap-1 overflow-x-auto border-t border-[#eee8f5] p-2">${navigationLinks(input, sections, true)}</nav></details></div>
     <div class="grid gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
-      <aside class="hidden h-fit xl:sticky xl:top-5 xl:block"><div class="rounded-[1.6rem] border border-[#e6dff0] bg-white p-3 shadow-sm"><a href="/${input.locale}/account" class="mb-3 flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-[#7c3aed] hover:bg-[#f8f5ff]">← ${esc(labels.back)}</a><div class="border-t border-[#eee8f5] px-3 pb-3 pt-4"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8a8093]">${esc(labels.navigation)}</p><p class="mt-1 truncate font-semibold text-[#2b174d]" title="${esc(input.eventName)}">${esc(input.eventName)}</p></div><nav aria-label="${esc(labels.navigation)}" class="space-y-1">${navigationLinks(sections, false)}</nav></div></aside>
+      <aside class="hidden h-fit xl:sticky xl:top-5 xl:block"><div class="rounded-[1.6rem] border border-[#e6dff0] bg-white p-3 shadow-sm"><a href="/${input.locale}/account" class="mb-3 flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-[#7c3aed] hover:bg-[#f8f5ff]">← ${esc(labels.back)}</a><div class="border-t border-[#eee8f5] px-3 pb-3 pt-4"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8a8093]">${esc(labels.navigation)}</p><p class="mt-1 truncate font-semibold text-[#2b174d]" title="${esc(input.eventName)}">${esc(input.eventName)}</p></div><nav aria-label="${esc(labels.navigation)}" class="space-y-1">${navigationLinks(input, sections, false)}</nav></div></aside>
       <div class="min-w-0">${input.content}</div>
     </div>
-  </main><script>(()=>{const root=document.querySelector('[data-event-workspace-shell]');if(!root)return;const links=[...root.querySelectorAll('[data-workspace-section-link]')],sections=[...new Set(links.map(link=>document.getElementById(link.dataset.workspaceSectionLink)).filter(Boolean))];const activate=id=>links.forEach(link=>{const active=link.dataset.workspaceSectionLink===id;link.toggleAttribute('aria-current',active);link.classList.toggle('bg-[#f1eaff]',active);link.classList.toggle('text-[#2b174d]',active)});links.forEach(link=>link.addEventListener('click',()=>{activate(link.dataset.workspaceSectionLink);root.dispatchEvent(new CustomEvent('memboux:workspace-navigation',{detail:{section:link.dataset.workspaceSectionLink}}))}));if(location.hash&&document.getElementById(location.hash.slice(1)))activate(location.hash.slice(1));else activate('overview');if('IntersectionObserver'in window){const observer=new IntersectionObserver(entries=>{const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(visible)activate(visible.target.id)},{rootMargin:'-15% 0px -65% 0px',threshold:[0,.1,.25,.5]});sections.forEach(section=>observer.observe(section))}})()<\/script>`;
+  </main><script>(()=>{const root=document.querySelector('[data-event-workspace-shell]');if(!root)return;const legacy={template:'website',engagement:'guests',gallery:'media',requests:'media',share:'share',people:'team','event-access':'manage',settings:'manage',danger:'manage'},target=legacy[location.hash.slice(1)];if(root.dataset.activeSection==='overview'&&target){location.replace('/dashboard/'+encodeURIComponent(root.dataset.eventCode)+'/'+target+'?lang=${input.locale}');return}root.querySelectorAll('[data-workspace-section-link]').forEach(link=>link.addEventListener('click',()=>root.dispatchEvent(new CustomEvent('memboux:workspace-navigation',{detail:{section:link.dataset.workspaceSectionLink}}))))})()<\/script>`;
 }
