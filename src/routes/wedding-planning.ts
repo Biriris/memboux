@@ -7,7 +7,9 @@ import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { esc, sha256 } from "../utils";
 import { eventHeader, logoutScript, page } from "../views/shared";
+import { weddingSeatingPrintPage, type SeatingPrintGuest, type SeatingPrintTable } from "../views/wedding-seating-print";
 import { parseWeddingGuestCsv, weddingGuestCsv, WEDDING_GUEST_IMPORT_MAX_BYTES, WEDDING_GUEST_IMPORT_MAX_ROWS } from "../wedding-guests-csv";
+import { deliverWeddingInvitationBatch, reserveWeddingInvitationBatch } from "../wedding-invitations";
 
 type WeddingGuestGroup = {
   id: string;
@@ -26,6 +28,7 @@ type WeddingGuest = {
   rsvp_status: "pending" | "yes" | "no" | "maybe";
   party_size: number;
   dietary_notes: string;
+  invitation_delivery_status: "not_sent" | "sending" | "sent" | "failed";
   table_id: string | null;
   table_name: string | null;
 };
@@ -78,11 +81,14 @@ function guestPlannerPage(input: {
   totalFiltered: number;
   assignedGuestCount: number;
   importedCount: number;
+  queuedCount: number;
+  canSendInvitations: boolean;
+  invitationCounts: Record<WeddingGuest["invitation_delivery_status"], number>;
   freshGuest?: Pick<WeddingGuest, "id" | "first_name" | "last_name"> | null;
   freshGuestId?: string;
   freshToken?: string;
 }) {
-  const { event, locale, user, groups, guests, tables, origin, query, pageNumber, totalPages, totalGuests, totalFiltered, assignedGuestCount, importedCount, freshGuestId, freshToken } = input;
+  const { event, locale, user, groups, guests, tables, origin, query, pageNumber, totalPages, totalGuests, totalFiltered, assignedGuestCount, importedCount, queuedCount, canSendInvitations, invitationCounts, freshGuestId, freshToken } = input;
   const el = locale === "el";
   const groupOptions = groups.map((group) => `<option value="${esc(group.id)}">${esc(group.name)}</option>`).join("");
   const freshGuest = input.freshGuest ?? guests.find((guest) => guest.id === freshGuestId);
@@ -110,6 +116,12 @@ function guestPlannerPage(input: {
   const importNotice = importedCount > 0 ? `<p class="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">${el ? `Προστέθηκαν ${importedCount} καλεσμένοι από το CSV.` : `${importedCount} guests were imported from CSV.`}</p>` : "";
   const directoryTools = `<section class="mt-6 rounded-[1.8rem] border border-[#e8e0f2] bg-[#f8f5ff] p-5 sm:p-6"><div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Guest list tools</p><h2 class="mt-1 text-2xl text-[#2b174d]">${el ? "Αναζήτηση και μαζική εισαγωγή" : "Search and bulk import"}</h2><p class="mt-2 text-sm text-[#756b82]">${el ? `Έως ${WEDDING_GUEST_IMPORT_MAX_ROWS} καλεσμένοι ανά CSV. Η εισαγωγή απορρίπτεται ολόκληρη αν κάποια γραμμή δεν είναι έγκυρη.` : `Up to ${WEDDING_GUEST_IMPORT_MAX_ROWS} guests per CSV. The whole import is rejected if any row is invalid.`}</p></div><a href="/api/account/events/${encodeURIComponent(event.code)}/wedding/guests/export" class="w-fit rounded-xl border border-[#d9caeb] bg-white px-4 py-3 text-sm font-bold text-[#6d28d9]">${el ? "Λήψη CSV / template" : "Download CSV / template"}</a></div>${importNotice}<div class="mt-5 grid gap-4 lg:grid-cols-2"><form action="/dashboard/${encodeURIComponent(event.code)}/wedding/guests" method="get" class="flex gap-2"><input type="hidden" name="lang" value="${locale}"><input name="q" maxlength="80" value="${esc(query)}" placeholder="${el ? "Όνομα, email, τηλέφωνο ή ομάδα" : "Name, email, phone or group"}" class="min-w-0 flex-1 rounded-xl border bg-white px-4 py-3"><button class="rounded-xl bg-[#2b174d] px-4 py-3 text-sm font-bold text-white">${el ? "Αναζήτηση" : "Search"}</button>${query ? `<a href="/dashboard/${encodeURIComponent(event.code)}/wedding/guests?lang=${locale}" class="rounded-xl border bg-white px-4 py-3 text-sm font-bold text-[#6d28d9]">${el ? "Καθαρισμός" : "Clear"}</a>` : ""}</form><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guests/import" method="post" enctype="multipart/form-data" class="flex flex-col gap-2 sm:flex-row"><input type="hidden" name="locale" value="${locale}"><input name="guestFile" type="file" required accept=".csv,text/csv" class="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-sm"><button class="rounded-xl bg-[#7c3aed] px-4 py-3 text-sm font-bold text-white">${el ? "Εισαγωγή CSV" : "Import CSV"}</button></form></div></section>`;
 
+  const groupEditors = groups.map((group) => `<div class="rounded-2xl border border-[#e6deef] bg-white p-3"><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guest-groups/${encodeURIComponent(group.id)}" method="post" class="flex gap-2"><input type="hidden" name="locale" value="${locale}"><input name="name" required maxlength="100" value="${esc(group.name)}" aria-label="${el ? "Όνομα ομάδας" : "Group name"}" class="min-w-0 flex-1 rounded-xl border px-3 py-2"><button class="rounded-xl bg-[#2b174d] px-3 py-2 text-xs font-bold text-white">${el ? "Μετονομασία" : "Rename"}</button></form><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guest-groups/${encodeURIComponent(group.id)}/delete" method="post" class="mt-2" onsubmit="return confirm('${el ? "Διαγραφή ομάδας; Οι καλεσμένοι θα μείνουν χωρίς ομάδα." : "Delete group? Guests will become ungrouped."}')"><input type="hidden" name="locale" value="${locale}"><button class="text-xs font-bold text-red-700">${el ? "Διαγραφή ομάδας" : "Delete group"}</button></form></div>`).join("");
+  const tableEditors = tables.map((table) => `<div class="rounded-2xl border border-[#e6deef] bg-white p-3"><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/tables/${encodeURIComponent(table.id)}" method="post" class="grid gap-2 sm:grid-cols-[1fr_9rem_6rem_auto]"><input type="hidden" name="locale" value="${locale}"><input name="name" required maxlength="80" value="${esc(table.name)}" aria-label="${el ? "Όνομα τραπεζιού" : "Table name"}" class="rounded-xl border px-3 py-2"><select name="shape" aria-label="${el ? "Σχήμα" : "Shape"}" class="rounded-xl border px-3 py-2"><option value="round"${table.shape === "round" ? " selected" : ""}>${el ? "Στρογγυλό" : "Round"}</option><option value="rectangle"${table.shape === "rectangle" ? " selected" : ""}>${el ? "Ορθογώνιο" : "Rectangle"}</option><option value="oval"${table.shape === "oval" ? " selected" : ""}>${el ? "Οβάλ" : "Oval"}</option><option value="custom"${table.shape === "custom" ? " selected" : ""}>Custom</option></select><input name="capacity" required type="number" min="1" max="100" value="${table.capacity}" aria-label="${el ? "Χωρητικότητα" : "Capacity"}" class="rounded-xl border px-3 py-2"><button class="rounded-xl bg-[#2b174d] px-3 py-2 text-xs font-bold text-white">${el ? "Αποθήκευση" : "Save"}</button></form><div class="mt-2 flex items-center justify-between text-xs"><span class="text-[#756b82]">${table.assigned_count}/${table.capacity} ${el ? "θέσεις" : "seats"}</span><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/tables/${encodeURIComponent(table.id)}/delete" method="post" onsubmit="return confirm('${el ? "Διαγραφή τραπεζιού; Οι θέσεις του θα αποδεσμευτούν." : "Delete table? Its guests will become unassigned."}')"><input type="hidden" name="locale" value="${locale}"><button class="font-bold text-red-700">${el ? "Διαγραφή" : "Delete"}</button></form></div></div>`).join("");
+  const pendingInvitations = invitationCounts.not_sent + invitationCounts.failed;
+  const queuedNotice = queuedCount >= 0 ? `<p class="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">${queuedCount > 0 ? (el ? `${queuedCount} προσκλήσεις μπήκαν σε αποστολή.` : `${queuedCount} invitations were queued for delivery.`) : (el ? "Δεν υπάρχουν νέες προσκλήσεις για αποστολή." : "There are no new invitations to send.")}</p>` : "";
+  const operationsPanel = `<section class="mt-6 rounded-[1.8rem] border border-[#e8e0f2] bg-[#f8f5ff] p-5 sm:p-6"><div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Guest operations</p><h2 class="mt-1 text-2xl text-[#2b174d]">${el ? "Προσκλήσεις και αρχείο χώρου" : "Invitations and venue handoff"}</h2><p class="mt-2 text-sm text-[#756b82]">${el ? `${invitationCounts.sent} στάλθηκαν · ${invitationCounts.sending} αποστέλλονται · ${invitationCounts.failed} απέτυχαν` : `${invitationCounts.sent} sent · ${invitationCounts.sending} sending · ${invitationCounts.failed} failed`}</p></div><div class="flex flex-col gap-2 sm:flex-row"><a href="/dashboard/${encodeURIComponent(event.code)}/wedding/guests/seating-plan?lang=${locale}" target="_blank" rel="noopener" class="rounded-xl border border-[#d9caeb] bg-white px-4 py-3 text-center text-sm font-bold text-[#6d28d9]">${el ? "Εκτύπωση / PDF τραπεζιών" : "Print / PDF seating plan"}</a><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guests/invitations/send" method="post" onsubmit="return confirm('${el ? `Αποστολή ${pendingInvitations} προσωπικών προσκλήσεων μέσω email;` : `Send ${pendingInvitations} personal email invitations?`}')"><input type="hidden" name="locale" value="${locale}"><button ${!canSendInvitations || pendingInvitations === 0 ? "disabled" : ""} class="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">${el ? `Μαζική αποστολή (${pendingInvitations})` : `Send invitations (${pendingInvitations})`}</button></form></div></div>${!canSendInvitations ? `<p class="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">${el ? "Για αποστολή προσκλήσεων, δημοσίευσε πρώτα τον γάμο και ενεργοποίησε trial ή πρόσβαση καλεσμένων." : "Publish the wedding and activate trial or guest access before sending invitations."}</p>` : ""}${queuedNotice}<div class="mt-6 grid gap-5 lg:grid-cols-2"><div><h3 class="font-bold text-[#2b174d]">${el ? "Επεξεργασία ομάδων" : "Edit groups"}</h3><div class="mt-3 grid gap-2">${groupEditors || `<p class="text-sm text-[#81758a]">${el ? "Δεν υπάρχουν ομάδες." : "No groups yet."}</p>`}</div></div><div><h3 class="font-bold text-[#2b174d]">${el ? "Επεξεργασία τραπεζιών" : "Edit tables"}</h3><div class="mt-3 grid gap-2">${tableEditors || `<p class="text-sm text-[#81758a]">${el ? "Δεν υπάρχουν τραπέζια." : "No tables yet."}</p>`}</div></div></div></section>`;
+
   const body = `${eventHeader(locale, user)}<main class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 lg:p-10"><div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}" class="text-sm font-semibold text-[#6d28d9]">← ${el ? "Πίσω στο dashboard" : "Back to dashboard"}</a><p class="mt-5 text-xs font-bold uppercase tracking-[.18em] text-[#f43f8f]">Wedding guest operations</p><h1 class="mt-2 text-4xl text-[#2b174d]">${el ? "Καλεσμένοι, RSVP και τραπέζια" : "Guests, RSVP and seating"}</h1><p class="mt-3 max-w-3xl text-sm leading-6 text-[#756b82]">${el ? "Οργάνωσε οικογένειες και παρέες, δημιούργησε ασφαλή προσωπικά links και τοποθέτησε κάθε καλεσμένο στο σωστό τραπέζι." : "Organize households, create secure personal links, and place every guest at the right table."}</p></div><a href="/dashboard/${encodeURIComponent(event.code)}/engagement?lang=${locale}" class="rounded-xl bg-[#2b174d] px-5 py-3 text-center text-sm font-bold text-white">RSVP · Guestbook · Live</a></div>${inviteNotice}<section class="mt-6 grid gap-5 xl:grid-cols-2"><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guest-groups" method="post" class="rounded-[1.8rem] border border-[#e8e0f2] bg-[#f8f5ff] p-5"><input type="hidden" name="locale" value="${locale}"><h2 class="text-2xl text-[#2b174d]">${el ? "Οικογένειες και παρέες" : "Households and groups"}</h2><div class="mt-4 flex gap-2"><input name="name" required maxlength="100" placeholder="${el ? "π.χ. Οικογένεια Παπαδοπούλου" : "e.g. Papadopoulos family"}" class="min-w-0 flex-1 rounded-xl border px-4 py-3"><button class="rounded-xl bg-[#7c3aed] px-4 py-3 font-bold text-white">${el ? "Προσθήκη" : "Add"}</button></div><div class="mt-4 flex flex-wrap gap-2">${groups.map((group) => `<span class="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-[#5f526b]">${esc(group.name)}</span>`).join("") || `<span class="text-sm text-[#81758a]">${el ? "Δεν υπάρχουν ομάδες ακόμη." : "No groups yet."}</span>`}</div></form><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/tables" method="post" class="rounded-[1.8rem] border border-[#e8e0f2] bg-[#f8f5ff] p-5"><input type="hidden" name="locale" value="${locale}"><h2 class="text-2xl text-[#2b174d]">${el ? "Νέο τραπέζι" : "New table"}</h2><div class="mt-4 grid gap-3 sm:grid-cols-3"><input name="name" required maxlength="80" placeholder="${el ? "Όνομα" : "Name"}" class="rounded-xl border px-4 py-3"><select name="shape" class="rounded-xl border px-4 py-3"><option value="round">${el ? "Στρογγυλό" : "Round"}</option><option value="rectangle">${el ? "Ορθογώνιο" : "Rectangle"}</option><option value="oval">${el ? "Οβάλ" : "Oval"}</option></select><input name="capacity" required type="number" min="1" max="100" value="10" class="rounded-xl border px-4 py-3"><button class="rounded-xl bg-[#7c3aed] px-4 py-3 font-bold text-white sm:col-span-3">${el ? "Δημιουργία τραπεζιού" : "Create table"}</button></div></form></section><section class="mt-6 rounded-[1.8rem] border border-[#e8e0f2] bg-white p-5 sm:p-6"><h2 class="text-2xl text-[#2b174d]">${el ? "Προσθήκη καλεσμένου" : "Add guest"}</h2><form action="/api/account/events/${encodeURIComponent(event.code)}/wedding/guests" method="post" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><input type="hidden" name="locale" value="${locale}"><input name="firstName" required maxlength="80" placeholder="${el ? "Όνομα" : "First name"}" class="rounded-xl border px-4 py-3"><input name="lastName" maxlength="80" placeholder="${el ? "Επώνυμο" : "Last name"}" class="rounded-xl border px-4 py-3"><input name="email" type="email" maxlength="254" placeholder="Email" class="rounded-xl border px-4 py-3"><input name="phone" type="tel" maxlength="40" placeholder="${el ? "Τηλέφωνο" : "Phone"}" class="rounded-xl border px-4 py-3"><select name="groupId" class="rounded-xl border px-4 py-3"><option value="">${el ? "Χωρίς ομάδα" : "No group"}</option>${groupOptions}</select><label class="rounded-xl border px-4 py-2 text-xs font-semibold text-[#655a70]">${el ? "Επιτρεπόμενα +1" : "Allowed plus-ones"}<input name="plusOneLimit" type="number" min="0" max="10" value="0" class="mt-1 w-full border-0 p-0 text-base text-[#2b174d]"></label><label class="flex items-center gap-2 rounded-xl border px-4 py-3 text-sm"><input name="ceremony" value="1" type="checkbox" checked>${el ? "Τελετή" : "Ceremony"}</label><label class="flex items-center gap-2 rounded-xl border px-4 py-3 text-sm"><input name="reception" value="1" type="checkbox" checked>${el ? "Δεξίωση" : "Reception"}</label><button class="rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-5 py-3 font-bold text-white sm:col-span-2 lg:col-span-4">${el ? "Προσθήκη στη λίστα" : "Add to guest list"}</button></form></section><section class="mt-6"><div class="flex items-end justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Seating overview</p><h2 class="mt-1 text-3xl text-[#2b174d]">${el ? "Τραπέζια" : "Tables"}</h2></div><span class="text-sm font-semibold text-[#756b82]">${guests.filter((guest) => guest.table_id).length}/${guests.length} ${el ? "τοποθετημένοι" : "assigned"}</span></div><div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">${tableCards || `<div class="rounded-2xl border border-dashed p-7 text-sm text-[#81758a]">${el ? "Δημιούργησε το πρώτο τραπέζι." : "Create the first table."}</div>`}</div></section><section class="mt-6 overflow-hidden rounded-[1.8rem] border border-[#e8e0f2] bg-white"><div class="flex flex-wrap items-center justify-between gap-3 p-5"><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Guest directory</p><h2 class="mt-1 text-2xl text-[#2b174d]">${guests.length} ${el ? "καλεσμένοι" : "guests"}</h2></div>${tables.length ? `<span class="text-xs text-[#756b82]">${el ? "Οι αλλαγές θέσης αποθηκεύονται ανά καλεσμένο." : "Seating changes save per guest."}</span>` : ""}</div><div class="overflow-x-auto"><table class="w-full min-w-[980px] text-left"><thead class="bg-[#f8f5ff] text-xs uppercase tracking-wide text-[#786e82]"><tr><th class="px-4 py-3">${el ? "Καλεσμένος" : "Guest"}</th><th class="px-4 py-3">${el ? "Επικοινωνία" : "Contact"}</th><th class="px-4 py-3">RSVP</th><th class="px-4 py-3">${el ? "Τραπέζι" : "Table"}</th><th class="px-4 py-3">${el ? "Πρόσκληση" : "Invitation"}</th></tr></thead><tbody>${guestRows || `<tr><td colspan="5" class="px-5 py-12 text-center text-[#81758a]">${el ? "Πρόσθεσε τους πρώτους καλεσμένους." : "Add your first guests."}</td></tr>`}</tbody></table></div></section></main><script>(()=>{const button=document.querySelector('[data-copy-fresh-link]');button?.addEventListener('click',async()=>{const input=document.getElementById('fresh-invite-link');if(!input)return;await navigator.clipboard.writeText(input.value);button.textContent=${JSON.stringify(el ? "Αντιγράφηκε" : "Copied")}})})()<\/script>${logoutScript(locale)}`;
   const pageGuestLabel = el ? "καλεσμένοι" : "guests";
   const assignedLabel = el ? "τοποθετημένοι" : "assigned";
@@ -117,7 +129,7 @@ function guestPlannerPage(input: {
     .replace('<section class="mt-6 grid gap-5 xl:grid-cols-2">', `${directoryTools}<section class="mt-6 grid gap-5 xl:grid-cols-2">`)
     .replace(`<h2 class="mt-1 text-2xl text-[#2b174d]">${guests.length} ${pageGuestLabel}</h2>`, `<h2 class="mt-1 text-2xl text-[#2b174d]">${totalFiltered} ${pageGuestLabel}</h2>`)
     .replace(`<span class="text-sm font-semibold text-[#756b82]">${guests.filter((guest) => guest.table_id).length}/${guests.length} ${assignedLabel}</span>`, `<span class="text-sm font-semibold text-[#756b82]">${assignedGuestCount}/${totalGuests} ${assignedLabel}</span>`)
-    .replace("</tbody></table></div></section></main>", `</tbody></table></div>${pagination}</section></main>`);
+    .replace("</tbody></table></div></section></main>", `</tbody></table></div>${pagination}</section>${operationsPanel}</main>`);
   return page(`${event.eventName} · Guests`, enhancedBody, { locale });
 }
 
@@ -144,7 +156,7 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests", async (c) => {
     ? " AND (g.first_name LIKE ? ESCAPE '\\' OR g.last_name LIKE ? ESCAPE '\\' OR g.email LIKE ? ESCAPE '\\' OR g.phone LIKE ? ESCAPE '\\' OR COALESCE(gg.name,'') LIKE ? ESCAPE '\\')"
     : "";
   const searchBindings = query ? [searchValue, searchValue, searchValue, searchValue, searchValue] : [];
-  const [groups, totalRow, filteredRow, assignedRow, tables] = await Promise.all([
+  const [groups, totalRow, filteredRow, assignedRow, tables, profile, access, invitationRows] = await Promise.all([
     c.env.DB.prepare("SELECT id,name FROM event_wedding_guest_groups WHERE event_id=? ORDER BY name").bind(event.id).all<WeddingGuestGroup>(),
     c.env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_guests WHERE event_id=?").bind(event.id).first<{ count: number }>(),
     c.env.DB.prepare(`SELECT COUNT(*) count FROM event_wedding_guests g
@@ -156,6 +168,12 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests", async (c) => {
       FROM event_wedding_tables t LEFT JOIN event_wedding_seat_assignments a ON a.table_id=t.id
       LEFT JOIN event_wedding_guests g ON g.id=a.guest_id
       WHERE t.event_id=? GROUP BY t.id ORDER BY t.sort_order,t.name`).bind(event.id).all<WeddingTable>(),
+    c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+      .bind(event.id).first<{ publish_status: string }>(),
+    getEventAccess(c.env.DB, event.id),
+    c.env.DB.prepare(`SELECT invitation_delivery_status status,COUNT(*) count
+      FROM event_wedding_guests WHERE event_id=? AND email!='' GROUP BY invitation_delivery_status`)
+      .bind(event.id).all<{ status: WeddingGuest["invitation_delivery_status"]; count: number }>(),
   ]);
   const totalFiltered = Number(filteredRow?.count ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -163,7 +181,7 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests", async (c) => {
   const freshGuestId = c.req.query("guest") ?? undefined;
   const [guests, freshGuest] = await Promise.all([
     c.env.DB.prepare(`SELECT g.id,g.group_id,gg.name group_name,g.first_name,g.last_name,g.email,g.phone,
-      g.plus_one_limit,g.rsvp_status,g.party_size,g.dietary_notes,a.table_id,t.name table_name
+      g.plus_one_limit,g.rsvp_status,g.party_size,g.dietary_notes,g.invitation_delivery_status,a.table_id,t.name table_name
       FROM event_wedding_guests g
       LEFT JOIN event_wedding_guest_groups gg ON gg.id=g.group_id
       LEFT JOIN event_wedding_seat_assignments a ON a.guest_id=g.id
@@ -176,6 +194,9 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests", async (c) => {
       : Promise.resolve(null),
   ]);
   if (query) console.log(JSON.stringify({ event: "wedding_guest_search_used", event_id: event.id, result_count: totalFiltered }));
+  const invitationCounts: Record<WeddingGuest["invitation_delivery_status"], number> = { not_sent: 0, sending: 0, sent: 0, failed: 0 };
+  invitationRows.results.forEach((row) => { invitationCounts[row.status] = Number(row.count); });
+  const queuedQuery = c.req.query("queued");
   return c.html(guestPlannerPage({
     event,
     locale,
@@ -191,10 +212,33 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests", async (c) => {
     totalFiltered,
     assignedGuestCount: Number(assignedRow?.count ?? 0),
     importedCount: Math.max(0, Math.floor(Number(c.req.query("imported")) || 0)),
+    queuedCount: queuedQuery === undefined ? -1 : Math.max(0, Math.floor(Number(queuedQuery)) || 0),
+    canSendInvitations: profile?.publish_status === "published" && eventAccessAllows(access, "guest_access"),
+    invitationCounts,
     freshGuest,
     freshGuestId,
     freshToken: c.req.query("invite") ?? undefined,
   }));
+});
+
+weddingPlanningRoutes.get("/dashboard/:code/wedding/guests/seating-plan", async (c) => {
+  const locale = normalizeLocale(c.req.query("lang") ?? "en");
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const [tables, guests] = await Promise.all([
+    c.env.DB.prepare("SELECT id,name,capacity FROM event_wedding_tables WHERE event_id=? ORDER BY sort_order,name")
+      .bind(event.id).all<SeatingPrintTable>(),
+    c.env.DB.prepare(`SELECT g.first_name,g.last_name,gg.name group_name,g.party_size,g.rsvp_status,g.dietary_notes,a.table_id
+      FROM event_wedding_guests g
+      LEFT JOIN event_wedding_guest_groups gg ON gg.id=g.group_id
+      LEFT JOIN event_wedding_seat_assignments a ON a.guest_id=g.id
+      WHERE g.event_id=? ORDER BY COALESCE(a.table_id,''),g.last_name,g.first_name,g.id`)
+      .bind(event.id).all<SeatingPrintGuest>(),
+  ]);
+  console.log(JSON.stringify({ event: "wedding_seating_plan_opened", event_id: event.id, guest_count: guests.results.length }));
+  return c.html(weddingSeatingPrintPage(event, locale, tables.results, guests.results, Date.now()));
 });
 
 weddingPlanningRoutes.get("/api/account/events/:code/wedding/guests/export", async (c) => {
@@ -313,9 +357,44 @@ weddingPlanningRoutes.post("/api/account/events/:code/wedding/guest-groups", asy
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const name = String(body.name ?? "").trim().slice(0, 100);
   if (!name) return c.text("Group name required", 400);
+  if (await c.env.DB.prepare("SELECT id FROM event_wedding_guest_groups WHERE event_id=? AND name=?").bind(event.id, name).first())
+    return c.text(label(locale, "Υπάρχει ήδη ομάδα με αυτό το όνομα.", "A group with this name already exists."), 409);
   const now = Date.now();
   await c.env.DB.prepare("INSERT INTO event_wedding_guest_groups (id,event_id,name,created_at,updated_at) VALUES (?,?,?,?,?)")
     .bind(crypto.randomUUID(), event.id, name, now, now).run();
+  return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
+});
+
+weddingPlanningRoutes.post("/api/account/events/:code/wedding/guest-groups/:groupId", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const name = String(body.name ?? "").trim().slice(0, 100);
+  if (!name) return c.text(label(locale, "Απαιτείται όνομα ομάδας.", "Group name required."), 400);
+  const duplicate = await c.env.DB.prepare("SELECT id FROM event_wedding_guest_groups WHERE event_id=? AND name=? AND id<>?")
+    .bind(event.id, name, c.req.param("groupId")).first();
+  if (duplicate) return c.text(label(locale, "Υπάρχει ήδη ομάδα με αυτό το όνομα.", "A group with this name already exists."), 409);
+  const result = await c.env.DB.prepare("UPDATE event_wedding_guest_groups SET name=?,updated_at=? WHERE id=? AND event_id=?")
+    .bind(name, Date.now(), c.req.param("groupId"), event.id).run();
+  if (result.meta.changes !== 1) return c.text("Guest group not found", 404);
+  console.log(JSON.stringify({ event: "wedding_guest_group_renamed", event_id: event.id, group_id: c.req.param("groupId") }));
+  return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
+});
+
+weddingPlanningRoutes.post("/api/account/events/:code/wedding/guest-groups/:groupId/delete", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const result = await c.env.DB.prepare("DELETE FROM event_wedding_guest_groups WHERE id=? AND event_id=?")
+    .bind(c.req.param("groupId"), event.id).run();
+  if (result.meta.changes !== 1) return c.text("Guest group not found", 404);
+  console.log(JSON.stringify({ event: "wedding_guest_group_deleted", event_id: event.id, group_id: c.req.param("groupId") }));
   return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
 });
 
@@ -370,9 +449,13 @@ weddingPlanningRoutes.post("/api/account/events/:code/wedding/guests/:guestId", 
   if (groupId && !(await c.env.DB.prepare("SELECT id FROM event_wedding_guest_groups WHERE id=? AND event_id=?").bind(groupId, event.id).first()))
     return c.text("Invalid group", 400);
   try {
-    const result = await c.env.DB.prepare(`UPDATE event_wedding_guests SET group_id=?,first_name=?,last_name=?,email=?,phone=?,
-      plus_one_limit=?,party_size=MIN(party_size,?),invited_to_ceremony=?,invited_to_reception=?,updated_at=? WHERE id=? AND event_id=?`)
-      .bind(groupId, firstName, lastName, email, phone, plusOneLimit, 1 + plusOneLimit, body.ceremony === "1" ? 1 : 0, body.reception === "1" ? 1 : 0, Date.now(), c.req.param("guestId"), event.id).run();
+    const result = await c.env.DB.prepare(`UPDATE event_wedding_guests SET group_id=?,first_name=?,last_name=?,
+      invitation_delivery_status=CASE WHEN email<>? THEN 'not_sent' ELSE invitation_delivery_status END,
+      invitation_delivery_attempted_at=CASE WHEN email<>? THEN NULL ELSE invitation_delivery_attempted_at END,
+      invitation_emailed_at=CASE WHEN email<>? THEN NULL ELSE invitation_emailed_at END,
+      email=?,phone=?,plus_one_limit=?,party_size=MIN(party_size,?),invited_to_ceremony=?,invited_to_reception=?,updated_at=?
+      WHERE id=? AND event_id=?`)
+      .bind(groupId, firstName, lastName, email, email, email, email, phone, plusOneLimit, 1 + plusOneLimit, body.ceremony === "1" ? 1 : 0, body.reception === "1" ? 1 : 0, Date.now(), c.req.param("guestId"), event.id).run();
     if (result.meta.changes !== 1) return c.text("Guest not found", 404);
   } catch (error) {
     if (/event_wedding_guests\.event_id.*email|idx_wedding_guests_event_email/i.test(error instanceof Error ? error.message : String(error)))
@@ -380,6 +463,32 @@ weddingPlanningRoutes.post("/api/account/events/:code/wedding/guests/:guestId", 
     throw error;
   }
   return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
+});
+
+weddingPlanningRoutes.post("/api/account/events/:code/wedding/guests/invitations/send", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const [profile, access] = await Promise.all([
+    c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+      .bind(event.id).first<{ publish_status: string }>(),
+    getEventAccess(c.env.DB, event.id),
+  ]);
+  if (profile?.publish_status !== "published" || !eventAccessAllows(access, "guest_access"))
+    return c.text(label(locale, "Δημοσίευσε πρώτα τον γάμο και ενεργοποίησε την πρόσβαση καλεσμένων.", "Publish the wedding and enable guest access first."), 409);
+
+  const reserved = await reserveWeddingInvitationBatch(c.env.DB, event.id, Date.now(), WEDDING_GUEST_IMPORT_MAX_ROWS);
+  if (reserved.length > 0) {
+    const origin = new URL(c.req.url).origin;
+    c.executionCtx.waitUntil(deliverWeddingInvitationBatch(c.env, event, locale, origin, reserved).then(() => {
+      console.log(JSON.stringify({ event: "wedding_guest_invitation_batch_completed", event_id: event.id, attempted_count: reserved.length }));
+    }));
+  }
+  console.log(JSON.stringify({ event: "wedding_guest_invitation_batch_queued", event_id: event.id, queued_count: reserved.length }));
+  return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}&queued=${reserved.length}`, 303);
 });
 
 weddingPlanningRoutes.post("/api/account/events/:code/wedding/guests/:guestId/invite-link", async (c) => {
@@ -390,7 +499,10 @@ weddingPlanningRoutes.post("/api/account/events/:code/wedding/guests/:guestId/in
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`;
-  const result = await c.env.DB.prepare("UPDATE event_wedding_guests SET invitation_token_hash=?,invitation_created_at=?,updated_at=? WHERE id=? AND event_id=?")
+  const result = await c.env.DB.prepare(`UPDATE event_wedding_guests
+    SET invitation_token_hash=?,invitation_created_at=?,invitation_delivery_status='not_sent',
+      invitation_delivery_attempted_at=NULL,invitation_emailed_at=NULL,updated_at=?
+    WHERE id=? AND event_id=?`)
     .bind(await sha256(token), Date.now(), Date.now(), c.req.param("guestId"), event.id).run();
   if (result.meta.changes !== 1) return c.text("Guest not found", 404);
   return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}&guest=${encodeURIComponent(c.req.param("guestId"))}&invite=${encodeURIComponent(token)}`, 303);
@@ -422,8 +534,57 @@ weddingPlanningRoutes.post("/api/account/events/:code/wedding/tables", async (c)
   const capacity = Math.min(100, Math.max(1, Number(body.capacity) || 10));
   if (!name) return c.text("Table name required", 400);
   const now = Date.now();
-  await c.env.DB.prepare("INSERT INTO event_wedding_tables (id,event_id,name,shape,capacity,created_at,updated_at) VALUES (?,?,?,?,?,?,?)")
-    .bind(crypto.randomUUID(), event.id, name, shape, capacity, now, now).run();
+  try {
+    await c.env.DB.prepare("INSERT INTO event_wedding_tables (id,event_id,name,shape,capacity,created_at,updated_at) VALUES (?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), event.id, name, shape, capacity, now, now).run();
+  } catch (error) {
+    if (/UNIQUE constraint failed.*event_wedding_tables/i.test(error instanceof Error ? error.message : String(error)))
+      return c.text(label(locale, "Υπάρχει ήδη τραπέζι με αυτό το όνομα.", "A table with this name already exists."), 409);
+    throw error;
+  }
+  return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
+});
+
+weddingPlanningRoutes.post("/api/account/events/:code/wedding/tables/:tableId", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const name = String(body.name ?? "").trim().slice(0, 80);
+  const shape = ["round", "rectangle", "oval", "custom"].includes(String(body.shape)) ? String(body.shape) : "round";
+  const capacity = Math.min(100, Math.max(1, Math.floor(Number(body.capacity) || 0)));
+  if (!name) return c.text(label(locale, "Απαιτείται όνομα τραπεζιού.", "Table name required."), 400);
+  const table = await c.env.DB.prepare(`SELECT t.id,COALESCE(SUM(g.party_size),0) assigned
+    FROM event_wedding_tables t LEFT JOIN event_wedding_seat_assignments a ON a.table_id=t.id
+    LEFT JOIN event_wedding_guests g ON g.id=a.guest_id
+    WHERE t.id=? AND t.event_id=? GROUP BY t.id`).bind(c.req.param("tableId"), event.id).first<{ id: string; assigned: number }>();
+  if (!table) return c.text("Table not found", 404);
+  if (capacity < Number(table.assigned)) return c.text(label(locale, `Το τραπέζι έχει ήδη ${table.assigned} δεσμευμένες θέσεις.`, `This table already has ${table.assigned} assigned seats.`), 409);
+  try {
+    await c.env.DB.prepare("UPDATE event_wedding_tables SET name=?,shape=?,capacity=?,updated_at=? WHERE id=? AND event_id=?")
+      .bind(name, shape, capacity, Date.now(), c.req.param("tableId"), event.id).run();
+  } catch (error) {
+    if (/UNIQUE constraint failed.*event_wedding_tables/i.test(error instanceof Error ? error.message : String(error)))
+      return c.text(label(locale, "Υπάρχει ήδη τραπέζι με αυτό το όνομα.", "A table with this name already exists."), 409);
+    throw error;
+  }
+  console.log(JSON.stringify({ event: "wedding_table_updated", event_id: event.id, table_id: c.req.param("tableId"), capacity }));
+  return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
+});
+
+weddingPlanningRoutes.post("/api/account/events/:code/wedding/tables/:tableId/delete", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await manageableWedding(c.env.DB, c.req.param("code"), user.id);
+  if (!event) return c.text("Wedding event not found", 404);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const result = await c.env.DB.prepare("DELETE FROM event_wedding_tables WHERE id=? AND event_id=?")
+    .bind(c.req.param("tableId"), event.id).run();
+  if (result.meta.changes !== 1) return c.text("Table not found", 404);
+  console.log(JSON.stringify({ event: "wedding_table_deleted", event_id: event.id, table_id: c.req.param("tableId") }));
   return c.redirect(`/dashboard/${event.code}/wedding/guests?lang=${locale}`, 303);
 });
 

@@ -775,3 +775,43 @@ html {
   .memboux-ui .empty-state { border-color: var(--line); background: rgba(23, 27, 36, .82); }
   ::selection { background: #5d43c7; color: #fff; }
 }
+
+.seating-print-table th,
+.seating-print-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e8e0f2;
+  vertical-align: top;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .seating-print-sheet {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .seating-print-actions,
+  [data-privacy-support-widget] {
+    display: none !important;
+  }
+
+  .seating-print-section {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .seating-print-table {
+    font-size: 9pt;
+  }
+}

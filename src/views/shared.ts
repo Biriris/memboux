@@ -1,7 +1,7 @@
 ﻿import type { Locale } from "../i18n";
 import { esc } from "../utils";
 import { brickwallScript, mediaUploaderOverlay } from "./media";
-import { multiUploadScript, uploadQueueScript } from "./upload";
+import { additiveFileSelectionScript, multiUploadScript, uploadQueueScript } from "./upload";
 import { privacySupportWidgets } from "./privacy-support";
 
 export type PageOptions = {
@@ -41,7 +41,9 @@ export function page(title: string, body: string, options: PageOptions = {}) {
   const keywords = "event gallery, private gallery, photo sharing, event photos, event memories, memboux";
   const creationBehavior = body.includes('action="/api/account/events"') ? eventCreationBehavior : "";
   const invitationBehavior = body.includes('action="/api/account/events/') && body.includes('/invite"') ? albumInvitationBehavior : "";
-  const uploadBehavior = body.includes('enctype="multipart/form-data"') ? multiUploadScript(locale) + uploadQueueScript(locale) : "";
+  const uploadBehavior = body.includes('enctype="multipart/form-data"')
+    ? multiUploadScript(locale) + additiveFileSelectionScript(locale) + uploadQueueScript(locale)
+    : "";
   const brickwallBehavior = body.includes("memboux-media-card") ? brickwallScript() : "";
   const uploaderBehavior = body.includes("lightbox-item") ? mediaUploaderOverlay(locale) : "";
   const privacySupport = options.suppressWidgets || body.includes("admin-ui") || body.includes('id="slideshow"') ? "" : privacySupportWidgets(locale);

@@ -314,21 +314,27 @@ POST   /api/account/events/:code/wedding/publish
 POST   /api/account/events/:code/wedding/unpublish
 ```
 
-## Wedding guest planning — `src/routes/wedding-planning.ts` (12)
+## Wedding guest planning — `src/routes/wedding-planning.ts` (18)
 
 Source: [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). The dashboard and all planning mutations require authenticated `manage_event` permission. The personalized invitation page is public but token-bound; it is available only for a published, unexpired wedding with active guest access. Invitation tokens are stored only as SHA-256 hashes.
 
 ```text
 GET   /dashboard/:code/wedding/guests
 GET   /dashboard/:code/wedding/guests/:guestId/edit
+GET   /dashboard/:code/wedding/guests/seating-plan
 GET   /api/account/events/:code/wedding/guests/export
 POST  /api/account/events/:code/wedding/guest-groups
+POST  /api/account/events/:code/wedding/guest-groups/:groupId
+POST  /api/account/events/:code/wedding/guest-groups/:groupId/delete
 POST  /api/account/events/:code/wedding/guests
 POST  /api/account/events/:code/wedding/guests/import
 POST  /api/account/events/:code/wedding/guests/:guestId
+POST  /api/account/events/:code/wedding/guests/invitations/send
 POST  /api/account/events/:code/wedding/guests/:guestId/invite-link
 POST  /api/account/events/:code/wedding/guests/:guestId/delete
 POST  /api/account/events/:code/wedding/tables
+POST  /api/account/events/:code/wedding/tables/:tableId
+POST  /api/account/events/:code/wedding/tables/:tableId/delete
 POST  /api/account/events/:code/wedding/seating
 GET   /wedding/:code/invite/:token
 ```

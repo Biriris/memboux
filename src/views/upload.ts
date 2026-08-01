@@ -50,6 +50,19 @@ export function photoUploadMarkup(html: string, locale: Locale) {
   return result;
 }
 
+export function additiveFileSelectionScript(locale: Locale) {
+  const copy: Record<Locale, { hint: string; remove: string }> = {
+    en: { hint: "Choose several files together, or open the picker again to add more.", remove: "Remove" },
+    el: { hint: "Επίλεξε πολλά αρχεία μαζί ή άνοιξε ξανά την επιλογή για να προσθέσεις κι άλλα.", remove: "Αφαίρεση" },
+    fr: { hint: "Sélectionnez plusieurs fichiers ensemble ou rouvrez le sélecteur pour en ajouter.", remove: "Retirer" },
+    de: { hint: "Wähle mehrere Dateien gemeinsam aus oder öffne die Auswahl erneut, um weitere hinzuzufügen.", remove: "Entfernen" },
+    es: { hint: "Selecciona varios archivos a la vez o abre de nuevo el selector para añadir más.", remove: "Quitar" },
+    it: { hint: "Seleziona più file insieme oppure riapri la scelta per aggiungerne altri.", remove: "Rimuovi" },
+  };
+  const message = copy[locale];
+  return `<script>(()=>{document.querySelectorAll('form[data-multi-upload],form[enctype="multipart/form-data"]').forEach(form=>{const input=form.querySelector('input[type="file"][name="file"][multiple]');if(!input||input.dataset.additiveSelectionReady)return;input.dataset.additiveSelectionReady='true';const hint=document.createElement('p');hint.dataset.additiveSelectionHint='true';hint.className='mt-2 text-xs font-semibold leading-5 text-[#6f657c]';hint.textContent=${JSON.stringify(message.hint)};input.insertAdjacentElement('afterend',hint);let selected=[...(input.files||[])];const key=file=>[file.name,file.size,file.lastModified,file.type].join('::'),sync=()=>{if(typeof DataTransfer!=='function')return false;const transfer=new DataTransfer();selected.forEach(file=>transfer.items.add(file));input.files=transfer.files;return true},decorate=()=>{form.querySelectorAll('[data-queue-index]').forEach(row=>{if(row.querySelector('[data-remove-selected-file]'))return;const button=document.createElement('button');button.type='button';button.dataset.removeSelectedFile='true';button.className='ml-2 shrink-0 rounded-lg border border-red-200 bg-white px-2 py-1 text-[11px] font-bold text-red-700';button.textContent=${JSON.stringify(message.remove)};button.setAttribute('aria-label',${JSON.stringify(message.remove)}+' '+(row.querySelector('span')?.textContent||''));button.addEventListener('click',()=>{const index=Number(row.dataset.queueIndex);if(!Number.isInteger(index)||index<0||index>=selected.length)return;selected.splice(index,1);if(sync())input.dispatchEvent(new Event('change',{bubbles:true}))});row.querySelector('.flex')?.append(button)})};input.addEventListener('change',()=>{const incoming=[...(input.files||[])];if(typeof DataTransfer==='function'){const known=new Set(selected.map(key));incoming.forEach(file=>{const identity=key(file);if(!known.has(identity)){known.add(identity);selected.push(file)}});sync()}else selected=incoming;window.dispatchEvent(new CustomEvent('memboux:multi-file-selection',{detail:{count:selected.length}}));setTimeout(decorate)});form.addEventListener('submit',()=>form.querySelectorAll('[data-remove-selected-file]').forEach(button=>button.disabled=true));form.addEventListener('reset',()=>{selected=[];setTimeout(decorate)})})})()<\/script>`;
+}
+
 export function uploadQueueScript(locale: Locale) {
   const copy: Record<Locale, { queue: string; waiting: string; uploading: string; complete: string; failed: string; refreshing: string; file: string; files: string }> = {
     en: { queue: "Upload queue", waiting: "Waiting", uploading: "Uploading", complete: "Complete", failed: "Needs attention", refreshing: "Upload complete. Refreshing the shared album…", file: "file", files: "files" },

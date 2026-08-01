@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_UPLOAD_BATCH_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_SELECTION_SIZE } from "../src/config";
-import { multiUploadScript, photoUploadMarkup, uploadLimitsCopy, uploadQueueScript } from "../src/views/upload";
+import { additiveFileSelectionScript, multiUploadScript, photoUploadMarkup, uploadLimitsCopy, uploadQueueScript } from "../src/views/upload";
 
 describe("multi-file upload view", () => {
   it("supports one hundred photos or videos and a twenty-gigabyte selection", () => {
@@ -64,6 +64,26 @@ describe("multi-file upload view", () => {
       expect(script).toContain("data-queue-index");
       expect(script).toContain("memboux-upload-return");
       expect(script).toContain("#guest-moments");
+      const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
+      expect(() => new Function(source)).not.toThrow();
+    }
+  });
+
+  it("adds files across repeated picker selections and allows removal before upload", () => {
+    for (const [locale, hint] of [
+      ["en", "open the picker again to add more"],
+      ["el", "Επίλεξε πολλά αρχεία"],
+      ["fr", "rouvrez le sélecteur"],
+      ["de", "öffne die Auswahl erneut"],
+      ["es", "abre de nuevo el selector"],
+      ["it", "riapri la scelta"],
+    ] as const) {
+      const script = additiveFileSelectionScript(locale);
+      expect(script).toContain(hint);
+      expect(script).toContain("new DataTransfer()");
+      expect(script).toContain("selected.push(file)");
+      expect(script).toContain("data-remove-selected-file");
+      expect(script).toContain("memboux:multi-file-selection");
       const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
       expect(() => new Function(source)).not.toThrow();
     }

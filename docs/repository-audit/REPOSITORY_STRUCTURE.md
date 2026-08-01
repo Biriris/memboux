@@ -6,7 +6,7 @@
 | --- | --- |
 | [`.github/`](../../.github/) | GitHub Actions quality and production-smoke workflows plus Dependabot configuration. |
 | [`docs/`](../) | Operating manual and this source-verified audit. |
-| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0061`. |
+| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0062`. |
 | [`public/`](../../public/) | Worker static assets: generated CSS and font CSS. Served through the `ASSETS` binding. |
 | [`scripts/`](../../scripts/) | Production smoke test and a production-media deduplication utility. |
 | [`src/`](../../src/) | Worker entry point, domain/application modules, Hono routes, server-rendered views, and CSS source. |
@@ -17,7 +17,7 @@
 | [`wrangler.jsonc`](../../wrangler.jsonc) | Worker, domain, asset, D1, R2, Images, AI, Workflow, cron, and observability configuration. |
 | [`worker-configuration.d.ts`](../../worker-configuration.d.ts) | Generated Cloudflare runtime type declarations. |
 
-At the 2026-08-01 update, `rg --files` reported 463 non-hidden files: 108 under `src`, 75 under `test`, 61 migrations, 202 under `docs`, four under `public`, and two under `scripts`. Hidden `.github` files are additional.
+At the 2026-08-01 update, `rg --files` reported 470 non-hidden files: 111 under `src`, 78 under `test`, 62 migrations, 202 under `docs`, four under `public`, and two under `scripts`. Hidden `.github` files are additional.
 
 ## `src` organization
 

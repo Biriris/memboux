@@ -24,6 +24,7 @@ describe("account route boundaries", () => {
     "/en/trash",
     "/dashboard/ABC123/wedding/guests?lang=en",
     "/dashboard/ABC123/wedding/guests/guest/edit?lang=en",
+    "/dashboard/ABC123/wedding/guests/seating-plan?lang=en",
   ])("redirects anonymous page requests from %s to login", async (path) => {
     const response = await SELF.fetch(`https://memboux.com${path}`, {
       redirect: "manual",
@@ -54,12 +55,17 @@ describe("account route boundaries", () => {
     ["/api/account/events/ABC123/wedding/publish", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/unpublish", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guest-groups", { locale: "en", name: "Friends" }],
+    ["/api/account/events/ABC123/wedding/guest-groups/group", { locale: "en", name: "Family" }],
+    ["/api/account/events/ABC123/wedding/guest-groups/group/delete", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
     ["/api/account/events/ABC123/wedding/guests/import", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
     ["/api/account/events/ABC123/wedding/guests/guest/invite-link", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest/delete", { locale: "en" }],
+    ["/api/account/events/ABC123/wedding/guests/invitations/send", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/tables", { locale: "en", name: "Table 1" }],
+    ["/api/account/events/ABC123/wedding/tables/table", { locale: "en", name: "Table 2" }],
+    ["/api/account/events/ABC123/wedding/tables/table/delete", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/seating", { locale: "en", guestId: "guest", tableId: "table" }],
   ])("rejects anonymous mutation %s", async (path, body) => {
     const response = await SELF.fetch(`https://memboux.com${path}`, {
@@ -263,7 +269,9 @@ describe("account route boundaries", () => {
         email TEXT NOT NULL DEFAULT '',phone TEXT NOT NULL DEFAULT '',plus_one_limit INTEGER NOT NULL DEFAULT 0,
         invited_to_ceremony INTEGER NOT NULL DEFAULT 1,invited_to_reception INTEGER NOT NULL DEFAULT 1,
         rsvp_status TEXT NOT NULL DEFAULT 'pending',party_size INTEGER NOT NULL DEFAULT 1,dietary_notes TEXT NOT NULL DEFAULT '',
-        notes TEXT NOT NULL DEFAULT '',invitation_token_hash TEXT,invitation_created_at INTEGER,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
+        notes TEXT NOT NULL DEFAULT '',invitation_token_hash TEXT,invitation_created_at INTEGER,
+        invitation_delivery_status TEXT NOT NULL DEFAULT 'not_sent',invitation_delivery_attempted_at INTEGER,invitation_emailed_at INTEGER,
+        created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
       )`),
       env.DB.prepare("CREATE UNIQUE INDEX idx_wedding_guests_event_email ON event_wedding_guests(event_id,email) WHERE email != ''"),
       env.DB.prepare(`CREATE TABLE event_wedding_tables (
@@ -708,6 +716,8 @@ describe("account route boundaries", () => {
     expect(portraitHtml).toContain('id="portrait-upload-slot"');
     expect(portraitHtml).toContain('name="slot"');
     expect(portraitHtml).toContain('name="file" type="file" required multiple');
+    expect(portraitHtml).toContain("open the picker again to add more");
+    expect(portraitHtml).toContain("dataset.additiveSelectionHint");
     expect(portraitHtml).toContain('data-slot="hero"');
     expect(portraitHtml).toContain("Hero slideshow");
     expect(portraitHtml).toContain("editorial gallery");
@@ -716,6 +726,7 @@ describe("account route boundaries", () => {
     portraitUploadForm.set("locale", "en");
     portraitUploadForm.set("slot", "hero");
     portraitUploadForm.set("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "portrait.jpg", { type: "image/jpeg" }));
+    portraitUploadForm.append("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "portrait-2.jpg", { type: "image/jpeg" }));
     const portraitUpload = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/media/upload`, {
       method: "POST",
       headers: { Origin: "https://memboux.com", Cookie: cookieHeader },
@@ -726,7 +737,11 @@ describe("account route boundaries", () => {
     const weddingMediaEvent = await env.DB.prepare("SELECT id FROM events WHERE code=?").bind(weddingBody.code).first<{ id: string }>();
     expect(await env.DB.prepare("SELECT slot FROM event_wedding_portrait_assignments WHERE event_id=?").bind(weddingMediaEvent!.id).first())
       .toEqual({ slot: "hero" });
-    const uploadedWeddingMedia = await env.DB.prepare("SELECT id FROM event_wedding_media WHERE event_id=?").bind(weddingMediaEvent!.id).first<{ id: string }>();
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_media WHERE event_id=?").bind(weddingMediaEvent!.id).first())
+      .toEqual({ count: 2 });
+    const uploadedWeddingMedia = await env.DB.prepare(`SELECT wm.id FROM event_wedding_media wm
+      JOIN event_wedding_portrait_assignments p ON p.media_id=wm.id WHERE wm.event_id=? AND p.slot='hero'`)
+      .bind(weddingMediaEvent!.id).first<{ id: string }>();
     const anonymousDraftMedia = await SELF.fetch(`https://memboux.com/wedding-media/${uploadedWeddingMedia!.id}`);
     expect(anonymousDraftMedia.status).toBe(404);
     const ownerDraftMedia = await SELF.fetch(`https://memboux.com/wedding-media/${uploadedWeddingMedia!.id}`, {
@@ -753,7 +768,22 @@ describe("account route boundaries", () => {
     });
     expect(deleteWeddingMediaResponse.status).toBe(303);
     expect(await env.DB.prepare("SELECT id FROM event_wedding_media WHERE id=?").bind(uploadedWeddingMedia!.id).first()).toBeNull();
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_media WHERE event_id=?").bind(weddingMediaEvent!.id).first())
+      .toEqual({ count: 1 });
     expect(await env.DB.prepare("SELECT slot FROM event_wedding_portrait_assignments WHERE event_id=?").bind(weddingMediaEvent!.id).first()).toBeNull();
+    const remainingWeddingMedia = await env.DB.prepare("SELECT id FROM event_wedding_media WHERE event_id=?")
+      .bind(weddingMediaEvent!.id).first<{ id: string }>();
+    const deleteRemainingWeddingMediaForm = new FormData();
+    deleteRemainingWeddingMediaForm.set("locale", "en");
+    const deleteRemainingWeddingMedia = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/media/${remainingWeddingMedia!.id}/delete`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", Cookie: cookieHeader },
+      body: deleteRemainingWeddingMediaForm,
+      redirect: "manual",
+    });
+    expect(deleteRemainingWeddingMedia.status).toBe(303);
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_media WHERE event_id=?").bind(weddingMediaEvent!.id).first())
+      .toEqual({ count: 0 });
 
     const savePortraits = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/setup/2`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
@@ -962,6 +992,16 @@ describe("account route boundaries", () => {
     expect(guestPlannerHtml).toContain("Search and bulk import");
     expect(guestPlannerHtml).toContain('name="guestFile"');
     expect(guestPlannerHtml).toContain("Download CSV / template");
+    expect(guestPlannerHtml).toContain("Send invitations (1)");
+    expect(guestPlannerHtml).toContain("Print / PDF seating plan");
+    expect(guestPlannerHtml).toContain("Edit groups");
+
+    const renameGroup = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guest-groups/${guestGroup!.id}`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en", name: "Close friends" }),
+    });
+    expect(renameGroup.status).toBe(303);
+    expect(await env.DB.prepare("SELECT name FROM event_wedding_guest_groups WHERE id=?").bind(guestGroup!.id).first())
+      .toEqual({ name: "Close friends" });
 
     const uploadHeaders = { Origin: "https://memboux.com", Cookie: cookieHeader };
     const invalidImportForm = new FormData();
@@ -1042,6 +1082,22 @@ describe("account route boundaries", () => {
     expect(assignSeat.status).toBe(303);
     expect(await env.DB.prepare("SELECT table_id FROM event_wedding_seat_assignments WHERE guest_id=?").bind(weddingGuest!.id).first())
       .toEqual({ table_id: weddingTable!.id });
+    const updateTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables/${weddingTable!.id}`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual",
+      body: new URLSearchParams({ locale: "en", name: "Family table", shape: "oval", capacity: "12" }),
+    });
+    expect(updateTable.status).toBe(303);
+    expect(await env.DB.prepare("SELECT name,shape,capacity FROM event_wedding_tables WHERE id=?").bind(weddingTable!.id).first())
+      .toEqual({ name: "Family table", shape: "oval", capacity: 12 });
+    const seatingPlan = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/guests/seating-plan?lang=en`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const seatingPlanHtml = await seatingPlan.text();
+    expect(seatingPlan.status).toBe(200);
+    expect(seatingPlanHtml).toContain("Print / Save as PDF");
+    expect(seatingPlanHtml).toContain("Family table");
+    expect(seatingPlanHtml).toContain("Jamie Guest");
+    expect(seatingPlanHtml).not.toContain("jamie@example.com");
 
     const createInviteLink = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/invite-link`, {
       method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en" }),
@@ -1060,6 +1116,12 @@ describe("account route boundaries", () => {
     expect(invitedRsvp.status).toBe(303);
     expect(await env.DB.prepare("SELECT rsvp_status,party_size,dietary_notes FROM event_wedding_guests WHERE id=?").bind(weddingGuest!.id).first())
       .toEqual({ rsvp_status: "yes", party_size: 2, dietary_notes: "Vegetarian" });
+    const undersizedTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables/${weddingTable!.id}`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", name: "Family table", shape: "oval", capacity: "1" }),
+    });
+    expect(undersizedTable.status).toBe(409);
+    expect(await undersizedTable.text()).toContain("already has 2 assigned seats");
     const editGuest = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
       body: new URLSearchParams({ locale: "en", firstName: "Jamie", lastName: "Updated", email: "jamie-updated@example.com", groupId: guestGroup!.id, plusOneLimit: "1", ceremony: "1", reception: "1" }),
@@ -1081,6 +1143,16 @@ describe("account route boundaries", () => {
     expect(deleteGuest.status).toBe(303);
     expect(await env.DB.prepare("SELECT id FROM event_wedding_guests WHERE id=?").bind(weddingGuest!.id).first()).toBeNull();
     expect(await env.DB.prepare("SELECT id FROM event_rsvps WHERE wedding_guest_id=?").bind(weddingGuest!.id).first()).toBeNull();
+    const deleteTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables/${weddingTable!.id}/delete`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en" }),
+    });
+    expect(deleteTable.status).toBe(303);
+    expect(await env.DB.prepare("SELECT id FROM event_wedding_tables WHERE id=?").bind(weddingTable!.id).first()).toBeNull();
+    const deleteGroup = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guest-groups/${guestGroup!.id}/delete`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en" }),
+    });
+    expect(deleteGroup.status).toBe(303);
+    expect(await env.DB.prepare("SELECT id FROM event_wedding_guest_groups WHERE id=?").bind(guestGroup!.id).first()).toBeNull();
     const repeatedTrial = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/trial?lang=en`, {
       headers: { Cookie: cookieHeader },
       redirect: "manual",
