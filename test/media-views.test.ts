@@ -222,7 +222,11 @@ describe("media views", () => {
     expect(html).toContain("touchmove");
     expect(html).toContain("translateX('+dx+'px)");
     expect(html).toContain("native-save-image");
-    expect(html).toContain("image.draggable=true");
+    expect(html).toContain("image.draggable=false");
+    expect(html).toContain('id="lightbox-zoom-controls"');
+    expect(html).toContain("touchDistance(event.touches)");
+    expect(html).toContain("setZoom(pinchZoom");
+    expect(html).toContain("fallbackTried");
     expect(html).toContain("if(event.target===dialog||event.target===stage)dialog.close()");
     expect(html).toContain("ArrowLeft");
     expect(html).toContain("ArrowRight");

@@ -87,6 +87,10 @@ The app registers `/api/auth/*`, but individual dependency-owned paths are not l
 
 Drive/Dropbox snapshots contain ordinary `media` rows only. Covers, wedding library/menu, and support attachments are omitted. This may be deliberate, but no source-adjacent product contract states the scope, making user expectations ambiguous.
 
+### Historical resumable hashes are not backfilled
+
+Resumable uploads completed before the deterministic part-manifest hash in [`resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) retain their previous ETag-derived `content_hash`. The current early fingerprint and conservative metadata checks detect ordinary re-uploads of those files, but a historical file that is both renamed and given a different modification timestamp is not guaranteed to match without reading and re-fingerprinting the stored original. A production backfill policy is not implemented.
+
 ### Readiness endpoints are narrow
 
 `/health/ready` tests D1 only; `/health/email` separately tests DNS/config. R2, Images, AI, Workflows, and external OAuth readiness are not covered by the public readiness response. Admin readiness adds checks, but it is not a deployment health contract.

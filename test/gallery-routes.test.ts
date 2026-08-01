@@ -510,6 +510,19 @@ describe("gallery, upload, and media routes", () => {
     expect((await resume.json<{ sessionId: string }>()).sessionId).toBe(session.sessionId);
 
     const partBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
+    const missingFingerprint = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/parts/1`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": session.token,
+          "Content-Type": "application/octet-stream",
+        },
+        body: partBytes,
+      },
+    );
+    expect(missingFingerprint.status).toBe(422);
     const uploadPart = await SELF.fetch(
       `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/parts/1`,
       {
@@ -551,6 +564,111 @@ describe("gallery, upload, and media routes", () => {
       size_bytes: 6,
       uploaded_by: "Resumable Guest",
     });
+
+    const earlyDuplicate = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.203",
+      },
+      body: JSON.stringify(metadata),
+    });
+    expect(earlyDuplicate.status).toBe(200);
+    expect(await earlyDuplicate.json()).toMatchObject({ ok: true, duplicate: true, uploaded: 0 });
+
+    const renamedMetadata = {
+      ...metadata,
+      filename: "renamed-copy.mp4",
+      fingerprint: "d".repeat(64),
+      lastModified: now + 1_000,
+    };
+    const renamedStart = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.204",
+      },
+      body: JSON.stringify(renamedMetadata),
+    });
+    expect(renamedStart.status).toBe(201);
+    const renamedSession = await renamedStart.json<{ sessionId: string; token: string }>();
+    const renamedPart = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${renamedSession.sessionId}/parts/1`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": renamedSession.token,
+          "Part-Fingerprint": "b".repeat(64),
+          "Content-Type": "application/octet-stream",
+        },
+        body: partBytes,
+      },
+    );
+    expect(renamedPart.status).toBe(200);
+    const renamedComplete = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${renamedSession.sessionId}/complete`,
+      {
+        method: "POST",
+        headers: { Origin: "https://memboux.com", "Upload-Token": renamedSession.token },
+      },
+    );
+    expect(renamedComplete.status).toBe(200);
+    expect(await renamedComplete.json()).toMatchObject({ ok: true, uploaded: 0, duplicate: true });
+    expect(await env.DB.prepare(
+      "SELECT COUNT(*) total FROM media WHERE event_id=? AND uploaded_by='Resumable Guest'",
+    ).bind(publicEventId).first<{ total: number }>()).toEqual({ total: 1 });
+  });
+
+  it("accepts a streamed client preview without requiring a Content-Length header", async () => {
+    const start = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.202",
+      },
+      body: JSON.stringify({
+        filename: "preview-source.jpg",
+        contentType: "image/jpeg",
+        size: 6,
+        lastModified: now,
+        fingerprint: "c".repeat(64),
+        origin: "guest",
+        name: "Preview Guest",
+        consent: "accepted",
+        locale: "en",
+      }),
+    });
+    expect(start.status).toBe(201);
+    const session = await start.json<{ sessionId: string; token: string }>();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([82, 73, 70, 70, 1, 2, 3, 4]));
+        controller.close();
+      },
+    });
+    const preview = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/variants/preview`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": session.token,
+          "Content-Type": "image/webp",
+        },
+        body,
+      },
+    );
+    expect(preview.status).toBe(200);
+    const storedSession = await env.DB.prepare(
+      "SELECT object_key FROM multipart_upload_sessions WHERE id=?",
+    ).bind(session.sessionId).first<{ object_key: string }>();
+    expect(storedSession).not.toBeNull();
+    const storedPreview = await env.MEDIA.get(`${storedSession!.object_key}.memboux-preview-v1.webp`);
+    expect(storedPreview?.size).toBe(8);
   });
 
   it("serves byte ranges for efficient video playback and seeking", async () => {

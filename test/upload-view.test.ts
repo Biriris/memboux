@@ -41,39 +41,32 @@ describe("multi-file upload view", () => {
       expect(script).toContain("localStorage.setItem");
       expect(script).toContain("'/complete'");
       expect(script).toContain("progressByFile");
-      expect(script).toContain("Math.min(2,files.length)");
-      expect(script).toContain("variantsPromise=imageVariants(file)");
+      expect(script).toContain("maxFileConcurrency=constrained?2:coarse?3:5");
+      expect(script).toContain("Math.min(maxFileConcurrency,files.length)");
+      expect(script).toContain("withVariantSlot(()=>imageVariants(file))");
       expect(script).toContain("Promise.all(variants.map");
+      expect(script).toContain("if(session.duplicate)");
+      expect(script).toContain("beforeunload");
+      expect(script).toContain("memboux-upload-return");
       expect(script).toContain("window.location.reload()");
       const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
       expect(() => new Function(source)).not.toThrow();
     }
   });
 
-  it("shows a localized per-file queue and returns to the refreshed album", () => {
-    for (const [locale, label] of [
-      ["en", "Upload queue"],
-      ["el", "Σειρά μεταφόρτωσης"],
-      ["fr", "File d’ajout"],
-      ["de", "Upload-Warteschlange"],
-      ["es", "Cola de subida"],
-      ["it", "Coda di caricamento"],
-    ] as const) {
+  it("returns to the refreshed album without rendering a per-file queue", () => {
+    for (const locale of ["en", "el", "fr", "de", "es", "it"] as const) {
       const script = uploadQueueScript(locale);
-      expect(script).toContain(label);
-      if (locale === "el") {
-        expect(script).toContain("κοινό άλμπουμ");
-        expect(script).not.toContain("κοινό album");
-      }
-      expect(script).toContain("data-queue-index");
       expect(script).toContain("memboux-upload-return");
       expect(script).toContain("#guest-moments");
+      expect(script).not.toContain("data-queue-index");
+      expect(script).not.toContain("data-queue-items");
       const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
       expect(() => new Function(source)).not.toThrow();
     }
   });
 
-  it("adds files across repeated picker selections and allows removal before upload", () => {
+  it("adds files across repeated picker selections and keeps the selection compact", () => {
     for (const [locale, hint] of [
       ["en", "open the picker again to add more"],
       ["el", "Επίλεξε πολλά αρχεία"],
@@ -86,7 +79,9 @@ describe("multi-file upload view", () => {
       expect(script).toContain(hint);
       expect(script).toContain("new DataTransfer()");
       expect(script).toContain("selected.push(file)");
-      expect(script).toContain("data-remove-selected-file");
+      expect(script).toContain("data-selected-files-count");
+      expect(script).toContain("data-clear-selected-files");
+      expect(script).not.toContain("data-queue-index");
       expect(script).toContain("memboux:multi-file-selection");
       const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
       expect(() => new Function(source)).not.toThrow();

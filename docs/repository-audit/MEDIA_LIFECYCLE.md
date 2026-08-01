@@ -38,15 +38,17 @@ Admin and studio uploads follow similar R2-then-D1 compensation patterns, but us
 [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) implements:
 
 1. `POST /api/upload/:code/multipart` to authorize, validate, reserve trial/storage capacity, create an R2 multipart upload, and store a session.
-2. `PUT .../parts/:partNumber` to upload and record parts.
+2. `PUT .../parts/:partNumber` to upload and record parts together with the required SHA-256 part fingerprint.
 3. Optional `PUT .../variants/:variant` for client-produced thumbnail/preview objects.
-4. `POST .../complete` to complete R2 multipart state, validate the resulting object, insert the `media` row, and mark the session complete.
+4. `POST .../complete` to validate every part manifest, derive a deterministic content hash from the ordered SHA-256 part fingerprints, complete R2 multipart state, insert the `media` row, and mark the session complete. A matching active media row causes the new R2 original and its variants to be deleted and its storage reservation to be released.
 5. `POST .../finalize` to finalize multiple client sessions.
 6. `DELETE .../:sessionId` and scheduled reconciliation to abort/clean incomplete or expired sessions and release reservations.
 
-The session/token authorization and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts) and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts). No Queue is involved.
+Before a new multipart session reserves storage, completed sessions are checked by client fingerprint plus size/type, with a conservative filename/size/type/timestamp fallback. Filename alone is never treated as proof of duplication. The deterministic manifest helper is in [`src/media-fingerprint.ts`](../../src/media-fingerprint.ts).
 
-The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) processes at most two selected files concurrently. For a single large file it can upload up to four R2 parts concurrently; when two files are active it limits each to two part workers. Image thumbnail/preview generation starts while original parts are transferring, and the two variants upload together after generation. Progress is aggregated across active files and resumability, per-part fingerprints, retries, local session state, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these concurrency markers.
+The session/token authorization, duplicate cleanup, and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts), [`media-fingerprint.test.ts`](../../test/media-fingerprint.test.ts), and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts). No Queue is involved.
+
+The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) uses adaptive file concurrency: up to five files on an unconstrained desktop connection, three on coarse-pointer/mobile devices, and two when data-saver or a 2G-class connection is reported. A single large file can use up to four R2 part workers; batches use one part worker per active file. Image thumbnail/preview generation is limited to two concurrent jobs and runs after an original's parts have transferred. The UI exposes aggregate progress rather than a per-file queue. Resumability, per-part fingerprints, retries, local session state, early duplicate responses, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these concurrency markers.
 
 ## Read and transformation
 

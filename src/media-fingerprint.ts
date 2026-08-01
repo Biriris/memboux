@@ -93,6 +93,17 @@ export async function mediaCanonicalHash(bytes: ArrayBuffer, contentType: string
   return canonical ?? exactHash ?? sha256Bytes(bytes);
 }
 
+export async function multipartMediaContentHash(
+  sizeBytes: number,
+  partSize: number,
+  parts: Array<{ partNumber: number; sizeBytes: number; hash: string }>,
+) {
+  const manifest = parts
+    .map((part) => `${part.partNumber}:${part.sizeBytes}:${part.hash.toLowerCase()}`)
+    .join("\0");
+  return sha256(`memboux-multipart-sha256-tree-v1\0${sizeBytes}\0${partSize}\0${manifest}`);
+}
+
 export function isCanonicalDuplicateConstraint(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return /UNIQUE constraint failed:\s*media\.event_id,\s*media\.canonical_hash/i.test(message)

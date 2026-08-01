@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mediaCanonicalHash } from "../src/media-fingerprint";
+import { mediaCanonicalHash, multipartMediaContentHash } from "../src/media-fingerprint";
 import { sha256Bytes } from "../src/utils";
 
 const jpeg = (metadata: number[]) => new Uint8Array([
@@ -23,5 +23,17 @@ describe("media canonical fingerprints", () => {
     const second = new Uint8Array(jpeg([1, 2]));
     second[second.length - 3] ^= 1;
     expect(await mediaCanonicalHash(first.buffer, "image/jpeg")).not.toBe(await mediaCanonicalHash(second.buffer, "image/jpeg"));
+  });
+
+  it("builds deterministic multipart hashes from the actual part fingerprints", async () => {
+    const parts = [
+      { partNumber: 1, sizeBytes: 6, hash: "a".repeat(64) },
+      { partNumber: 2, sizeBytes: 2, hash: "b".repeat(64) },
+    ];
+    const first = await multipartMediaContentHash(8, 6, parts);
+    const repeated = await multipartMediaContentHash(8, 6, parts.map((part) => ({ ...part })));
+    const changed = await multipartMediaContentHash(8, 6, [parts[0], { ...parts[1], hash: "c".repeat(64) }]);
+    expect(repeated).toBe(first);
+    expect(changed).not.toBe(first);
   });
 });

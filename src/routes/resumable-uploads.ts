@@ -13,7 +13,7 @@ import { normalizeLocale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { notifyEventMembersAboutUpload } from "../notifications";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
-import { isCanonicalDuplicateConstraint } from "../media-fingerprint";
+import { isCanonicalDuplicateConstraint, multipartMediaContentHash } from "../media-fingerprint";
 import { mediaObjectKeys, mediaVariantKey, type MediaVariant } from "../media-variants";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
@@ -159,6 +159,41 @@ async function getSession(db: D1Database, code: string, id: string) {
   ).bind(id, code).first<UploadSession>();
 }
 
+async function findCompletedDuplicate(
+  db: D1Database,
+  input: {
+    eventId: string;
+    fingerprint: string;
+    filename: string;
+    size: number;
+    contentType: string;
+    capturedAt: number | null;
+  },
+) {
+  const byFingerprint = await db.prepare(
+    `SELECT m.id FROM multipart_upload_sessions s
+     JOIN media m ON m.id=s.media_id
+     WHERE s.event_id=? AND s.client_fingerprint=? AND s.size_bytes=? AND s.content_type=?
+       AND s.status='completed' AND m.deleted_at IS NULL AND m.reported_at IS NULL
+     ORDER BY s.completed_at DESC LIMIT 1`,
+  ).bind(input.eventId, input.fingerprint, input.size, input.contentType).first<{ id: string }>();
+  if (byFingerprint || input.capturedAt === null) return byFingerprint;
+  return db.prepare(
+    `SELECT m.id FROM multipart_upload_sessions s
+     JOIN media m ON m.id=s.media_id
+     WHERE s.event_id=? AND lower(s.file_name)=lower(?) AND s.size_bytes=? AND s.content_type=?
+       AND s.captured_at=? AND s.status='completed'
+       AND m.deleted_at IS NULL AND m.reported_at IS NULL
+     ORDER BY s.completed_at DESC LIMIT 1`,
+  ).bind(
+    input.eventId,
+    input.filename,
+    input.size,
+    input.contentType,
+    input.capturedAt,
+  ).first<{ id: string }>();
+}
+
 function expectedPartSize(session: UploadSession, partNumber: number) {
   if (partNumber < session.total_parts) return session.part_size;
   return session.size_bytes - session.part_size * (session.total_parts - 1);
@@ -268,6 +303,17 @@ resumableUploadRoutes.post("/api/upload/:code/multipart", async (c) => {
       })),
     });
   }
+
+  const completedDuplicate = await findCompletedDuplicate(c.env.DB, {
+    eventId: context.event.id,
+    fingerprint,
+    filename,
+    size,
+    contentType,
+    capturedAt,
+  });
+  if (completedDuplicate)
+    return c.json({ ok: true, duplicate: true, uploaded: 0, mediaId: completedDuplicate.id });
 
   const active = await c.env.DB.prepare(
     "SELECT COUNT(*) total FROM multipart_upload_sessions WHERE event_id=? AND status IN ('uploading','completing') AND expires_at>?",
@@ -392,13 +438,13 @@ resumableUploadRoutes.put("/api/upload/:code/multipart/:sessionId/parts/:partNum
   if (Number.isFinite(suppliedLength) && suppliedLength > 0 && suppliedLength !== expectedSize)
     return jsonError("The upload part has an invalid size.", 422);
   const clientHash = String(c.req.header("Part-Fingerprint") ?? "").toLowerCase();
-  if (clientHash && !/^[a-f0-9]{64}$/.test(clientHash))
+  if (!/^[a-f0-9]{64}$/.test(clientHash))
     return jsonError("Invalid part fingerprint.", 422);
 
   const existing = await c.env.DB.prepare(
     "SELECT part_number,etag,size_bytes,client_hash FROM multipart_upload_parts WHERE session_id=? AND part_number=?",
   ).bind(session.id, partNumber).first<SessionPart>();
-  if (existing && clientHash && existing.client_hash === clientHash)
+  if (existing && existing.client_hash === clientHash)
     return c.json({ ok: true, partNumber, resumed: true });
   if (!c.req.raw.body) return jsonError("The upload part is empty.", 400);
 
@@ -413,7 +459,7 @@ resumableUploadRoutes.put("/api/upload/:code/multipart/:sessionId/parts/:partNum
          ON CONFLICT(session_id,part_number) DO UPDATE SET
            etag=excluded.etag,size_bytes=excluded.size_bytes,
            client_hash=excluded.client_hash,created_at=excluded.created_at`,
-      ).bind(session.id, partNumber, uploaded.etag, expectedSize, clientHash || null, now),
+      ).bind(session.id, partNumber, uploaded.etag, expectedSize, clientHash, now),
       c.env.DB.prepare(
         "UPDATE multipart_upload_sessions SET updated_at=?,expires_at=? WHERE id=? AND status='uploading'",
       ).bind(now, now + MULTIPART_UPLOAD_TTL_MS, session.id),
@@ -440,11 +486,37 @@ resumableUploadRoutes.put("/api/upload/:code/multipart/:sessionId/variants/:vari
   const variant = c.req.param("variant");
   if (variant !== "thumb" && variant !== "preview") return jsonError("Invalid image variant.", 422);
   const contentType = c.req.header("Content-Type")?.toLowerCase().split(";", 1)[0];
-  const length = Number(c.req.header("Content-Length"));
-  if (contentType !== "image/webp" || !Number.isFinite(length) || length <= 0 || length > 12 * 1024 * 1024)
+  const maxVariantBytes = 12 * 1024 * 1024;
+  const suppliedLengthHeader = c.req.header("Content-Length");
+  const suppliedLength = suppliedLengthHeader === undefined ? null : Number(suppliedLengthHeader);
+  if (
+    contentType !== "image/webp" ||
+    (suppliedLength !== null && (!Number.isFinite(suppliedLength) || suppliedLength <= 0 || suppliedLength > maxVariantBytes))
+  )
     return jsonError("Invalid image preview.", 422);
   if (!c.req.raw.body) return jsonError("The image preview is empty.", 400);
-  await c.env.MEDIA.put(mediaVariantKey(session.object_key, variant as MediaVariant), c.req.raw.body, {
+  const variantKey = mediaVariantKey(session.object_key, variant as MediaVariant);
+  const reader = c.req.raw.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maxVariantBytes) {
+      await reader.cancel();
+      return jsonError("Invalid image preview.", 422);
+    }
+    chunks.push(value);
+  }
+  if (receivedBytes === 0) return jsonError("The image preview is empty.", 400);
+  const bytes = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  await c.env.MEDIA.put(variantKey, bytes, {
     httpMetadata: {
       contentType: "image/webp",
       cacheControl: "private, max-age=31536000, immutable",
@@ -476,11 +548,23 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
   if (parts.results.length !== session.total_parts)
     return jsonError("Some upload parts are still missing.", 409);
   for (let index = 0; index < parts.results.length; index += 1) {
-    if (parts.results[index].part_number !== index + 1)
+    const part = parts.results[index];
+    if (
+      part.part_number !== index + 1 ||
+      part.size_bytes !== expectedPartSize(session, index + 1) ||
+      !part.client_hash ||
+      !/^[a-f0-9]{64}$/.test(part.client_hash)
+    )
       return jsonError("Some upload parts are still missing.", 409);
   }
-  const contentHash = await sha256(
-    `memboux-r2-multipart-v1\0${session.size_bytes}\0${session.part_size}\0${parts.results.map((part) => part.etag).join("\0")}`,
+  const contentHash = await multipartMediaContentHash(
+    session.size_bytes,
+    session.part_size,
+    parts.results.map((part) => ({
+      partNumber: part.part_number,
+      sizeBytes: part.size_bytes,
+      hash: part.client_hash!,
+    })),
   );
   const duplicate = await c.env.DB.prepare(
     "SELECT id FROM media WHERE event_id=? AND deleted_at IS NULL AND reported_at IS NULL AND (content_hash=? OR canonical_hash=?) LIMIT 1",
