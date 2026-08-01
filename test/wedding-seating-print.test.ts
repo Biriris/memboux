@@ -19,7 +19,7 @@ const guests: SeatingPrintGuest[] = [
 
 describe("weddingSeatingPrintPage", () => {
   it("renders the usher list by surname with only the requested columns", () => {
-    const html = weddingSeatingPrintPage(event, "el", guests, Date.UTC(2026, 7, 1, 12));
+    const html = weddingSeatingPrintPage(event, "el", guests, Date.UTC(2026, 7, 1, 12), "Κτήμα Δεξιώσεων");
 
     expect(html).toContain("Αλφαβητική λίστα καλεσμένων");
     expect(html).toContain("<th>Επώνυμο</th><th>Όνομα</th><th>Άτομα</th><th>Τραπέζι</th>");
@@ -29,5 +29,7 @@ describe("weddingSeatingPrintPage", () => {
     expect(html).not.toContain("Πέτρος");
     expect(html).not.toContain("RSVP");
     expect(html).not.toContain("Διατροφικές ανάγκες");
+    expect(html).toContain("Κτήμα Δεξιώσεων");
+    expect(html).not.toContain("Αθήνα");
   });
 });

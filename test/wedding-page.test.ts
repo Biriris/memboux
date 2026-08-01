@@ -65,7 +65,7 @@ describe("wedding event page", () => {
     expect(html).toContain("Alex &amp; Sam");
     expect(html).toContain("17:00");
     expect(html).not.toContain("5:00 PM");
-    expect(html).toContain("RSVP");
+    expect(html).not.toContain('title="RSVP"');
     expect(html).toContain("Guestbook");
     expect(html).toContain(`/wedding/${event.code}/calendar/ceremony.ics?lang=en`);
     expect(html).toContain("Add to calendar");
@@ -168,6 +168,30 @@ describe("wedding event page", () => {
     expect(html).toContain("query=37.9838%2C23.7275");
   });
 
+  it("renders structured reception courses instead of requiring an uploaded menu", () => {
+    const html = renderWeddingPage({
+      event,
+      profile,
+      locale: "el",
+      selectedFeatures: [],
+      coverUpdatedAt: null,
+      menuCourses: [{
+        id: "course-1",
+        event_id: event.id,
+        course_type: "main",
+        title: "Κυρίως",
+        description: "Μοσχαράκι κοκκινιστό\nΧοιρινή μπριζόλα",
+        sort_order: 1,
+        created_at: 1,
+        updated_at: 1,
+      }],
+    });
+    expect(html).toContain('id="menu"');
+    expect(html).toContain("Κυρίως");
+    expect(html).toContain("Μοσχαράκι κοκκινιστό");
+    expect(html).toContain("w-menu-courses");
+  });
+
   it("skips empty optional sections", () => {
     const html = renderWeddingPage({ event, profile: { ...profile, welcome_message: "", story: "", ceremony_at: null, ceremony_location: "" }, locale: "el", selectedFeatures: [], coverUpdatedAt: null, preview: true });
     expect(html).not.toContain('id="story"');
@@ -240,7 +264,7 @@ describe("wedding event page", () => {
         updated_at: 1,
       },
     });
-    for (const phrase of ["Επεξεργασία σελίδας", "Μενού γάμου", "Δες το μενού", "Μια ιδιωτική εμπειρία γάμου στο Memboux."]) {
+    for (const phrase of ["Επεξεργασία σελίδας", "Μενού", "Δες το μενού", "Μια ιδιωτική εμπειρία γάμου στο Memboux."]) {
       expect(greek).toContain(phrase);
     }
     for (const fallback of ["Επεξεργασία website", "Menu γάμου", "Δες το menu", "wedding εμπειρία"]) {

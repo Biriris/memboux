@@ -42,6 +42,8 @@ describe("wedding template art direction", () => {
     expect(weddingArtDirectionStyles).toContain(".w-page .w-story-portrait");
     expect(weddingArtDirectionStyles).toContain(".w-page .w-photo-grid");
     expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(1)');
+    expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(2),.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(3){grid-column:7/13');
+    expect(weddingArtDirectionStyles).not.toContain('data-wedding-theme="nocturne"] .w-photo-card:nth-child(even)');
     expect(weddingArtDirectionStyles).toContain("grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:dense");
     expect(weddingArtDirectionStyles).toContain(".w-page.is-motion-ready [data-reveal-item]");
     expect(weddingArtDirectionStyles).toContain("transition-delay:calc(var(--w-reveal-index,0) * 70ms)");
@@ -56,6 +58,7 @@ describe("wedding template art direction", () => {
     expect(weddingLuxuryStyles).toContain("'Noto Sans'");
     expect(weddingLuxuryStyles).toContain("@supports ((background-clip:text) or (-webkit-background-clip:text))");
     expect(weddingLuxuryStyles).toContain(".w-hero h1{position:relative;max-width:12ch;margin:0 auto;color:#fff");
+    expect(weddingArtDirectionStyles).toContain('html[lang="el"] .w-page[data-wedding-theme="nocturne"] .w-hero h1{max-width:9ch');
   });
 
   it("adds restrained countdown typography and template-aware ornaments", () => {

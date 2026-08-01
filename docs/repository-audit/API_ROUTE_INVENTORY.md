@@ -249,7 +249,7 @@ DELETE /api/upload/:code/multipart/:sessionId
 
 ## Guest engagement — `src/routes/experience.ts` (11)
 
-Source: [`src/routes/experience.ts`](../../src/routes/experience.ts). Guest actions require the corresponding experience setting and gallery/lifecycle access. A wedding RSVP may instead use a hashed personalized guest token; the handler then binds the response to the matching guest-directory record and enforces that the wedding is published and guest access is active. Dashboard/moderation actions require event management.
+Source: [`src/routes/experience.ts`](../../src/routes/experience.ts). Guest actions require the corresponding experience setting and gallery/lifecycle access. Wedding and baptism RSVP submissions require a hashed personalized guest token; the handler binds the response to the matching guest-directory record and enforces publication and active guest access. Generic public RSVP remains available only to other event types. Dashboard/moderation actions require event management.
 
 ```text
 POST  /api/gallery/:code/rsvp
@@ -291,7 +291,7 @@ POST  /studio/trash/restore
 POST  /studio/events/:code/upload
 ```
 
-## Wedding — `src/routes/wedding.ts` (16)
+## Wedding — `src/routes/wedding.ts` (20)
 
 Source: [`src/routes/wedding.ts`](../../src/routes/wedding.ts). Public wedding/media/menu/calendar reads apply publication, lifecycle, gallery PIN, or authorized preview checks. Dashboard and wedding mutations require authenticated event-management permission.
 
@@ -301,10 +301,14 @@ GET    /wedding/:code
 GET    /wedding/:code/calendar/:file
 GET    /wedding/:code/menu
 GET    /dashboard/:code/wedding/setup
+GET    /dashboard/:code/wedding/menu/print
 POST   /api/account/events/:code/wedding/media/upload
 POST   /api/account/events/:code/wedding/media/:mediaId/delete
 POST   /api/account/events/:code/wedding/menu
 POST   /api/account/events/:code/wedding/menu/delete
+POST   /api/account/events/:code/wedding/menu-courses
+POST   /api/account/events/:code/wedding/menu-courses/:id
+POST   /api/account/events/:code/wedding/menu-courses/:id/delete
 GET    /api/account/events/:code/wedding/portraits
 POST   /api/account/events/:code/wedding/portraits/:slot/delete
 POST   /api/account/events/:code/wedding/portraits
@@ -336,7 +340,7 @@ POST  /api/account/events/:code/wedding/tables
 POST  /api/account/events/:code/wedding/tables/:tableId
 POST  /api/account/events/:code/wedding/tables/:tableId/delete
 POST  /api/account/events/:code/wedding/seating
-GET   /wedding/:code/invite/:token
+GET   /event/:code/invite/:token
 ```
 
 ## Cloud backups — `src/routes/backups.ts` (10)

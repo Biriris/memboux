@@ -3,6 +3,7 @@ import { localeNames, supportedLocales, type Locale } from "../i18n";
 import { weddingThemeFor, type WeddingThemeKey } from "../wedding-themes";
 import { esc } from "../utils";
 import type { WeddingMenuRow } from "../wedding-menu";
+import { weddingMenuCourseLabel, type WeddingMenuCourseRow } from "../wedding-menu-courses";
 import type { WeddingMediaRow } from "../wedding-portraits";
 import { brandMark, page } from "./shared";
 import { weddingArtDirectionStyles } from "./wedding-art-direction";
@@ -64,13 +65,14 @@ export function renderWeddingPage(input: {
   coverUpdatedAt: number | null;
   preview?: boolean;
   menu?: WeddingMenuRow | null;
+  menuCourses?: readonly WeddingMenuCourseRow[];
   experienceHtml?: string;
   experienceScripts?: string;
   portraitMap?: Record<string, string | null>;
   preWeddingMedia?: readonly WeddingMediaRow[];
   demo?: boolean;
 }) {
-  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, experienceHtml = "", experienceScripts = "", portraitMap = {}, preWeddingMedia = [], demo = false } = input;
+  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, menuCourses = [], experienceHtml = "", experienceScripts = "", portraitMap = {}, preWeddingMedia = [], demo = false } = input;
   const theme = weddingThemeFor(profile.template_key);
   const accent = profile.accent_color ?? theme.defaultAccent;
   const names = [profile.partner_one_name, profile.partner_two_name].filter(Boolean).join(" & ") || event.eventName;
@@ -91,7 +93,7 @@ export function renderWeddingPage(input: {
   const hasStory = Boolean(profile.welcome_message || profile.story);
   const hasSchedule = Boolean(ceremony || reception || profile.ceremony_location || profile.reception_location || profile.dress_code);
   const hasGuestInfo = Boolean(profile.travel_notes || profile.accommodation_notes || profile.gift_message || profile.gift_url || profile.contact_name || profile.contact_email || profile.contact_phone);
-  const hasMenu = Boolean(menu);
+  const hasMenu = Boolean(menu || menuCourses.length);
   const distinctMediaIds = (values: Array<string | null | undefined>) => [...new Set(values.filter((value): value is string => Boolean(value)))];
   const assignedPhotoIds = distinctMediaIds([portraitMap.hero, portraitMap.story, portraitMap.divider_1, portraitMap.divider_2, portraitMap.divider_3]);
   const galleryPhotoIds = distinctMediaIds([
@@ -102,7 +104,6 @@ export function renderWeddingPage(input: {
   const hasPreWeddingGallery = galleryPhotoIds.length >= 2;
   const weddingMediaUrl = (mediaId: string, variant: "thumb" | "preview") => `/wedding-media/${encodeURIComponent(mediaId)}?variant=${variant}`;
   const experienceCards = [
-    features.has("rsvp") ? { href: experienceHtml ? (demo ? "#guest-experience" : "#participate") : `/gallery/${event.code}?lang=${locale}#participate`, title: "RSVP", copy: t(locale, "Confirm your attendance in a few seconds.", "Επιβεβαίωσε την παρουσία σου σε λίγα δευτερόλεπτα.", "Confirmez votre présence en quelques secondes.", "Bestätige deine Teilnahme in wenigen Sekunden.", "Confirma tu asistencia en segundos.", "Conferma la tua presenza in pochi secondi.") } : null,
     features.has("guestbook") ? { href: experienceHtml ? (demo ? "#guest-experience" : "#participate") : `/gallery/${event.code}?lang=${locale}#participate`, title: t(locale, "Guestbook", "Ευχολόγιο", "Livre d’or", "Gästebuch", "Libro de visitas", "Libro degli ospiti"), copy: t(locale, "Leave a message for the couple.", "Άφησε μια ευχή για το ζευγάρι.", "Laissez un message au couple.", "Hinterlasse dem Paar eine Nachricht.", "Deja un mensaje para la pareja.", "Lascia un messaggio alla coppia.") } : null,
     features.has("live_slideshow") ? { href: experienceHtml ? "#live" : `/gallery/${event.code}/slideshow?lang=${locale}`, title: t(locale, "Live moments", "Ζωντανές στιγμές", "Moments live", "Live-Momente", "Momentos en vivo", "Momenti live"), copy: t(locale, "Follow the celebration as it unfolds.", "Δες τη γιορτή να ξεδιπλώνεται ζωντανά.", "Suivez la célébration en direct.", "Erlebe die Feier live.", "Sigue la celebración en directo.", "Segui la festa dal vivo.") } : null,
   ].filter((card): card is { href: string; title: string; copy: string } => Boolean(card));
@@ -155,7 +156,8 @@ export function renderWeddingPage(input: {
     reception || profile.reception_location ? `<article class="w-event-card"><span>02</span><p>${esc(t(locale, "Celebration", "Δεξίωση", "Réception", "Feier", "Celebración", "Ricevimento"))}</p>${reception ? `<h3>${esc(reception)}</h3>` : ""}${profile.reception_location ? `<a href="${esc(mapUrl(profile.reception_location, profile.reception_lat, profile.reception_lng))}" target="_blank" rel="noopener">${esc(profile.reception_location)} <i>↗</i></a>` : ""}${calendarAction("reception", profile.reception_at)}</article>` : "",
   ].join("");
 
-  const menuSection = menu ? `<section id="menu" class="w-section w-menu"><div class="w-inner w-menu-layout" data-reveal><div><p class="w-eyebrow">${esc(t(locale, "At the table", "Στο τραπέζι", "À table", "Zu Tisch", "En la mesa", "A tavola"))}</p><h2>${esc(t(locale, "Wedding menu", "Μενού γάμου", "Menu du mariage", "Hochzeitsmenü", "Menú de boda", "Menu del matrimonio"))}</h2><p class="w-story-copy">${esc(t(locale, "A taste of what we will share together.", "Μια γεύση από όσα θα μοιραστούμε μαζί.", "Un avant-goût de ce que nous partagerons.", "Ein Vorgeschmack auf das, was wir gemeinsam genießen.", "Un adelanto de lo que compartiremos.", "Un assaggio di ciò che condivideremo insieme."))}</p></div><div class="w-menu-frame">${menu.content_type === "application/pdf" ? `<a class="w-menu-document" href="/wedding/${encodeURIComponent(event.code)}/menu" target="_blank" rel="noopener"><strong>${esc(t(locale, "View the menu", "Δες το μενού", "Voir le menu", "Menü ansehen", "Ver el menú", "Visualizza il menu"))}</strong><span>PDF · ${esc(menu.original_filename)}</span></a>` : `<a href="/wedding/${encodeURIComponent(event.code)}/menu" target="_blank" rel="noopener"><img class="w-menu-image" src="/wedding/${encodeURIComponent(event.code)}/menu" alt="${esc(t(locale, "Wedding food and drinks menu", "Μενού φαγητού και ποτών γάμου", "Menu du mariage", "Speise- und Getränkekarte", "Menú de comida y bebida", "Menu di cibo e bevande"))}" loading="lazy"></a>`}</div></div></section>` : "";
+  const structuredMenuSection = menuCourses.length ? `<section id="menu" class="w-section w-menu"><div class="w-inner" data-reveal><h2>${esc(t(locale, "Menu", "Μενού", "Menu", "Menü", "Menú", "Menu"))}</h2><div class="w-menu-courses">${menuCourses.map((course) => `<article><p>${esc(course.title || weddingMenuCourseLabel(course.course_type, locale))}</p><div>${esc(course.description)}</div></article>`).join("")}</div></div></section>` : "";
+  const menuSection = menu && !menuCourses.length ? `<section id="menu" class="w-section w-menu"><div class="w-inner w-menu-layout" data-reveal><div><h2>${esc(t(locale, "Menu", "Μενού", "Menu", "Menü", "Menú", "Menu"))}</h2></div><div class="w-menu-frame">${menu.content_type === "application/pdf" ? `<a class="w-menu-document" href="/wedding/${encodeURIComponent(event.code)}/menu" target="_blank" rel="noopener"><strong>${esc(t(locale, "View the menu", "Δες το μενού", "Voir le menu", "Menü ansehen", "Ver el menú", "Visualizza il menu"))}</strong><span>PDF · ${esc(menu.original_filename)}</span></a>` : `<a href="/wedding/${encodeURIComponent(event.code)}/menu" target="_blank" rel="noopener"><img class="w-menu-image" src="/wedding/${encodeURIComponent(event.code)}/menu" alt="${esc(t(locale, "Wedding food and drinks menu", "Μενού φαγητού και ποτών γάμου", "Menu du mariage", "Speise- und Getränkekarte", "Menú de comida y bebida", "Menu di cibo e bevande"))}" loading="lazy"></a>`}</div></div></section>` : "";
 
   const detailCards = [
     profile.travel_notes ? `<article><span>↗</span><h3>${esc(t(locale, "Travel & transport", "Μετακίνηση & πρόσβαση", "Voyage et transport", "Anreise & Transport", "Viaje y transporte", "Viaggio e trasporti"))}</h3><p>${esc(profile.travel_notes)}</p></article>` : "",
@@ -183,7 +185,7 @@ export function renderWeddingPage(input: {
   ${divider2}
   ${preWeddingGallery}
   ${hasPreWeddingGallery && (hasMenu || hasGuestInfo) ? ornament(3) : ""}
-  ${menuSection}
+  ${structuredMenuSection}${menuSection}
   ${divider3}
   ${hasGuestInfo ? `<section id="details" class="w-section w-story"><div class="w-inner" data-reveal><p class="w-eyebrow">${esc(t(locale, "Everything in one place", "Όλα σε ένα σημείο", "Tout au même endroit", "Alles an einem Ort", "Todo en un lugar", "Tutto in un unico posto"))}</p><h2>${esc(t(locale, "Guest guide", "Οδηγός καλεσμένων", "Guide des invités", "Gäste-Guide", "Guía para invitados", "Guida per gli ospiti"))}</h2><div class="w-detail-grid">${detailCards}</div></div></section>` : ""}
   ${ornament(4)}

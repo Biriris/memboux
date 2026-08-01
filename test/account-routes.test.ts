@@ -674,6 +674,15 @@ describe("account route boundaries", () => {
     expect(wizardHtml).toContain('id="wedding-template-live-frame"');
     expect(wizardHtml).toContain("Instant guest preview");
     expect(wizardHtml).toContain("liveFrame.src=");
+    expect(wizardHtml).toContain('data-inline-preview-width="390px"');
+    expect(wizardHtml).toContain("page.dataset.weddingNameScale");
+    expect(wizardHtml).toContain("page.style.setProperty('--w-accent',accent)");
+    expect(wizardHtml).toContain("drawerFrame.dataset.src=url.pathname+url.search");
+    const livePreviewScript = [...wizardHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+      .map((match) => match[1])
+      .find((script) => script.includes("data-inline-preview-width"));
+    expect(livePreviewScript).toBeTruthy();
+    expect(() => new Function(livePreviewScript!)).not.toThrow();
     expect(wizardHtml).toContain("Couple information");
     expect(wizardHtml).toContain("form.addEventListener('submit',async submitEvent=>");
     expect(wizardHtml).toContain("sessionStorage.setItem(key,JSON.stringify(collect()))");

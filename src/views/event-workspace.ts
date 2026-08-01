@@ -244,6 +244,13 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
     ${privacyPanel}
     <div class="mt-6 space-y-6">${people}${requests}${accessPanel}${settings}${danger}</div>
   `;
+  const organizedWorkspaceContent = workspaceContent
+    .replace('<h2 class="mt-2 text-3xl text-[#2b174d]">Gallery</h2>', `<h2 class="mt-2 text-3xl text-[#2b174d]">Gallery · Uploads · Live</h2>${canManageEvent ? `<div class="mt-3 flex flex-wrap gap-2"><a href="/gallery/${event.code}/slideshow?lang=${locale}" target="_blank" class="rounded-full border border-[#d9caeb] bg-white px-3 py-2 text-xs font-bold text-[#6d28d9]">Live slideshow</a><a href="/dashboard/${event.code}/qr-templates?lang=${locale}" class="rounded-full border border-[#d9caeb] bg-white px-3 py-2 text-xs font-bold text-[#6d28d9]">QR Studio</a></div>` : ""}`)
+    .replace("1 · Λίστα & προσκλήσεις", "Καλεσμένοι · Προσκλήσεις · RSVP")
+    .replace("1 · Directory & invitations", "Guests · Invitations · RSVP")
+    .replace("2 · RSVP · Guestbook", el ? "Guestbook · Σχόλια" : "Guestbook · Comments")
+    .replace("3 · Live slideshow", "Live slideshow · Gallery")
+    .replace("4 · QR Studio", "QR Studio · Uploads");
   const body = `${eventHeader(locale, user, "")}${eventWorkspaceShell({
     locale,
     eventCode: event.code,
@@ -251,7 +258,7 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
     membership,
     eventPageLabel: templateNavLabel[locale],
     hasRemovalRequests: removalRequests.length > 0,
-    content: workspaceContent,
+    content: organizedWorkspaceContent,
   })}
   <script>(()=>{document.querySelectorAll('[data-copy-link]').forEach(button=>button.addEventListener('click',async()=>{const input=document.getElementById(button.dataset.copyLink);if(!input)return;await navigator.clipboard.writeText(input.value);const label=button.querySelector('span'),previous=label?.textContent;if(label)label.textContent=${JSON.stringify(el ? "Αντιγράφηκε" : "Copied")};setTimeout(()=>{if(label)label.textContent=previous},1400)}))})()<\/script>
   ${canManageEvent ? eventPinDialog(locale) : ""}${locationEnhancement}${inlineEditScript}${ownerSelectionScript}${galleryFilterScript(photoItems, "owner-gallery")}${galleryProgressiveScript("owner-gallery")}${lightboxMarkup(locale, true, canDownloadOriginals)}${mediaCommentsOverlay(event.code, locale)}${mediaLikesScript(event.code, locale)}${logoutScript(locale)}`;

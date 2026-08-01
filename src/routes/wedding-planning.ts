@@ -244,13 +244,18 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests/seating-plan", async 
   if (!user) return c.redirect(`/${locale}/login`);
   const event = await manageableGuestEvent(c.env.DB, c.req.param("code"), user.id);
   if (!event) return c.text("Wedding event not found", 404);
-  const guests = await c.env.DB.prepare(`SELECT g.first_name,g.last_name,g.party_size,g.rsvp_status,t.name table_name
+  const [guests, profile] = await Promise.all([c.env.DB.prepare(`SELECT g.first_name,g.last_name,g.party_size,g.rsvp_status,t.name table_name
       FROM event_wedding_guests g
       LEFT JOIN event_wedding_seat_assignments a ON a.guest_id=g.id
       LEFT JOIN event_wedding_tables t ON t.id=a.table_id
-      WHERE g.event_id=?`).bind(event.id).all<SeatingPrintGuest>();
+      WHERE g.event_id=?`).bind(event.id).all<SeatingPrintGuest>(),
+    event.event_type === "wedding"
+      ? c.env.DB.prepare("SELECT reception_location FROM event_wedding_profiles WHERE event_id=?")
+        .bind(event.id).first<{ reception_location: string }>()
+      : Promise.resolve(null),
+  ]);
   console.log(JSON.stringify({ event: "wedding_seating_plan_opened", event_id: event.id, guest_count: guests.results.length }));
-  return c.html(weddingSeatingPrintPage(event, locale, guests.results, Date.now()));
+  return c.html(weddingSeatingPrintPage(event, locale, guests.results, Date.now(), profile?.reception_location));
 });
 
 weddingPlanningRoutes.get("/api/account/events/:code/wedding/guests/export", async (c) => {

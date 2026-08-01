@@ -2,9 +2,9 @@
 
 ## Authority and validation
 
-The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 62 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0062_wedding_guest_invitation_delivery.sql`](../../migrations/0062_wedding_guest_invitation_delivery.sql). Migrations `0061` and `0062` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts) and [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts).
+The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 63 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0063_structured_wedding_menu.sql`](../../migrations/0063_structured_wedding_menu.sql). Migrations `0061` and `0062` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts) and [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts); migration `0063` is exercised through the complete migration chain in the Worker test suite.
 
-Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0062`.
+Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0063`.
 
 Notation in this document lists logical current columns. Full defaults, checks, indexes, and rebuild details remain canonical in the linked migrations.
 
@@ -65,6 +65,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `event_wedding_media` | Separate pre-wedding image/video library and R2 metadata. | [`0035`](../../migrations/0035_wedding_media.sql) |
 | `event_wedding_portrait_assignments` | Composite event/slot assignment to wedding media with position. | [`0036`](../../migrations/0036_wedding_portrait_assignments.sql) |
 | `event_wedding_menus` | One wedding menu object per event with filename/type/size/updater. | [`0034`](../../migrations/0034_wedding_places_and_menu.sql) |
+| `event_wedding_menu_courses` | Structured reception-menu courses with category, owner-defined title/description and display order. | [`0063`](../../migrations/0063_structured_wedding_menu.sql) |
 | `event_wedding_guest_groups` | Event-scoped households or guest groups. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
 | `event_wedding_guests` | Guest identity/contact, invitation-token hash, plus-one limit, attendance targets, synchronized RSVP state, and retryable email-delivery state. | [`0061`](../../migrations/0061_wedding_guest_planning.sql), [`0062`](../../migrations/0062_wedding_guest_invitation_delivery.sql) |
 | `event_wedding_tables` | Event-scoped seating tables, shape, capacity, order and optional layout coordinates. | [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
@@ -123,4 +124,4 @@ The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../.
 - Rollback/down migrations do not exist.
 - Backup/restore and disaster-recovery configuration for D1 is not committed.
 - Migration `0060` rebuilds `cloud_oauth_states` and retains legacy event columns; the intended removal date for legacy columns is **Unknown**.
-- Remote application status for migration `0062` is **Unknown** until deployment-time migration checks are run.
+- Remote application status for migration `0063` is **Unknown** until deployment-time migration checks are run.

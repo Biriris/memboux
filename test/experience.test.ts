@@ -112,5 +112,7 @@ describe("event engagement experience", () => {
     const html = await slideshow.text();
     expect(html).toContain('id="slide-uploader"');
     expect(html).toContain("Uploaded by");
+    expect(html).toContain("node.onload=()=>requestAnimationFrame(()=>node.classList.remove('opacity-0'));root.querySelectorAll('img')");
+    expect(html).not.toContain("classList.remove('opacity-0'))root.querySelectorAll");
   });
 });

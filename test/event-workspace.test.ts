@@ -200,7 +200,7 @@ describe("event workspace", () => {
     });
 
     expect(html).toContain(`/dashboard/${event.code}/wedding/guests?lang=en`);
-    expect(html).toContain("Directory & invitations");
+    expect(html).toContain("Guests · Invitations · RSVP");
     expect(html).toContain("Contacts, groups, delivery and seating.");
     expect(html).toContain("directory → invitations → responses → live experience");
   });

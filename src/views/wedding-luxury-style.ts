@@ -42,6 +42,7 @@ export const weddingLuxuryStyles = `
   .w-menu-document{display:flex;min-height:22rem;flex-direction:column;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--w-ink) 16%,transparent);background:color-mix(in srgb,var(--w-panel) 94%,transparent);padding:3rem;text-align:center;box-shadow:0 30px 80px #162b2317}
   .w-menu-document strong{font-family:var(--w-display);font-size:clamp(2rem,5vw,4rem);font-weight:400}
   .w-menu-document span{margin-top:1rem;color:color-mix(in srgb,var(--w-ink) 66%,transparent)}
+  .w-menu-courses{display:grid;gap:2rem;margin-top:3rem}.w-menu-courses article{border-top:1px solid color-mix(in srgb,var(--w-ink) 18%,transparent);padding-top:1.5rem}.w-menu-courses article p{margin:0;color:var(--w-accent);font-size:.7rem;font-weight:750;letter-spacing:.18em;text-transform:uppercase}.w-menu-courses article div{max-width:44rem;margin-top:.7rem;white-space:pre-line;font-family:var(--w-display);font-size:clamp(1.1rem,2vw,1.45rem);line-height:1.65}
   .w-page.is-motion-ready [data-reveal]{transform:translateY(38px);transition-duration:1.05s;transition-timing-function:cubic-bezier(.16,1,.3,1)}
   .w-page [data-reveal].is-visible{transform:none}
   .w-page:not(.is-motion-ready) [data-reveal]{opacity:1;transform:none;transition:none}

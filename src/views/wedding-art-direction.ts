@@ -26,6 +26,7 @@ export const weddingArtDirectionStyles = `
   .w-page[data-wedding-name-scale="compact"]{--w-hero-size:clamp(2.75rem,6.7vw,6rem)}
   .w-page[data-wedding-name-scale="long"]{--w-hero-size:clamp(2.25rem,5.5vw,4.9rem)}
   .w-page .w-kicker,.w-page .w-eyebrow{font-size:clamp(.7rem,.75vw,.78rem);line-height:1.45}
+  .w-page .w-countdown>.w-inner>.w-eyebrow,.w-page .w-story .w-eyebrow{display:none}
   .w-page .w-story-copy{font-size:clamp(1rem,1.35vw,1.12rem);line-height:1.8}
   .w-page .w-event-card h3,.w-page .w-detail-grid h3,.w-page .w-experience-card h3{font-size:clamp(1.3rem,2vw,1.8rem);line-height:1.18}
 
@@ -80,8 +81,7 @@ export const weddingArtDirectionStyles = `
   .w-page[data-wedding-layout="centered"] .w-photo-card:nth-child(2),.w-page[data-wedding-layout="centered"] .w-photo-card:nth-child(3){grid-column:8/13}
   .w-page[data-wedding-layout="editorial"] .w-photo-grid{gap:clamp(.7rem,2vw,2rem)}
   .w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(1){grid-column:1/7;grid-row:span 2}
-  .w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(2){grid-column:8/13;grid-row:span 1}
-  .w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(3){grid-column:7/12;grid-row:span 1}
+  .w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(2),.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(3){grid-column:7/13;grid-row:span 1}
   .w-page[data-wedding-layout="split"] .w-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;gap:clamp(1rem,3vw,3rem);align-items:start}
   .w-page[data-wedding-layout="split"] .w-photo-card{grid-column:auto;aspect-ratio:4/5}
   .w-page[data-wedding-layout="split"] .w-photo-card:nth-child(even){margin-top:clamp(3rem,9vw,8rem);aspect-ratio:5/4}
@@ -95,7 +95,7 @@ export const weddingArtDirectionStyles = `
 
   .w-page[data-wedding-theme="cypress"] .w-story-portrait,.w-page[data-wedding-theme="lumiere"] .w-story-portrait{border-radius:50% 50% 1.5rem 1.5rem}
   .w-page[data-wedding-theme="nocturne"] .w-prewedding,.w-page[data-wedding-theme="vinifera"] .w-prewedding{background:var(--w-panel)}
-  .w-page[data-wedding-theme="nocturne"] .w-photo-card:nth-child(even),.w-page[data-wedding-theme="vinifera"] .w-photo-card:nth-child(even){transform:translateY(clamp(1rem,4vw,3rem))}
+  .w-page[data-wedding-theme="vinifera"] .w-photo-card:nth-child(even){transform:translateY(clamp(1rem,4vw,3rem))}
   .w-page[data-wedding-theme="atelier"] .w-photo-card{border:2px solid var(--w-ink)}
   .w-page[data-wedding-theme="atelier"] .w-photo-card>img{filter:grayscale(1) contrast(1.04)}
   .w-page[data-wedding-theme="champagne"] .w-photo-card{outline:1px solid var(--w-accent);outline-offset:-.8rem}
@@ -211,10 +211,11 @@ export const weddingArtDirectionStyles = `
 
   /* 02 — Nocturne: cinematic left rail and dark editorial pacing. */
   .w-page[data-wedding-theme="nocturne"]{--w-radius:0;--w-control-radius:0;--w-title-size:clamp(2.5rem,5.4vw,5.1rem);--w-section-space:clamp(5rem,10vw,9rem)}
-  .w-page[data-wedding-theme="nocturne"] .w-top{grid-template-columns:8rem minmax(0,1fr) 6rem;border-bottom:1px solid #ffffff2e;background:linear-gradient(#090a0acc,#090a0a42)}
+  .w-page[data-wedding-theme="nocturne"] .w-top{grid-template-columns:minmax(12rem,.75fr) minmax(0,2.5fr) minmax(5rem,.55fr);border-bottom:1px solid #ffffff2e;background:linear-gradient(#090a0acc,#090a0a42)}
   .w-page[data-wedding-theme="nocturne"] .w-nav{justify-content:flex-start}
   .w-page[data-wedding-theme="nocturne"] .w-hero-copy{align-items:flex-start;justify-content:center;width:min(88%,82rem);padding-left:clamp(1rem,8vw,9rem);text-align:left}
   .w-page[data-wedding-theme="nocturne"] .w-hero h1{max-width:7ch;margin:0;text-align:left}
+  html[lang="el"] .w-page[data-wedding-theme="nocturne"] .w-hero h1{max-width:9ch;letter-spacing:-.035em}
   .w-page[data-wedding-theme="nocturne"] .w-hero h1:after{margin-left:0}
   .w-page[data-wedding-theme="nocturne"] .w-story-grid{grid-template-columns:.45fr 1.55fr}
   .w-page[data-wedding-theme="nocturne"] .w-schedule-grid{grid-template-columns:1fr;border-block:1px solid currentColor;background:transparent}
@@ -326,7 +327,7 @@ export const weddingArtDirectionStyles = `
 
   /* 12 — Vinifera: vineyard editorial with a burgundy content rail. */
   .w-page[data-wedding-theme="vinifera"]{--w-radius:.2rem;--w-control-radius:.2rem;--w-title-size:clamp(2.45rem,5.2vw,5rem)}
-  .w-page[data-wedding-theme="vinifera"] .w-top{grid-template-columns:8rem minmax(0,1fr) 6rem;background:#35121cd1;border-bottom:1px solid #ffffff2e}
+  .w-page[data-wedding-theme="vinifera"] .w-top{grid-template-columns:minmax(12rem,.75fr) minmax(0,2.5fr) minmax(5rem,.55fr);background:#35121cd1;border-bottom:1px solid #ffffff2e}
   .w-page[data-wedding-theme="vinifera"] .w-nav{justify-content:flex-start}
   .w-page[data-wedding-theme="vinifera"] .w-hero-copy{align-items:flex-start;justify-content:center;width:min(92%,82rem);padding-left:clamp(1rem,8vw,8rem);text-align:left}.w-page[data-wedding-theme="vinifera"] .w-hero h1{max-width:7ch;margin:0}.w-page[data-wedding-theme="vinifera"] .w-hero h1:after{margin-left:0}
   .w-page[data-wedding-theme="vinifera"] .w-story-grid{grid-template-columns:.5fr 1.5fr}

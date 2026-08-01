@@ -6,7 +6,7 @@
 | --- | --- |
 | [`.github/`](../../.github/) | GitHub Actions quality and production-smoke workflows plus Dependabot configuration. |
 | [`docs/`](../) | Operating manual and this source-verified audit. |
-| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0062`. |
+| [`migrations/`](../../migrations/) | Ordered D1/SQLite schema migrations, currently numbered `0001` through `0063`. |
 | [`public/`](../../public/) | Worker static assets: generated CSS and font CSS. Served through the `ASSETS` binding. |
 | [`scripts/`](../../scripts/) | Production smoke test and a production-media deduplication utility. |
 | [`src/`](../../src/) | Worker entry point, domain/application modules, Hono routes, server-rendered views, and CSS source. |

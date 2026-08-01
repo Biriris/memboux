@@ -16,8 +16,10 @@ export function weddingSeatingPrintPage(
   locale: Locale,
   guests: SeatingPrintGuest[],
   generatedAt: number,
+  receptionLocation?: string | null,
 ) {
   const el = locale === "el";
+  event = { ...event, location: receptionLocation?.trim() || event.location || "" };
   const collator = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
   const activeGuests = guests
     .filter((guest) => guest.rsvp_status !== "no")
