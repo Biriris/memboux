@@ -7,7 +7,7 @@ import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { esc, sha256 } from "../utils";
 import { eventHeader, logoutScript, page } from "../views/shared";
-import { weddingSeatingPrintPage, type SeatingPrintGuest, type SeatingPrintTable } from "../views/wedding-seating-print";
+import { weddingSeatingPrintPage, type SeatingPrintGuest } from "../views/wedding-seating-print";
 import { parseWeddingGuestCsv, weddingGuestCsv, WEDDING_GUEST_IMPORT_MAX_BYTES, WEDDING_GUEST_IMPORT_MAX_ROWS } from "../wedding-guests-csv";
 import { deliverWeddingInvitationBatch, reserveWeddingInvitation, reserveWeddingInvitationBatch } from "../wedding-invitations";
 
@@ -244,18 +244,13 @@ weddingPlanningRoutes.get("/dashboard/:code/wedding/guests/seating-plan", async 
   if (!user) return c.redirect(`/${locale}/login`);
   const event = await manageableGuestEvent(c.env.DB, c.req.param("code"), user.id);
   if (!event) return c.text("Wedding event not found", 404);
-  const [tables, guests] = await Promise.all([
-    c.env.DB.prepare("SELECT id,name,capacity FROM event_wedding_tables WHERE event_id=? ORDER BY sort_order,name")
-      .bind(event.id).all<SeatingPrintTable>(),
-    c.env.DB.prepare(`SELECT g.first_name,g.last_name,gg.name group_name,g.party_size,g.rsvp_status,g.dietary_notes,a.table_id
+  const guests = await c.env.DB.prepare(`SELECT g.first_name,g.last_name,g.party_size,g.rsvp_status,t.name table_name
       FROM event_wedding_guests g
-      LEFT JOIN event_wedding_guest_groups gg ON gg.id=g.group_id
       LEFT JOIN event_wedding_seat_assignments a ON a.guest_id=g.id
-      WHERE g.event_id=? ORDER BY COALESCE(a.table_id,''),g.last_name,g.first_name,g.id`)
-      .bind(event.id).all<SeatingPrintGuest>(),
-  ]);
+      LEFT JOIN event_wedding_tables t ON t.id=a.table_id
+      WHERE g.event_id=?`).bind(event.id).all<SeatingPrintGuest>();
   console.log(JSON.stringify({ event: "wedding_seating_plan_opened", event_id: event.id, guest_count: guests.results.length }));
-  return c.html(weddingSeatingPrintPage(event, locale, tables.results, guests.results, Date.now()));
+  return c.html(weddingSeatingPrintPage(event, locale, guests.results, Date.now()));
 });
 
 weddingPlanningRoutes.get("/api/account/events/:code/wedding/guests/export", async (c) => {

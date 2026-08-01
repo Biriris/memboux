@@ -1115,7 +1115,10 @@ describe("account route boundaries", () => {
     expect(seatingPlan.status).toBe(200);
     expect(seatingPlanHtml).toContain("Print / Save as PDF");
     expect(seatingPlanHtml).toContain("Family table");
-    expect(seatingPlanHtml).toContain("Jamie Guest");
+    expect(seatingPlanHtml).toContain("Last name");
+    expect(seatingPlanHtml).toContain("First name");
+    expect(seatingPlanHtml).toContain(">Guest</strong>");
+    expect(seatingPlanHtml).toContain(">Jamie</td>");
     expect(seatingPlanHtml).not.toContain("jamie@example.com");
 
     const createInviteLink = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/invite-link`, {
