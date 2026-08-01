@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { getEventRole, roleCan } from "../access";
 import {
+  activateComplimentaryEventOrder,
   commerceLaunchReady,
   commerceProductDescription,
   commerceProductName,
@@ -20,6 +21,15 @@ import { esc } from "../utils";
 import { eventHeader, logoutScript, page } from "../views/shared";
 
 export const commerceRoutes = new Hono<{ Bindings: Bindings }>();
+
+const complimentaryCopy: Record<Locale, { activate: string; available: string; detail: string; activated: string }> = {
+  en: { activate: "Activate complimentary beta package", available: "Complimentary beta access", detail: "No payment is recorded. During beta, the selected capacity activates immediately for this event.", activated: "The beta package is active. The event limit and access were updated immediately." },
+  el: { activate: "Ενεργοποίηση δωρεάν beta πακέτου", available: "Δωρεάν beta πρόσβαση", detail: "Δεν καταγράφεται πληρωμή. Στη beta περίοδο, η επιλεγμένη χωρητικότητα ενεργοποιείται άμεσα για αυτό το event.", activated: "Το beta πακέτο ενεργοποιήθηκε. Το όριο και η πρόσβαση του event ενημερώθηκαν άμεσα." },
+  fr: { activate: "Activer le forfait bêta offert", available: "Accès bêta offert", detail: "Aucun paiement n’est enregistré. Pendant la bêta, la capacité choisie est activée immédiatement pour cet événement.", activated: "Le forfait bêta est actif. La limite et l’accès ont été mis à jour immédiatement." },
+  de: { activate: "Kostenloses Beta-Paket aktivieren", available: "Kostenloser Beta-Zugang", detail: "Es wird keine Zahlung erfasst. Während der Beta wird die gewählte Kapazität sofort für dieses Event aktiviert.", activated: "Das Beta-Paket ist aktiv. Limit und Zugriff wurden sofort aktualisiert." },
+  es: { activate: "Activar paquete beta gratuito", available: "Acceso beta gratuito", detail: "No se registra ningún pago. Durante la beta, la capacidad elegida se activa inmediatamente para este evento.", activated: "El paquete beta está activo. El límite y el acceso se actualizaron de inmediato." },
+  it: { activate: "Attiva il pacchetto beta gratuito", available: "Accesso beta gratuito", detail: "Non viene registrato alcun pagamento. Durante la beta, la capacità scelta si attiva subito per questo evento.", activated: "Il pacchetto beta è attivo. Limite e accesso sono stati aggiornati subito." },
+};
 
 export const commerceCheckoutCopy: Record<Locale, {
   back: string; eyebrow: string; title: string; lead: string; oneTime: string;
@@ -143,9 +153,10 @@ async function ownedEvent(c: Context<{ Bindings: Bindings }>) {
   if (!user) return { response: c.redirect(`/${locale}/login`) };
   const event = await getEvent(c.env.DB, c.req.param("code") ?? "");
   if (!event) return { response: c.text("Event not found", 404) };
-  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event"))
+  const role = await getEventRole(c.env.DB, event.id, user.id);
+  if (!roleCan(role, "manage_event"))
     return { response: c.text("Forbidden", 403) };
-  return { locale, user, event };
+  return { locale, user, event, role };
 }
 
 function accessLabel(locale: Locale, state: string) {
@@ -171,7 +182,7 @@ export function commercePlanSelectionAssets(locale: Locale) {
 commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
   const context = await ownedEvent(c);
   if ("response" in context) return context.response;
-  const { locale, user, event } = context;
+  const { locale, user, event, role } = context;
   const t = commerceCheckoutCopy[locale];
   const [products, draft, access, usage, launchSettings] = await Promise.all([
     eventProducts(c.env.DB),
@@ -189,14 +200,26 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
   }).join("");
   const selectedProduct = products.find((product) => product.product_key === draft?.product_key);
   const launchReady = commerceLaunchReady(launchSettings);
+  const beta = complimentaryCopy[locale];
+  const complimentaryAvailable = !launchReady && role === "owner";
   const draftSummary = selectedProduct && draft
     ? `<section class="rounded-[1.6rem] border border-[#d9caf1] bg-white p-5 shadow-sm"><div class="flex flex-col gap-3"><div><p class="text-xs font-bold uppercase tracking-[.15em] text-[#7c3aed]">${t.draftTitle}</p><h2 class="mt-2 text-xl">${esc(commerceProductName(selectedProduct, locale))}</h2></div><span class="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">${t.noChargeLabel}</span></div><dl class="mt-5 space-y-3 border-t border-[#eee8f5] pt-4 text-sm"><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.eventLabel}</dt><dd class="text-right font-semibold">${esc(event.eventName)}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.packageLabel}</dt><dd class="text-right font-semibold">${esc(commerceProductName(selectedProduct, locale))}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.totalLabel}</dt><dd class="text-right font-bold">${esc(formatCommerceMoney(draft.total_minor, draft.currency, locale))}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.draftReference}</dt><dd class="font-mono text-xs">${esc(draft.id.slice(0, 8).toUpperCase())}</dd></div></dl></section>`
     : "";
   const savedNotice = c.req.query("saved") === "1"
     ? `<p role="status" class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold leading-6 text-emerald-900">${esc(t.savedNotice)}</p>`
     : "";
+  const activatedNotice = c.req.query("activated") === "1"
+    ? `<p role="status" class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold leading-6 text-emerald-900">${esc(beta.activated)}</p>`
+    : "";
+  const checkoutAction = complimentaryAvailable
+    ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
+    : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
+  const checkoutButton = complimentaryAvailable ? beta.activate : t.save;
+  const checkoutStateCard = complimentaryAvailable
+    ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
+    : `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section>`;
   const planSelection = commercePlanSelectionAssets(locale);
-  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}<section class="mt-8 grid gap-3 rounded-[1.7rem] border border-[#e4daf4] bg-[#faf8ff] p-5 sm:grid-cols-2"><div><span class="text-xs font-bold uppercase tracking-wide text-[#7c3aed]">${t.current}</span><strong class="mt-2 block text-2xl">${esc(accessLabel(locale, access.access_state))}</strong><p class="mt-2 text-sm text-[#6f657c]">${Number(usage?.total ?? 0)} / ${access.media_limit.toLocaleString(locale)} ${t.files}</p></div><div class="border-t border-[#e4daf4] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p class="text-sm leading-6 text-[#6f657c]">${t.trialIncludes}</p><ul class="mt-2 text-sm"><li>• ${t.trialFiles}</li><li>• ${t.trialDays}</li><li>• ${t.noOriginals}</li></ul></div></section><div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="/api/account/events/${encodeURIComponent(event.code)}/checkout/draft" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-2">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${t.save}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section><section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
+  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}${activatedNotice}<section class="mt-8 grid gap-3 rounded-[1.7rem] border border-[#e4daf4] bg-[#faf8ff] p-5 sm:grid-cols-2"><div><span class="text-xs font-bold uppercase tracking-wide text-[#7c3aed]">${t.current}</span><strong class="mt-2 block text-2xl">${esc(accessLabel(locale, access.access_state))}</strong><p class="mt-2 text-sm text-[#6f657c]">${Number(usage?.total ?? 0)} / ${access.media_limit.toLocaleString(locale)} ${t.files}</p></div><div class="border-t border-[#e4daf4] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p class="text-sm leading-6 text-[#6f657c]">${t.trialIncludes}</p><ul class="mt-2 text-sm"><li>• ${t.trialFiles}</li><li>• ${t.trialDays}</li><li>• ${t.noOriginals}</li></ul></div></section><div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="${checkoutAction}" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-2">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${esc(checkoutButton)}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}${checkoutStateCard}<section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
   return c.html(page(t.title, `${body}${planSelection.style}${planSelection.script}`, { locale }));
 });
 
@@ -212,4 +235,42 @@ commerceRoutes.post("/api/account/events/:code/checkout/draft", async (c) => {
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
   await saveDraftEventOrder(c.env.DB, { userId: user.id, eventId: event.id, product, locale });
   return c.redirect(`/dashboard/${event.code}/checkout?lang=${locale}&saved=1`, 303);
+});
+
+commerceRoutes.post("/api/account/events/:code/checkout/activate-beta", async (c) => {
+  const context = await ownedEvent(c);
+  if ("response" in context) return context.response;
+  const { user, event, role } = context;
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? context.locale));
+  if (role !== "owner") return c.text("Only the event owner can activate a package.", 403);
+  if (commerceLaunchReady(await getCommerceLaunchSettings(c.env.DB)))
+    return c.text("Complimentary beta activation is no longer available.", 409);
+  const product = await c.env.DB.prepare(
+    "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
+  ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
+  if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
+
+  const orderId = await saveDraftEventOrder(c.env.DB, {
+    userId: user.id,
+    eventId: event.id,
+    product,
+    locale,
+  });
+  const activation = await activateComplimentaryEventOrder(c.env.DB, {
+    orderId,
+    userId: user.id,
+    eventId: event.id,
+  });
+  if (!activation.activated)
+    return c.text("The beta package could not be activated.", 409);
+  console.log(JSON.stringify({
+    event: "complimentary_event_package_activated",
+    eventId: event.id,
+    userId: user.id,
+    productKey: product.product_key,
+    mediaLimit: activation.mediaLimit,
+    expiresAt: activation.expiresAt,
+  }));
+  return c.redirect(`/dashboard/${event.code}/checkout?lang=${locale}&activated=1`, 303);
 });

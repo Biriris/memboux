@@ -67,7 +67,9 @@ The scheduled job uses D1 notifications only; no trial-expiry email is sent by t
 
 Commerce product and draft-order infrastructure exists in [`src/commerce.ts`](../../src/commerce.ts) and [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The checkout page can create/update a draft order, and the catalog includes entitlement snapshots. Database triggers in [`0055_commerce_launch_guard.sql`](../../migrations/0055_commerce_launch_guard.sql) block paid transitions until all launch-readiness fields are true.
 
-No route in the current inventory starts a Stripe checkout, consumes a payment-provider webhook, or calls commerce fulfillment to transition the event to `unlocked`. Tests for fulfillment logic exist in [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts), but the production payment integration and who invokes it are **unknown/not implemented in the registered routes**.
+Before payment launch is ready, an event owner can submit `POST /api/account/events/:code/checkout/activate-beta`. The handler persists the selected draft snapshot, applies only monotonic access improvements, transitions `event_access` to `unlocked`, and writes a separate [`complimentary_event_activations`](../../migrations/0065_complimentary_event_activations.sql) audit row. It deliberately leaves the order in `draft` with no billing provider, payment ID, or paid timestamp; this path is not evidence of payment. Managers who are not owners cannot use it, and it is refused once [`commerceLaunchReady`](../../src/commerce.ts) becomes true. Coverage is in [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
+
+No route in the current inventory starts a Stripe checkout or consumes a payment-provider webhook. The provider-neutral paid fulfillment function and tests exist, but the production payment integration and who will invoke it remain **unknown/not implemented in the registered routes**.
 
 ## Collaboration and professional lifecycle
 

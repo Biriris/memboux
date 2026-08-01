@@ -2,7 +2,7 @@
 
 ## Scope and counting
 
-[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **214 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
+[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **215 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
 
 It excludes dependency-internal Better Auth subroutes: the repository registers `GET|POST /api/auth/*`, and [`better-auth`](../../package.json) decides the concrete subpaths at runtime. It also excludes implicit Workers Assets paths because those are files/configuration, not Hono registrations.
 
@@ -367,13 +367,14 @@ POST  /api/account/events/:code/backups/dropbox
 GET   /api/backups/:id
 ```
 
-## Commerce — `src/routes/commerce.ts` (2)
+## Commerce — `src/routes/commerce.ts` (3)
 
-Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Requires authenticated event owner/manager as enforced by the handler. The API creates a draft only; no card-provider checkout route is registered.
+Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The page and draft action require an authenticated event manager. While payment launch is not ready, only the event owner can use the distinct complimentary beta activation action; it updates event access without recording the draft order as paid. No card-provider checkout route is registered.
 
 ```text
 GET   /dashboard/:code/checkout
 POST  /api/account/events/:code/checkout/draft
+POST  /api/account/events/:code/checkout/activate-beta
 ```
 
 ## Support/helpdesk — `src/routes/support.ts` (14)

@@ -40,6 +40,10 @@ describe("multi-file upload view", () => {
       expect(script).toContain("waitForOnline");
       expect(script).toContain("localStorage.setItem");
       expect(script).toContain("'/complete'");
+      expect(script).toContain("progressByFile");
+      expect(script).toContain("Math.min(2,files.length)");
+      expect(script).toContain("variantsPromise=imageVariants(file)");
+      expect(script).toContain("Promise.all(variants.map");
       expect(script).toContain("window.location.reload()");
       const source = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
       expect(() => new Function(source)).not.toThrow();

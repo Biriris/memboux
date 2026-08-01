@@ -80,8 +80,9 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `commerce_orders` | User/event order with draft/payment state, totals, provider IDs, expiry and timestamps. | [`0042`](../../migrations/0042_commerce_catalog_and_orders.sql), provider uniqueness in [`0050`](../../migrations/0050_unique_provider_payments.sql) |
 | `commerce_order_items` | Product snapshot and line totals per order. | [`0042`](../../migrations/0042_commerce_catalog_and_orders.sql) |
 | `commerce_launch_settings` | Legal, tax, invoicing, policy, Stripe, and master payment-enable flags. | [`0055`](../../migrations/0055_commerce_launch_guard.sql) |
+| `complimentary_event_activations` | Immutable audit evidence for owner beta/admin complimentary activations, including the order/product snapshot and granted limit/expiry. It is separate from payment state. | [`0065`](../../migrations/0065_complimentary_event_activations.sql) |
 
-Two triggers in migration `0055` reject paid/payment transitions unless all launch flags are ready. The repository currently exposes draft selection, not a provider checkout/webhook fulfillment route; production payment launch is therefore not established.
+Two triggers in migration `0055` reject paid/payment transitions unless all launch flags are ready. The repository exposes draft selection and a non-payment complimentary beta activation, but not a provider checkout/webhook fulfillment route; production payment launch is therefore not established.
 
 ## Cloud backups
 

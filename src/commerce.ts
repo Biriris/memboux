@@ -193,6 +193,139 @@ function validEntitlement(value: unknown): value is EventEntitlementSnapshot {
   );
 }
 
+export type ComplimentaryEventActivationResult =
+  | { activated: true; eventId: string; mediaLimit: number; expiresAt: number | null }
+  | { activated: false; reason: "not_found" | "not_eligible" | "invalid_entitlement" };
+
+export async function activateComplimentaryEventOrder(
+  db: D1Database,
+  input: { orderId: string; userId: string; eventId: string; activatedAt?: number },
+): Promise<ComplimentaryEventActivationResult> {
+  const order = await db.prepare(
+    `SELECT o.id,o.event_id,o.user_id,o.status,i.product_key,i.quantity,i.entitlement_snapshot
+     FROM commerce_orders o
+     JOIN commerce_order_items i ON i.order_id=o.id
+     WHERE o.id=? AND o.event_id=? AND o.user_id=?`,
+  ).bind(input.orderId, input.eventId, input.userId).first<{
+    id: string;
+    event_id: string;
+    user_id: string;
+    status: CommerceOrder["status"];
+    product_key: string;
+    quantity: number;
+    entitlement_snapshot: string;
+  }>();
+  if (!order) return { activated: false, reason: "not_found" };
+  if (order.status !== "draft" || order.quantity !== 1)
+    return { activated: false, reason: "not_eligible" };
+
+  let entitlement: unknown;
+  try {
+    entitlement = JSON.parse(order.entitlement_snapshot);
+  } catch {
+    return { activated: false, reason: "invalid_entitlement" };
+  }
+  if (!validEntitlement(entitlement))
+    return { activated: false, reason: "invalid_entitlement" };
+
+  const existingActivation = await db.prepare(
+    `SELECT granted_media_limit,granted_expires_at
+     FROM complimentary_event_activations
+     WHERE event_id=? AND order_id=? AND entitlement_snapshot=?
+       AND activation_reason='beta_self_service'`,
+  ).bind(input.eventId, order.id, order.entitlement_snapshot).first<{
+    granted_media_limit: number;
+    granted_expires_at: number | null;
+  }>();
+  if (existingActivation) {
+    return {
+      activated: true,
+      eventId: input.eventId,
+      mediaLimit: existingActivation.granted_media_limit,
+      expiresAt: existingActivation.granted_expires_at,
+    };
+  }
+
+  const current = await db.prepare(
+    `SELECT access_state,media_limit,guest_access_enabled,guest_uploads_enabled,
+            original_downloads_enabled,expires_at
+     FROM event_access WHERE event_id=?`,
+  ).bind(input.eventId).first<{
+    access_state: string;
+    media_limit: number;
+    guest_access_enabled: number;
+    guest_uploads_enabled: number;
+    original_downloads_enabled: number;
+    expires_at: number | null;
+  }>();
+  const now = input.activatedAt ?? Date.now();
+  const selectedLimit = entitlement.mediaLimit ?? 2_147_483_647;
+  const mediaLimit = Math.max(current?.media_limit ?? 0, selectedLimit);
+  const selectedExpiresAt = entitlement.eventDurationDays === null
+    ? null
+    : now + entitlement.eventDurationDays * 86_400_000;
+  const expiresAt = current?.access_state === "unlocked" && current.expires_at === null
+    ? null
+    : selectedExpiresAt === null
+      ? null
+      : Math.max(current?.expires_at ?? 0, selectedExpiresAt);
+  const guestAccess = Number(Boolean(
+    current?.guest_access_enabled || entitlement.guestAccessEnabled,
+  ));
+  const guestUploads = Number(Boolean(
+    current?.guest_uploads_enabled ||
+      (entitlement.guestUploadsEnabled ?? entitlement.guestAccessEnabled),
+  ));
+  const originals = Number(Boolean(
+    current?.original_downloads_enabled || entitlement.originalDownloadsEnabled,
+  ));
+
+  await db.batch([
+    db.prepare(
+      `INSERT INTO event_access (
+         event_id,access_state,enforcement_state,media_limit,
+         guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
+         trial_started_at,trial_ends_at,unlocked_at,expires_at,created_at,updated_at
+       ) VALUES (?,'unlocked','enforced',?,?,?,?,NULL,NULL,?,?,?,?)
+       ON CONFLICT(event_id) DO UPDATE SET
+         access_state='unlocked',enforcement_state='enforced',
+         media_limit=excluded.media_limit,
+         guest_access_enabled=excluded.guest_access_enabled,
+         guest_uploads_enabled=excluded.guest_uploads_enabled,
+         original_downloads_enabled=excluded.original_downloads_enabled,
+         unlocked_at=COALESCE(event_access.unlocked_at,excluded.unlocked_at),
+         expires_at=excluded.expires_at,updated_at=excluded.updated_at`,
+    ).bind(
+      input.eventId,
+      mediaLimit,
+      guestAccess,
+      guestUploads,
+      originals,
+      now,
+      expiresAt,
+      now,
+      now,
+    ),
+    db.prepare(
+      `INSERT OR IGNORE INTO complimentary_event_activations
+       (id,event_id,order_id,product_key,activated_by_user_id,entitlement_snapshot,
+        granted_media_limit,granted_expires_at,activation_reason,created_at)
+       VALUES (?,?,?,?,?,?,?,?,'beta_self_service',?)`,
+    ).bind(
+      crypto.randomUUID(),
+      input.eventId,
+      order.id,
+      order.product_key,
+      input.userId,
+      order.entitlement_snapshot,
+      mediaLimit,
+      expiresAt,
+      now,
+    ),
+  ]);
+  return { activated: true, eventId: input.eventId, mediaLimit, expiresAt };
+}
+
 export async function fulfillEventOrder(
   db: D1Database,
   input: {

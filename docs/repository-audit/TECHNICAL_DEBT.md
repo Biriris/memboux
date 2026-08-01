@@ -13,7 +13,7 @@ This register contains conditions visible in the audited source. It does not tre
 
 ### Payment fulfillment is not wired to a registered production route
 
-- **Evidence:** [`src/commerce.ts`](../../src/commerce.ts) contains catalog/order/fulfillment logic and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts) tests it; [`src/routes/commerce.ts`](../../src/routes/commerce.ts) exposes checkout display and draft creation only. The route inventory contains no Stripe checkout or payment-provider webhook.
+- **Evidence:** [`src/commerce.ts`](../../src/commerce.ts) contains catalog/order/fulfillment logic and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts) tests it; [`src/routes/commerce.ts`](../../src/routes/commerce.ts) exposes draft creation and an explicitly non-payment complimentary beta activation. The route inventory contains no Stripe checkout or payment-provider webhook.
 - **Impact:** the code cannot currently demonstrate an end-to-end paid unlock path. Manual D1 mutation or future integration could bypass expected idempotency/readiness behavior.
 - **Required follow-up:** define the provider contract, signature verification, idempotency boundary, fulfillment caller, and launch rollback plan. Until then, keep `commerce_launch_settings.payments_enabled` false.
 

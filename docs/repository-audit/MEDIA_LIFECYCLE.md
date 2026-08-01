@@ -46,6 +46,8 @@ Admin and studio uploads follow similar R2-then-D1 compensation patterns, but us
 
 The session/token authorization and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts) and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts). No Queue is involved.
 
+The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) processes at most two selected files concurrently. For a single large file it can upload up to four R2 parts concurrently; when two files are active it limits each to two part workers. Image thumbnail/preview generation starts while original parts are transferring, and the two variants upload together after generation. Progress is aggregated across active files and resumability, per-part fingerprints, retries, local session state, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these concurrency markers.
+
 ## Read and transformation
 
 `GET /media/:id` authorizes event/gallery access, blocks deleted/reported media, enforces original-download access, and streams R2. For images, `variant=thumb|preview` calls [`getOrCreateMediaVariant`](../../src/media-variants.ts):
