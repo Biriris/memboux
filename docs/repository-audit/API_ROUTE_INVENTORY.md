@@ -166,7 +166,7 @@ POST  /admin/users/:id/payments
 
 ## Event workspace — `src/routes/events.ts` (19)
 
-Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed.
+Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed. `/manage` is a compatibility alias for the overview, not a navigation step. The privacy mutation accepts only `website`, `guest_gallery`, or `official_album`, hashes the submitted PIN, and updates that surface independently.
 
 ```text
 GET   /dashboard/:code
@@ -226,7 +226,7 @@ POST  /api/account/events/:code/professional/revoke
 
 ## Gallery and direct upload — `src/routes/gallery.ts` (9)
 
-Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Gallery/page/media reads combine event lifecycle, PIN cookie, and authorized-member preview rules. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, and trial capacity.
+Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Guest-gallery, official-album, and media reads combine event lifecycle, their surface-specific PIN cookie, and authorized-member preview rules. The wedding guest gallery remains a distinct URL from the wedding website. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, and trial capacity.
 
 ```text
 POST  /gallery/:code/unlock
@@ -300,7 +300,7 @@ POST  /studio/events/:code/upload
 
 ## Wedding — `src/routes/wedding.ts` (20)
 
-Source: [`src/routes/wedding.ts`](../../src/routes/wedding.ts). Public wedding/media/menu/calendar reads apply publication, lifecycle, gallery PIN, or authorized preview checks. Dashboard and wedding mutations require authenticated event-management permission.
+Source: [`src/routes/wedding.ts`](../../src/routes/wedding.ts). Public wedding/media/menu/calendar reads apply publication, lifecycle, the wedding-website PIN, or authorized preview checks. Dashboard and wedding mutations require authenticated event-management permission.
 
 ```text
 GET    /wedding-media/:id

@@ -2,9 +2,9 @@
 
 ## Authority and validation
 
-The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 63 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0063_structured_wedding_menu.sql`](../../migrations/0063_structured_wedding_menu.sql). Migrations `0061` and `0062` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts) and [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts); migration `0063` is exercised through the complete migration chain in the Worker test suite.
+The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 64 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0064_event_surface_pins.sql`](../../migrations/0064_event_surface_pins.sql). Migrations `0061`, `0062`, and `0064` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts), and [`event-surface-pins-migration.test.ts`](../../test/event-surface-pins-migration.test.ts); migration `0063` is exercised through the complete migration chain in the Worker test suite.
 
-Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0063`.
+Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0064`.
 
 Notation in this document lists logical current columns. Full defaults, checks, indexes, and rebuild details remain canonical in the linked migrations.
 
@@ -29,7 +29,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 
 | Table | Current purpose and key columns | Migration evidence |
 | --- | --- | --- |
-| `events` | Event identity/code, current and legacy names/types/locales, dates, location, status, expiry, PIN hash, soft-delete timestamps. | Created by [`0001`](../../migrations/0001_initial.sql); evolved by `0002`, `0003`, `0004`, `0006`-`0011`, `0025`, `0026`, `0028`, and [`0060`](../../migrations/0060_expand_event_types_and_locales.sql) |
+| `events` | Event identity/code, current and legacy names/types/locales, dates, location, status, expiry, independent website/guest-gallery/official-album PIN hashes, the retained legacy PIN hash, and soft-delete timestamps. | Created by [`0001`](../../migrations/0001_initial.sql); evolved by `0002`, `0003`, `0004`, `0006`-`0011`, `0025`, `0026`, `0028`, [`0060`](../../migrations/0060_expand_event_types_and_locales.sql), and [`0064`](../../migrations/0064_event_surface_pins.sql) |
 | `event_members` | Composite event/user membership with `owner`, `editor`, or `viewer` role. | [`0003`](../../migrations/0003_accounts_and_event_members.sql) |
 | `event_invitations` | Hashed invitation token, email, event role, inviter, kind, expiry, accepted/declined timestamps. | [`0005`](../../migrations/0005_event_invitations.sql), [`0021`](../../migrations/0021_explicit_album_invitations.sql), [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql) |
 | `event_access` | `preview`/`trial`/`unlocked`/`expired`, observe/enforced mode, feature flags, trial dates, media limit, lifetime consumed-upload counter. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0044`](../../migrations/0044_enforce_new_event_trials.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql) |
@@ -124,4 +124,4 @@ The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../.
 - Rollback/down migrations do not exist.
 - Backup/restore and disaster-recovery configuration for D1 is not committed.
 - Migration `0060` rebuilds `cloud_oauth_states` and retains legacy event columns; the intended removal date for legacy columns is **Unknown**.
-- Remote application status for migration `0063` is **Unknown** until deployment-time migration checks are run.
+- Remote application status for migration `0064` is **Unknown** until deployment-time migration checks are run.

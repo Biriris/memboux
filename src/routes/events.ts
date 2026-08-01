@@ -41,7 +41,7 @@ async function eventDashboard(
   if (!user) return c.redirect(`/${locale}/login`);
   const membership = await getEventRole(c.env.DB, event.id, user.id);
   if (!membership) return c.text("Forbidden", 403);
-  const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "menu", "team", "manage"]);
+  const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "menu", "team"]);
   if (ownerOnlySections.has(activeSection) && membership !== "owner") return c.text("Forbidden", 403);
   if (activeSection === "menu" && event.event_type !== "wedding")
     return c.text(locale === "el" ? "Το μενού δεν είναι διαθέσιμο για αυτό το event." : "Menu tools are not available for this event.", 404);
@@ -127,7 +127,7 @@ eventRoutes.get("/dashboard/:code/media", (c) => eventDashboard(c, "media"));
 eventRoutes.get("/dashboard/:code/menu", (c) => eventDashboard(c, "menu"));
 eventRoutes.get("/dashboard/:code/share", (c) => eventDashboard(c, "share"));
 eventRoutes.get("/dashboard/:code/team", (c) => eventDashboard(c, "team"));
-eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c, "manage"));
+eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c));
 
 eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
   const user = await currentUser(c);
@@ -142,12 +142,12 @@ eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
     return c.text(copy.confirmationRequired, 400);
   const access = await getEventAccess(c.env.DB, event.id);
   if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
   const usage = await eventMediaUsage(c.env.DB, event.id);
   if (usage.total > EVENT_TRIAL_MEDIA_LIMIT)
     return c.text(copy.capacityError(EVENT_TRIAL_MEDIA_LIMIT), 409);
   await startEventTrial(c.env.DB, event.id);
-  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
 });
 
 eventRoutes.get("/dashboard/:code/trial", async (c) => {
@@ -164,7 +164,7 @@ eventRoutes.get("/dashboard/:code/trial", async (c) => {
     eventMediaUsage(c.env.DB, event.id),
   ]);
   if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 302);
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 302);
 
   const now = Date.now();
   const trialEndsAt = now + EVENT_TRIAL_DAYS * 86_400_000;
@@ -195,7 +195,7 @@ eventRoutes.get("/dashboard/:code/edit", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Only the event owner can edit this event", 403);
-  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 302);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#settings`, 302);
 });
 
 eventRoutes.get("/event-cover/:code", async (c) => {
@@ -275,19 +275,50 @@ eventRoutes.post("/api/account/events/:code/privacy", async (c) => {
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const wantsJson = c.req.header("Accept")?.includes("application/json") ?? false;
   const action = String(body.action ?? "set");
+  const requestedSurface = String(body.surface ?? "guest_gallery");
+  const pinColumn = requestedSurface === "website"
+    ? "website_pin_hash"
+    : requestedSurface === "official_album"
+      ? "official_album_pin_hash"
+      : requestedSurface === "guest_gallery"
+        ? "guest_gallery_pin_hash"
+        : null;
+  if (!pinColumn) {
+    const message = locale === "el" ? "Μη έγκυρη περιοχή προστασίας." : "Invalid protected area.";
+    return wantsJson ? c.json({ message }, 400) : c.text(message, 400);
+  }
+  if (requestedSurface === "website" && event.event_type !== "wedding") {
+    const message = locale === "el" ? "Το PIN website είναι διαθέσιμο μόνο για γάμο." : "Website PIN is available only for weddings.";
+    return wantsJson ? c.json({ message }, 400) : c.text(message, 400);
+  }
+  if (action !== "set" && action !== "remove") {
+    const message = locale === "el" ? "Μη έγκυρη ενέργεια PIN." : "Invalid PIN action.";
+    return wantsJson ? c.json({ message }, 400) : c.text(message, 400);
+  }
   if (action === "remove") {
-    await c.env.DB.prepare("UPDATE events SET gallery_pin_hash=NULL,updated_at=? WHERE id=?").bind(Date.now(), event.id).run();
+    if (pinColumn === "website_pin_hash")
+      await c.env.DB.prepare("UPDATE events SET website_pin_hash=NULL,updated_at=? WHERE id=?").bind(Date.now(), event.id).run();
+    else if (pinColumn === "official_album_pin_hash")
+      await c.env.DB.prepare("UPDATE events SET official_album_pin_hash=NULL,updated_at=? WHERE id=?").bind(Date.now(), event.id).run();
+    else
+      await c.env.DB.prepare("UPDATE events SET guest_gallery_pin_hash=NULL,gallery_pin_hash=NULL,updated_at=? WHERE id=?").bind(Date.now(), event.id).run();
   } else {
     const pin = String(body.pin ?? "");
     if (!/^\d{4,8}$/.test(pin)) {
       const message = locale === "el" ? "Το PIN πρέπει να περιέχει 4–8 ψηφία." : "PIN must contain 4–8 digits.";
       return wantsJson ? c.json({ message }, 400) : c.text(message, 400);
     }
-    await c.env.DB.prepare("UPDATE events SET gallery_pin_hash=?,updated_at=? WHERE id=?").bind(await sha256(pin), Date.now(), event.id).run();
+    const pinHash = await sha256(pin);
+    if (pinColumn === "website_pin_hash")
+      await c.env.DB.prepare("UPDATE events SET website_pin_hash=?,updated_at=? WHERE id=?").bind(pinHash, Date.now(), event.id).run();
+    else if (pinColumn === "official_album_pin_hash")
+      await c.env.DB.prepare("UPDATE events SET official_album_pin_hash=?,updated_at=? WHERE id=?").bind(pinHash, Date.now(), event.id).run();
+    else
+      await c.env.DB.prepare("UPDATE events SET guest_gallery_pin_hash=?,gallery_pin_hash=?,updated_at=? WHERE id=?").bind(pinHash, pinHash, Date.now(), event.id).run();
   }
   if (wantsJson) {
     c.header("Cache-Control", "private, no-store");
-    return c.json({ enabled: action !== "remove" });
+    return c.json({ enabled: action !== "remove", surface: requestedSurface });
   }
   return c.redirect(`/dashboard/${event.code}/share?lang=${locale}`, 303);
 });

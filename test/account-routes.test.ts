@@ -206,6 +206,9 @@ describe("account route boundaries", () => {
         location_lng REAL,
         location_provider TEXT,
         gallery_pin_hash TEXT,
+        website_pin_hash TEXT,
+        guest_gallery_pin_hash TEXT,
+        official_album_pin_hash TEXT,
         deleted_at INTEGER,
         purge_at INTEGER
       )`),
@@ -571,13 +574,13 @@ describe("account route boundaries", () => {
     const setPin = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
       method: "POST",
       headers: pinHeaders,
-      body: new URLSearchParams({ locale: "en", action: "set", pin: "4826" }),
+      body: new URLSearchParams({ locale: "en", surface: "guest_gallery", action: "set", pin: "4826" }),
     });
     expect(setPin.status).toBe(200);
-    expect(await setPin.json()).toEqual({ enabled: true });
-    const stored = await env.DB.prepare("SELECT gallery_pin_hash FROM events WHERE code=?").bind(event!.code).first<{ gallery_pin_hash: string | null }>();
-    expect(stored?.gallery_pin_hash).toBeTruthy();
-    expect(stored?.gallery_pin_hash).not.toBe("4826");
+    expect(await setPin.json()).toEqual({ enabled: true, surface: "guest_gallery" });
+    const stored = await env.DB.prepare("SELECT guest_gallery_pin_hash FROM events WHERE code=?").bind(event!.code).first<{ guest_gallery_pin_hash: string | null }>();
+    expect(stored?.guest_gallery_pin_hash).toBeTruthy();
+    expect(stored?.guest_gallery_pin_hash).not.toBe("4826");
 
     const pinRedirect = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
       method: "POST",
@@ -586,7 +589,7 @@ describe("account route boundaries", () => {
         "Content-Type": "application/x-www-form-urlencoded",
         Cookie: cookieHeader,
       },
-      body: new URLSearchParams({ locale: "en", action: "set", pin: "4826" }),
+      body: new URLSearchParams({ locale: "en", surface: "guest_gallery", action: "set", pin: "4826" }),
       redirect: "manual",
     });
     expect(pinRedirect.status).toBe(303);
@@ -595,11 +598,11 @@ describe("account route boundaries", () => {
     const removePin = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/privacy`, {
       method: "POST",
       headers: pinHeaders,
-      body: new URLSearchParams({ locale: "en", action: "remove" }),
+      body: new URLSearchParams({ locale: "en", surface: "guest_gallery", action: "remove" }),
     });
     expect(removePin.status).toBe(200);
-    expect(await removePin.json()).toEqual({ enabled: false });
-    expect(await env.DB.prepare("SELECT gallery_pin_hash FROM events WHERE code=?").bind(event!.code).first()).toEqual({ gallery_pin_hash: null });
+    expect(await removePin.json()).toEqual({ enabled: false, surface: "guest_gallery" });
+    expect(await env.DB.prepare("SELECT guest_gallery_pin_hash FROM events WHERE code=?").bind(event!.code).first()).toEqual({ guest_gallery_pin_hash: null });
 
     const trashEvent = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/trash`, {
       method: "POST", headers: { ...pinHeaders, Accept: "text/html" }, redirect: "manual",

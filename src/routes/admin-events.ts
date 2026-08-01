@@ -251,7 +251,7 @@ adminEventRoutes.post("/admin/events/:code/update", async (c) => {
   )
     return c.text("Μη έγκυρα στοιχεία.", 400);
   await c.env.DB.prepare(
-    "UPDATE events SET eventName=?,status=?,notes=?,event_start_date=?,event_end_date=?,gallery_pin_hash=?,expires_at=?,updated_at=? WHERE id=?",
+    "UPDATE events SET eventName=?,status=?,notes=?,event_start_date=?,event_end_date=?,gallery_pin_hash=?,guest_gallery_pin_hash=?,expires_at=?,updated_at=? WHERE id=?",
   )
     .bind(
       eventName,
@@ -259,6 +259,7 @@ adminEventRoutes.post("/admin/events/:code/update", async (c) => {
       notes,
       eventStartDate,
       eventEndDate,
+      galleryPinHash,
       galleryPinHash,
       expiresAt,
       Date.now(),

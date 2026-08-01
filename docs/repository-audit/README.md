@@ -21,7 +21,7 @@ The audit follows the precedence in [`AGENTS.md`](../../AGENTS.md): production s
 
 - Runtime/configuration: [`src/index.ts`](../../src/index.ts), [`src/domain.ts`](../../src/domain.ts), [`wrangler.jsonc`](../../wrangler.jsonc), [`package.json`](../../package.json), [`tsconfig.json`](../../tsconfig.json), and [`vitest.config.ts`](../../vitest.config.ts).
 - Application: every TypeScript module under `src/`, including all route and view modules.
-- Persistence: the complete ordered chain [`migrations/0001_initial.sql`](../../migrations/0001_initial.sql) through [`migrations/0063_structured_wedding_menu.sql`](../../migrations/0063_structured_wedding_menu.sql).
+- Persistence: the complete ordered chain [`migrations/0001_initial.sql`](../../migrations/0001_initial.sql) through [`migrations/0064_event_surface_pins.sql`](../../migrations/0064_event_surface_pins.sql).
 - Verification: all tests under [`test/`](../../test/) and CI definitions under [`.github/workflows/`](../../.github/workflows/).
 - Intended architecture and policy: [`AI_INDEX.md`](../../AI_INDEX.md) and the relevant sections of [`docs/operating-manual/`](../operating-manual/).
 

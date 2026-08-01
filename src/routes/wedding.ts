@@ -13,7 +13,7 @@ import {
 import { getOrCreateMediaVariant, mediaObjectKeys, parseMediaVariant } from "../media-variants";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
-import { hasGalleryAccess } from "../gallery-access";
+import { eventSurfacePinHash, hasEventSurfaceAccess } from "../gallery-access";
 import { PlaceInputError, resolveEventPlaceInput } from "../places";
 import { esc } from "../utils";
 import {
@@ -225,13 +225,13 @@ weddingRoutes.get("/wedding-media/:id", async (c) => {
   const guestAccessAllowed = Date.now() <= event.expires_at
     && eventAccessAllows(access, "guest_access");
   let manager = false;
-  if (profile.publish_status !== "published" || event.gallery_pin_hash || !guestAccessAllowed) {
+  if (profile.publish_status !== "published" || eventSurfacePinHash(event, "website") || !guestAccessAllowed) {
     const user = await currentUser(c);
     manager = Boolean(user && roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event"));
   }
   if (profile.publish_status !== "published" && !manager) return c.text("Not found", 404);
   if (!guestAccessAllowed && !manager) return c.text("This event is not available to guests.", 403);
-  if (!manager && !(await hasGalleryAccess(c.req.raw, event))) return c.text("Private media", 401);
+  if (!manager && !(await hasEventSurfaceAccess(c.req.raw, event, "website"))) return c.text("Private media", 401);
 
   const originalDownloadsAllowed = eventAccessAllows(access, "original_downloads");
   const requestedVariant = row.media_type === "image" ? parseMediaVariant(c.req.query("variant")) : null;
@@ -290,10 +290,16 @@ weddingRoutes.get("/wedding/:code", async (c) => {
   if (!authorizedPreview && !eventAccessAllows(await getEventAccess(c.env.DB, event.id), "guest_access"))
     return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">${brandMark("/", true)}<p class="mt-7 text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Memboux preview</p><h1 class="mt-2 text-4xl">${esc(localized(locale, "This wedding is not open yet", "Αυτός ο γάμος δεν έχει ανοίξει ακόμη", "Ce mariage n'est pas encore ouvert", "Diese Hochzeit ist noch nicht geöffnet", "Esta boda aún no está abierta", "Questo matrimonio non è ancora aperto"))}</h1><p class="mt-3 leading-6 text-[#6f657c]">${esc(localized(locale, "The couple is preparing the private preview.", "Το ζευγάρι προετοιμάζει την ιδιωτική προεπισκόπηση.", "Le couple prépare l'aperçu privé.", "Das Paar bereitet die private Vorschau vor.", "La pareja está preparando la vista previa privada.", "La coppia sta preparando l'anteprima privata."))}</p></section></main>`, { locale }), 403);
 
-  if (!authorizedPreview && !(await hasGalleryAccess(c.req.raw, event))) {
+  if (!authorizedPreview && !(await hasEventSurfaceAccess(c.req.raw, event, "website"))) {
     const next = `/wedding/${event.code}?lang=${locale}${preview ? "&preview=1" : ""}`;
-    return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}<span class="rounded-full bg-[#f4effc] px-3 py-1.5 text-xs font-bold text-[#7c3aed]">Memboux Wedding</span></div><h1 class="mt-7 text-4xl">${esc(localized(locale, "Private wedding page", "Ιδιωτική wedding σελίδα", "Page de mariage privée", "Private Hochzeitsseite", "Página de boda privada", "Pagina matrimonio privata"))}</h1><p class="mt-2 text-[#6f657c]">${esc(localized(locale, "Enter the event PIN to open the complete experience.", "Βάλε το PIN του event για να ανοίξεις ολόκληρη την εμπειρία.", "Saisissez le PIN de l’événement.", "Gib die Event-PIN ein.", "Introduce el PIN del evento.", "Inserisci il PIN dell'evento."))}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="next" value="${esc(next)}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(localized(locale, "Open wedding page", "Άνοιγμα wedding σελίδας", "Ouvrir la page", "Hochzeitsseite öffnen", "Abrir página", "Apri pagina"))}</button></form></section></main>`, { locale }), 401);
+    return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}<span class="rounded-full bg-[#f4effc] px-3 py-1.5 text-xs font-bold text-[#7c3aed]">Memboux Wedding</span></div><h1 class="mt-7 text-4xl">${esc(localized(locale, "Private wedding page", "Ιδιωτική wedding σελίδα", "Page de mariage privée", "Private Hochzeitsseite", "Página de boda privada", "Pagina matrimonio privata"))}</h1><p class="mt-2 text-[#6f657c]">${esc(localized(locale, "Enter the website PIN to open the complete experience.", "Βάλε το PIN του website για να ανοίξεις ολόκληρη την εμπειρία.", "Saisissez le PIN du site.", "Gib die Website-PIN ein.", "Introduce el PIN del sitio.", "Inserisci il PIN del sito."))}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="surface" value="website"><input type="hidden" name="next" value="${esc(next)}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(localized(locale, "Open wedding page", "Άνοιγμα wedding σελίδας", "Ouvrir la page", "Hochzeitsseite öffnen", "Abrir página", "Apri pagina"))}</button></form></section></main>`, { locale }), 401);
   }
+
+  const websiteProtected = Boolean(eventSurfacePinHash(event, "website"));
+  const guestMediaVisible = authorizedPreview || !eventSurfacePinHash(event, "guest_gallery") || websiteProtected
+    || await hasEventSurfaceAccess(c.req.raw, event, "guest_gallery");
+  const officialMediaVisible = authorizedPreview || !eventSurfacePinHash(event, "official_album") || websiteProtected
+    || await hasEventSurfaceAccess(c.req.raw, event, "official_album");
 
   const likeVisitor = existingMediaLikeVisitor(c.req.raw);
   const likeActorKey = likeVisitor
@@ -334,8 +340,8 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     locale,
     guestUrl,
     guestQrSvg: guestQrRaw.replace("<svg", '<svg class="block h-auto w-full"'),
-    guestItems: allMedia.filter((item) => item.origin !== "official"),
-    officialItems: officialMedia,
+    guestItems: guestMediaVisible ? allMedia.filter((item) => item.origin !== "official") : [],
+    officialItems: officialMediaVisible ? officialMedia : [],
     guestbookEntries: guestbook.results,
     settings: { ...settings, rsvp_enabled: 0 },
     curatorName: curator?.business_name ?? "Memboux Studio",
@@ -376,7 +382,7 @@ weddingRoutes.get("/wedding/:code/calendar/:file", async (c) => {
   if (profile.publish_status !== "published" && !manager) return c.text("Not found", 404);
   if (!manager && !eventAccessAllows(await getEventAccess(c.env.DB, event.id), "guest_access"))
     return c.text("Unavailable", 403);
-  if (!manager && !(await hasGalleryAccess(c.req.raw, event))) return c.text("Unauthorized", 401);
+  if (!manager && !(await hasEventSurfaceAccess(c.req.raw, event, "website"))) return c.text("Unauthorized", 401);
 
   const enabled = await c.env.DB.prepare(
     "SELECT 1 enabled FROM event_wedding_features WHERE event_id=? AND feature_key='calendar_links' AND enabled=1",
@@ -414,7 +420,7 @@ weddingRoutes.get("/wedding/:code/menu", async (c) => {
   const user = await currentUser(c);
   const manager = Boolean(user && roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event"));
   if (profile.publish_status !== "published" && !manager) return c.text("Not found", 404);
-  if (!manager && !(await hasGalleryAccess(c.req.raw, event))) return c.text("Unauthorized", 401);
+  if (!manager && !(await hasEventSurfaceAccess(c.req.raw, event, "website"))) return c.text("Unauthorized", 401);
 
   const menu = await c.env.DB.prepare("SELECT * FROM event_wedding_menus WHERE event_id=?")
     .bind(event.id).first<WeddingMenuRow>();
@@ -1001,7 +1007,7 @@ weddingRoutes.post("/api/account/events/:code/wedding/publish", async (c) => {
     return c.text(localized(locale, "Start the trial or unlock the event before publishing.", "Ξεκίνα το trial ή ξεκλείδωσε το event πριν τη δημοσίευση.", "Activez l'essai ou débloquez l'événement.", "Starte die Testphase oder schalte das Event frei.", "Inicia la prueba o desbloquea el evento.", "Avvia la prova o sblocca l'evento."), 409);
   await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='published',updated_at=? WHERE event_id=?")
     .bind(Date.now(), event.id).run();
-  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
 });
 
 weddingRoutes.post("/api/account/events/:code/wedding/unpublish", async (c) => {
@@ -1013,5 +1019,5 @@ weddingRoutes.post("/api/account/events/:code/wedding/unpublish", async (c) => {
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='draft',updated_at=? WHERE event_id=?")
     .bind(Date.now(), event.id).run();
-  return c.redirect(`/dashboard/${event.code}/manage?lang=${locale}`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
 });

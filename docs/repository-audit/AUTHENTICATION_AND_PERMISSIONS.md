@@ -40,14 +40,16 @@ Professional access is separate: `professional_profiles` and `event_professional
 
 ## Gallery and guest authorization
 
-Public gallery access combines event lifecycle state and optional PIN protection:
+Public sharing access combines event lifecycle state and three independent optional PIN surfaces:
 
 - [`eventAccessAllows`](../../src/event-access.ts) gates guest access, guest upload, and original download according to `event_access`.
-- [`hasGalleryAccess`](../../src/gallery-access.ts) allows events without a PIN; otherwise it verifies an event-specific cookie using a constant-time comparison against a token derived from the stored PIN hash.
-- [`/gallery/:code/unlock`](../../src/routes/gallery.ts) validates the submitted PIN and sets the access cookie.
-- Media and wedding routes repeat gallery/session checks before object retrieval; the R2 bucket is not exposed directly.
+- [`hasEventSurfaceAccess`](../../src/gallery-access.ts) independently verifies `website`, `guest_gallery`, and `official_album` access. Each surface has its own stored hash, derived cookie token, and cookie name; the guest-gallery cookie name and token format remain backward compatible.
+- [`hasGalleryAccess`](../../src/gallery-access.ts) is the guest-gallery compatibility wrapper used by guest upload and gallery routes.
+- [`/gallery/:code/unlock`](../../src/routes/gallery.ts) accepts a validated surface identifier, validates only that surface's PIN, rate-limits attempts per event and surface, restricts the return URL to that surface, and sets only its access cookie.
+- Migration [`0064`](../../migrations/0064_event_surface_pins.sql) copies a former shared PIN into all three surfaces so an existing protected event is not exposed during migration.
+- Media and wedding routes repeat the applicable surface/session checks before object retrieval; the R2 bucket is not exposed directly. A successfully unlocked protected wedding website may load media embedded in that website, while the standalone guest and official URLs still check their own PINs.
 
-The PIN hash creation/verification helpers are in [`src/privacy.ts`](../../src/privacy.ts). PIN brute-force limits are implemented where the unlock route calls the D1 rate limiter; any additional edge-level protection is **Unknown**.
+PINs are SHA-256 hashed before persistence; surface-cookie derivation and constant-time verification are in [`src/gallery-access.ts`](../../src/gallery-access.ts). PIN brute-force limits are implemented where the unlock route calls the D1 rate limiter; any additional edge-level protection is **Unknown**.
 
 ## Admin authentication and RBAC
 

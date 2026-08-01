@@ -28,6 +28,7 @@ beforeAll(async () => {
       status TEXT NOT NULL DEFAULT 'active', notes TEXT NOT NULL DEFAULT '',
       updated_at INTEGER, default_locale TEXT NOT NULL DEFAULT 'en',
       event_start_date TEXT, event_end_date TEXT, gallery_pin_hash TEXT,
+      website_pin_hash TEXT, guest_gallery_pin_hash TEXT, official_album_pin_hash TEXT,
       event_type TEXT NOT NULL DEFAULT 'other',
       deleted_at INTEGER, purge_at INTEGER
     )`),
@@ -96,6 +97,7 @@ beforeAll(async () => {
   await env.DB.batch([
     insertEvent.bind(publicEventId, publicCode, "Public gallery", "Public gallery", "", now, now + 86_400_000, now, null),
     insertEvent.bind(pinnedEventId, pinnedCode, "Pinned gallery", "Pinned gallery", "", now, now + 86_400_000, now, pinHash),
+    env.DB.prepare("UPDATE events SET website_pin_hash=?,guest_gallery_pin_hash=?,official_album_pin_hash=? WHERE id=?").bind(pinHash, pinHash, pinHash, pinnedEventId),
     insertEvent.bind("gallery-expired-event", expiredCode, "Expired gallery", "Expired gallery", "", now - 172_800_000, now - 86_400_000, now, null),
     insertEvent.bind("gallery-wedding-event", weddingCode, "Wedding gallery", "Wedding gallery", "", now, now + 86_400_000, now, null),
     insertEvent.bind(trialEventId, trialCode, "Trial gallery", "Trial gallery", "", now, now + 86_400_000, now, null),
@@ -215,10 +217,10 @@ describe("gallery, upload, and media routes", () => {
     expect(removal.status).toBe(403);
   });
 
-  it("sends wedding guest links to the unified wedding experience", async () => {
-    const response = await SELF.fetch(`https://memboux.com/gallery/${weddingCode}?lang=fr`, { redirect: "manual" });
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe(`/wedding/${weddingCode}?lang=fr`);
+  it("keeps the wedding guest gallery separate from the wedding website", async () => {
+    const response = await SELF.fetch(`https://memboux.com/gallery/${weddingCode}?lang=fr`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Wedding gallery");
   });
 
   it("renders an active public gallery", async () => {

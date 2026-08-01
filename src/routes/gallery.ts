@@ -6,7 +6,7 @@ import { getEventRole, roleCan } from "../access";
 import { UPLOAD_ACCEPT } from "../config";
 import type { Bindings } from "../domain";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
-import { galleryAccessToken, galleryCookieName, hasGalleryAccess } from "../gallery-access";
+import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
@@ -49,7 +49,6 @@ import { uploadLimitsCopy } from "../views/upload";
 import { mediaCommentsOverlay, renderGuestParticipation, type GuestbookPreview, type GuestParticipationSettings } from "../views/experience";
 import {
   constantTimeEqual,
-  cookieValue,
   esc,
   formatEventDates,
   sha256,
@@ -134,21 +133,36 @@ galleryRoutes.post("/gallery/:code/unlock", async (c) => {
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
   const copy = galleryGuestCopy[locale];
+  const requestedSurface = String(body.surface ?? "guest_gallery");
+  const surface: EventSurface | null = requestedSurface === "website" || requestedSurface === "guest_gallery" || requestedSurface === "official_album"
+    ? requestedSurface
+    : null;
+  if (!surface) return c.text("Invalid protected area", 400);
+  if (surface === "website" && event.event_type !== "wedding") return c.text("Wedding website not found", 404);
   const requestedNext = String(body.next ?? "");
-  const allowedNextPrefixes = [`/gallery/${event.code}`, `/wedding/${event.code}`];
+  const allowedNextPrefixes = surface === "website"
+    ? [`/wedding/${event.code}`]
+    : surface === "official_album"
+      ? [`/gallery/${event.code}/official`]
+      : [`/gallery/${event.code}`];
   const next = allowedNextPrefixes.some((prefix) => requestedNext === prefix || requestedNext.startsWith(`${prefix}?`))
     ? requestedNext
-    : `/gallery/${event.code}?lang=${locale}`;
+    : surface === "website"
+      ? `/wedding/${event.code}?lang=${locale}`
+      : surface === "official_album"
+        ? `/gallery/${event.code}/official?lang=${locale}`
+        : `/gallery/${event.code}?lang=${locale}`;
 
   if (Date.now() > event.expires_at)
     return c.text(copy.expired, 410);
   if (!eventAccessAllows(await getEventAccess(c.env.DB, event.id), "guest_access"))
     return c.text(copy.unavailable, 403);
-  if (!event.gallery_pin_hash)
+  const pinHash = eventSurfacePinHash(event, surface);
+  if (!pinHash)
     return c.redirect(next, 303);
 
   const pinLimit = await consumeRateLimit(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, {
-    scope: `gallery-pin:${event.code}`,
+    scope: `event-surface-pin:${surface}:${event.code}`,
     limit: 10,
     windowMs: 15 * 60_000,
   });
@@ -158,10 +172,10 @@ galleryRoutes.post("/gallery/:code/unlock", async (c) => {
       copy.tooManyPin,
     );
 
-  if (!constantTimeEqual(await sha256(String(body.pin ?? "")), event.gallery_pin_hash))
+  if (!constantTimeEqual(await sha256(String(body.pin ?? "")), pinHash))
     return c.text(copy.incorrectPin, 401);
 
-  const token = await galleryAccessToken(event);
+  const token = await eventSurfaceAccessToken(event, surface);
   const maxAge = Math.max(
     0,
     Math.min(2592000, Math.floor((event.expires_at - Date.now()) / 1000)),
@@ -170,7 +184,7 @@ galleryRoutes.post("/gallery/:code/unlock", async (c) => {
     status: 303,
     headers: {
       Location: next,
-      "Set-Cookie": `${galleryCookieName(event.code)}=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+      "Set-Cookie": `${eventSurfaceCookieName(event.code, surface)}=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
     },
   });
 });
@@ -213,14 +227,11 @@ galleryRoutes.get("/gallery/:code", async (c) => {
   const originalDownloads = eventAccessAllows(eventAccess, "original_downloads");
   if (!eventAccessAllows(eventAccess, "guest_access"))
     return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">${brandMark("/", true)}<p class="mt-7 text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Memboux preview</p><h1 class="mt-2 text-4xl">${esc(g.previewTitle)}</h1><p class="mt-3 leading-6 text-[#6f657c]">${esc(g.previewText)}</p></section></main>`, { locale }), 403);
-  if (event.event_type === "wedding")
-    return c.redirect(`/wedding/${encodeURIComponent(event.code)}?lang=${locale}`, 302);
-
   if (!(await hasGalleryAccess(c.req.raw, event))) {
     return c.html(
       page(
         event.eventName,
-        `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}${galleryLanguagePicker(event.code, locale)}</div><h1 class="mt-7 text-4xl">${esc(g.privateGallery)}</h1><p class="mt-2 text-[#6f657c]">${esc(g.pinPrompt)}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus aria-label="PIN" placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(g.openGallery)}</button></form></section></main>`,
+        `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}${galleryLanguagePicker(event.code, locale)}</div><h1 class="mt-7 text-4xl">${esc(g.privateGallery)}</h1><p class="mt-2 text-[#6f657c]">${esc(g.pinPrompt)}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="surface" value="guest_gallery"><input type="hidden" name="next" value="/gallery/${esc(event.code)}?lang=${locale}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus aria-label="PIN" placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(g.openGallery)}</button></form></section></main>`,
         { locale },
       ),
       401,
@@ -371,8 +382,11 @@ galleryRoutes.get("/gallery/:code/official", async (c) => {
   if (!eventAccessAllows(eventAccess, "guest_access"))
     return c.redirect(`/gallery/${event.code}?lang=${locale}`);
   const originalDownloads = eventAccessAllows(eventAccess, "original_downloads");
-  if (!(await hasGalleryAccess(c.req.raw, event)))
-    return c.redirect(`/gallery/${event.code}?lang=${locale}`);
+  if (!(await hasEventSurfaceAccess(c.req.raw, event, "official_album"))) {
+    const next = `/gallery/${event.code}/official?lang=${locale}`;
+    const g = galleryGuestCopy[locale];
+    return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}${galleryLanguagePicker(event.code, locale, true)}</div><h1 class="mt-7 text-4xl">${esc(g.officialAlbum)}</h1><p class="mt-2 text-[#6f657c]">${esc(g.pinPrompt)}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="surface" value="official_album"><input type="hidden" name="next" value="${esc(next)}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus aria-label="PIN" placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(g.openGallery)}</button></form></section></main>`, { locale }), 401);
+  }
   const g = galleryGuestCopy[locale];
   const likeVisitor = existingMediaLikeVisitor(c.req.raw);
   const likeActorKey = likeVisitor
@@ -603,7 +617,7 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
 
 galleryRoutes.get("/media/:id", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT m.object_key,m.content_type,m.media_type,m.size_bytes,m.captured_at,m.uploaded_at,m.event_id,e.code,e.gallery_pin_hash,e.expires_at FROM media m JOIN events e ON e.id=m.event_id WHERE m.id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL AND e.deleted_at IS NULL",
+    "SELECT m.object_key,m.content_type,m.media_type,m.size_bytes,m.captured_at,m.uploaded_at,m.event_id,m.origin,e.code,e.gallery_pin_hash,e.website_pin_hash,e.guest_gallery_pin_hash,e.official_album_pin_hash,e.expires_at FROM media m JOIN events e ON e.id=m.event_id WHERE m.id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL AND e.deleted_at IS NULL",
   )
     .bind(c.req.param("id"))
     .first<{
@@ -615,7 +629,11 @@ galleryRoutes.get("/media/:id", async (c) => {
       uploaded_at: number;
       event_id: string;
       code: string;
+      origin: string;
       gallery_pin_hash: string | null;
+      website_pin_hash: string | null;
+      guest_gallery_pin_hash: string | null;
+      official_album_pin_hash: string | null;
       expires_at: number;
     }>();
   if (!row) return c.text("Το αρχείο δεν βρέθηκε.", 404);
@@ -624,18 +642,21 @@ galleryRoutes.get("/media/:id", async (c) => {
   const guestAccessAllowed = Date.now() <= row.expires_at
     && eventAccessAllows(access, "guest_access");
   let memberCanView = false;
-  if (!guestAccessAllowed || row.gallery_pin_hash) {
+  const mediaSurface = row.origin === "official" ? "official_album" : "guest_gallery";
+  const mediaPinHash = eventSurfacePinHash({ ...row, id: row.event_id }, mediaSurface);
+  if (!guestAccessAllowed || mediaPinHash) {
     const user = await currentUser(c);
     memberCanView = Boolean(user && roleCan(await getEventRole(c.env.DB, row.event_id, user.id), "view"));
   }
   if (!guestAccessAllowed && !memberCanView)
     return c.text("This event is not available to guests.", 403);
 
-  if (row.gallery_pin_hash && !memberCanView) {
-    const expected = await sha256(`gallery-access:${row.event_id}:${row.gallery_pin_hash}`);
-    if (!constantTimeEqual(cookieValue(c.req.raw, galleryCookieName(row.code)) ?? "", expected)) {
-      return c.text("Private media", 401);
-    }
+  if (mediaPinHash && !memberCanView) {
+    const accessEvent = { ...row, id: row.event_id };
+    const ownSurfaceAccess = await hasEventSurfaceAccess(c.req.raw, accessEvent, mediaSurface);
+    const embeddedWebsiteAccess = Boolean(row.website_pin_hash)
+      && await hasEventSurfaceAccess(c.req.raw, accessEvent, "website");
+    if (!ownSurfaceAccess && !embeddedWebsiteAccess) return c.text("Private media", 401);
   }
 
   const originalDownloadsAllowed = eventAccessAllows(access, "original_downloads");

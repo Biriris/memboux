@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
 import { eventAccessAllows, getEventAccess } from "../event-access";
-import { hasGalleryAccess } from "../gallery-access";
+import { hasEventSurfaceAccess, hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent } from "../repositories";
@@ -54,7 +54,9 @@ async function publicEvent(c: Context<{ Bindings: Bindings }>) {
     if (!user || !roleCan(await getEventRole(c.env.DB, event.id, user.id), "view"))
       return { response: c.text("This event is not available to guests", 403) };
   }
-  if (!(await hasGalleryAccess(c.req.raw, event))) {
+  const hasPublicSurfaceAccess = await hasGalleryAccess(c.req.raw, event)
+    || (event.event_type === "wedding" && await hasEventSurfaceAccess(c.req.raw, event, "website"));
+  if (!hasPublicSurfaceAccess) {
     const user = await currentUser(c);
     if (!user || !(await getEventRole(c.env.DB, event.id, user.id)))
       return { response: c.text("Gallery access required", 401) };

@@ -110,6 +110,9 @@ export type EventRow = {
   location_lng?: number | null;
   location_provider?: "google_places" | "map_coordinates" | null;
   gallery_pin_hash: string | null;
+  website_pin_hash?: string | null;
+  guest_gallery_pin_hash?: string | null;
+  official_album_pin_hash?: string | null;
   deleted_at: number | null;
   purge_at: number | null;
 };

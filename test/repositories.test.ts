@@ -24,6 +24,9 @@ beforeEach(async () => {
       event_start_date TEXT,
       event_end_date TEXT,
       gallery_pin_hash TEXT,
+      website_pin_hash TEXT,
+      guest_gallery_pin_hash TEXT,
+      official_album_pin_hash TEXT,
       deleted_at INTEGER,
       purge_at INTEGER
     )`),

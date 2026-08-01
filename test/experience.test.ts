@@ -14,6 +14,7 @@ beforeAll(async () => {
       status TEXT NOT NULL DEFAULT 'active', notes TEXT NOT NULL DEFAULT '',
       updated_at INTEGER, default_locale TEXT NOT NULL DEFAULT 'en',
       event_start_date TEXT, event_end_date TEXT, gallery_pin_hash TEXT,
+      website_pin_hash TEXT, guest_gallery_pin_hash TEXT, official_album_pin_hash TEXT,
       deleted_at INTEGER, purge_at INTEGER
     )`),
     env.DB.prepare(`CREATE TABLE media (

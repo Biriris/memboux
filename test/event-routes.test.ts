@@ -23,6 +23,9 @@ beforeAll(async () => {
     event_end_date TEXT,
     location TEXT,
     gallery_pin_hash TEXT,
+    website_pin_hash TEXT,
+    guest_gallery_pin_hash TEXT,
+    official_album_pin_hash TEXT,
     deleted_at INTEGER,
     purge_at INTEGER
   )`).run();

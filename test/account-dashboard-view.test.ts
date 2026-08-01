@@ -5,7 +5,6 @@ import {
   renderCreateEventTile,
   renderDashboardSection,
   renderDashboardSubmenu,
-  renderEventPinControl,
   renderNewEventTypeField,
   selectedEventCoverUrl,
   shouldShowProfessionalDashboardSection,
@@ -52,25 +51,6 @@ describe("account dashboard covers", () => {
       cover_object_key: "covers/event/selected.jpg",
       cover_updated_at: 1_720_000_000_000,
     })).toBe("/event-cover/ABC%20123?v=1720000000000");
-  });
-});
-
-describe("account dashboard event PIN control", () => {
-  it("renders an open lock for an event without a PIN", () => {
-    const html = renderEventPinControl({ code: "ABC123", eventName: "Summer trip", gallery_pin_hash: null }, "en");
-
-    expect(html).toContain("data-event-pin-toggle");
-    expect(html).toContain('data-locked="false"');
-    expect(html).toContain('aria-label="Add PIN"');
-    expect(html).toContain('data-event-name="Summer trip"');
-  });
-
-  it("renders a closed lock for a protected event", () => {
-    const html = renderEventPinControl({ code: "ABC123", eventName: "Private event", gallery_pin_hash: "hash" }, "el");
-
-    expect(html).toContain('data-locked="true"');
-    expect(html).toContain('aria-label="Αφαίρεση PIN"');
-    expect(html).toContain("bg-amber-300");
   });
 });
 
