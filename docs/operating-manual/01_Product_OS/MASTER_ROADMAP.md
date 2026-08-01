@@ -46,8 +46,36 @@
 ## P4 — Innovation
 
 - Privacy-preserving AI assistance and memory organization.
+- Photobooth partner ingestion into an event-bound gallery, so couples can keep
+  the photobooth photographs together with the rest of their Memboux memories.
 - Enterprise integrations and API access.
 - Advanced event engagement and professional analytics.
+
+### Future photobooth partner integration — proposal
+
+This is a future product direction, not current repository behavior. Memboux may
+work with photobooth companies so an authorized provider can deliver a session's
+photographs directly to the correct wedding or other supported event. The couple
+should receive the photographs in a clearly identified photobooth collection
+inside Memboux, without needing to collect download links or transfer files
+manually after the event.
+
+Any implementation proposal must define and verify:
+
+- event-scoped partner authorization with no access to unrelated events or media;
+- a secure event/session pairing flow that prevents delivery to the wrong couple;
+- retryable bulk upload, idempotency, duplicate detection and partial-failure
+  recovery;
+- clear media provenance, provider attribution and an owner-controlled collection;
+- consent, moderation, deletion, retention, original-download and storage rules;
+- upload limits, supported formats, image processing and operational cost controls;
+- audit logs, revocation, rate limits and incident handling for compromised partner
+  credentials; and
+- a commercial model for partners, event owners and any storage or processing
+  add-on.
+
+Provider API shape, authentication method, gallery UX, pricing and rollout partners
+are intentionally unknown until discovery with photobooth companies is completed.
 
 The detailed scope, risks, gates and success metrics are in the
 [Hybrid commercial model](HYBRID_COMMERCIAL_MODEL.md). Roadmap ordering is
