@@ -30,7 +30,10 @@ export function eventInvitationInstruction(existingUser: boolean, locale: Locale
     : (locale === "el" ? "Δημιούργησε λογαριασμό με αυτό το email και αποδέξου την πρόσκληση." : "Create an account with this email and accept the invitation.");
 }
 
-async function eventDashboard(c: Context<{ Bindings: Bindings }>) {
+async function eventDashboard(
+  c: Context<{ Bindings: Bindings }>,
+  activeSection: EventWorkspaceSection = "overview",
+) {
   const locale = normalizeLocale(c.req.query("lang") ?? "en");
   const event = await getEvent(c.env.DB, c.req.param("code") ?? "");
   if (!event) return c.text(locale === "el" ? "Το event δεν βρέθηκε." : "Event not found.", 404);
@@ -38,7 +41,6 @@ async function eventDashboard(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.redirect(`/${locale}/login`);
   const membership = await getEventRole(c.env.DB, event.id, user.id);
   if (!membership) return c.text("Forbidden", 403);
-  const activeSection = (c.req.param("section") || "overview") as EventWorkspaceSection;
   const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "menu", "team", "manage"]);
   if (ownerOnlySections.has(activeSection) && membership !== "owner") return c.text("Forbidden", 403);
   if (activeSection === "menu" && event.event_type !== "wedding")
@@ -118,14 +120,14 @@ async function eventDashboard(c: Context<{ Bindings: Bindings }>) {
   }));
 }
 
-eventRoutes.get("/dashboard/:code", eventDashboard);
-eventRoutes.get("/dashboard/:code/website", eventDashboard);
-eventRoutes.get("/dashboard/:code/guests", eventDashboard);
-eventRoutes.get("/dashboard/:code/media", eventDashboard);
-eventRoutes.get("/dashboard/:code/menu", eventDashboard);
-eventRoutes.get("/dashboard/:code/share", eventDashboard);
-eventRoutes.get("/dashboard/:code/team", eventDashboard);
-eventRoutes.get("/dashboard/:code/manage", eventDashboard);
+eventRoutes.get("/dashboard/:code", (c) => eventDashboard(c));
+eventRoutes.get("/dashboard/:code/website", (c) => eventDashboard(c, "website"));
+eventRoutes.get("/dashboard/:code/guests", (c) => eventDashboard(c, "guests"));
+eventRoutes.get("/dashboard/:code/media", (c) => eventDashboard(c, "media"));
+eventRoutes.get("/dashboard/:code/menu", (c) => eventDashboard(c, "menu"));
+eventRoutes.get("/dashboard/:code/share", (c) => eventDashboard(c, "share"));
+eventRoutes.get("/dashboard/:code/team", (c) => eventDashboard(c, "team"));
+eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c, "manage"));
 
 eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
   const user = await currentUser(c);
