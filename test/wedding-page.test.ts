@@ -190,6 +190,10 @@ describe("wedding event page", () => {
     expect(html).toContain("Κυρίως");
     expect(html).toContain("Μοσχαράκι κοκκινιστό");
     expect(html).toContain("w-menu-courses");
+    expect(html).toContain("w-menu-groups");
+    expect(html).toContain("w-menu-group");
+    expect(html.indexOf("Κυρίως")).toBeLessThan(html.indexOf("Μοσχαράκι κοκκινιστό"));
+    expect(html).not.toContain("Ποτά");
   });
 
   it("skips empty optional sections", () => {

@@ -111,6 +111,7 @@ describe("account route boundaries", () => {
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_price_snapshots"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_portrait_assignments"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_media"),
+      env.DB.prepare("DROP TABLE IF EXISTS event_wedding_menu_courses"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_menus"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_features"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_profiles"),
@@ -292,6 +293,10 @@ describe("account route boundaries", () => {
       env.DB.prepare(`CREATE TABLE event_wedding_menus (
         event_id TEXT PRIMARY KEY,object_key TEXT NOT NULL,content_type TEXT NOT NULL,original_filename TEXT NOT NULL,
         size_bytes INTEGER NOT NULL,updated_by TEXT NOT NULL,updated_at INTEGER NOT NULL
+      )`),
+      env.DB.prepare(`CREATE TABLE event_wedding_menu_courses (
+        id TEXT PRIMARY KEY,event_id TEXT NOT NULL,course_type TEXT NOT NULL,title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',sort_order INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
       )`),
       env.DB.prepare(`CREATE TABLE event_wedding_media (
         id TEXT PRIMARY KEY,event_id TEXT NOT NULL,object_key TEXT NOT NULL,media_type TEXT NOT NULL,
@@ -841,6 +846,49 @@ describe("account route boundaries", () => {
     const weddingMenuEvent = await env.DB.prepare("SELECT id FROM events WHERE code=?").bind(weddingBody.code).first<{ id: string }>();
     expect(await env.DB.prepare("SELECT content_type,original_filename FROM event_wedding_menus WHERE event_id=?").bind(weddingMenuEvent!.id).first())
       .toEqual({ content_type: "application/pdf", original_filename: "Dinner menu.pdf" });
+
+    for (const item of [
+      { courseType: "main", title: "Garden main", description: "Beef or seasonal vegetables" },
+      { courseType: "welcome", title: "Arrival drink", description: "Sparkling wine and lemonade" },
+    ]) {
+      const createdCourse = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/menu-courses`, {
+        method: "POST",
+        headers: wizardHeaders,
+        body: new URLSearchParams({ locale: "en", ...item }),
+        redirect: "manual",
+      });
+      expect(createdCourse.status).toBe(303);
+    }
+    const menuWizard = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/setup?lang=en&step=4`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const menuWizardHtml = await menuWizard.text();
+    expect(menuWizardHtml).toContain('data-menu-course-category="welcome"');
+    expect(menuWizardHtml).toContain('data-menu-course-category="drinks"');
+    expect(menuWizardHtml).toContain("memboux:wedding-menu-autosaved");
+    expect(menuWizardHtml).toContain("Titles and descriptions save automatically.");
+    expect(menuWizardHtml).not.toContain(">Save</button>");
+
+    const mainCourse = await env.DB.prepare("SELECT id,sort_order FROM event_wedding_menu_courses WHERE event_id=? AND course_type='main'")
+      .bind(weddingMenuEvent!.id).first<{ id: string; sort_order: number }>();
+    const autosavedCourse = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/menu-courses/${mainCourse!.id}`, {
+      method: "POST",
+      headers: { ...wizardHeaders, Accept: "application/json" },
+      body: new URLSearchParams({ locale: "en", courseType: "main", title: "Dinner choices", description: "Beef, fish or seasonal vegetables", sortOrder: String(mainCourse!.sort_order) }),
+    });
+    expect(autosavedCourse.status).toBe(200);
+    expect(await autosavedCourse.json()).toEqual({ ok: true });
+    expect(await env.DB.prepare("SELECT title,description FROM event_wedding_menu_courses WHERE id=?").bind(mainCourse!.id).first())
+      .toEqual({ title: "Dinner choices", description: "Beef, fish or seasonal vegetables" });
+
+    const menuPrint = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/menu/print?lang=en`, {
+      headers: { Cookie: cookieHeader },
+    });
+    expect(menuPrint.status).toBe(200);
+    const menuPrintHtml = await menuPrint.text();
+    expect(menuPrintHtml.indexOf("Welcome")).toBeLessThan(menuPrintHtml.indexOf("Main course"));
+    expect(menuPrintHtml.indexOf("Dinner choices")).toBeLessThan(menuPrintHtml.indexOf("Beef, fish or seasonal vegetables"));
+    expect(menuPrintHtml).not.toContain(">Dessert</h2>");
 
     const selected = new URLSearchParams({ locale: "en" });
     selected.append("feature", "rsvp");

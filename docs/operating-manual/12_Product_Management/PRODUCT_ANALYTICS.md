@@ -26,3 +26,7 @@ All enhanced multi-file upload forms dispatch the browser event `memboux:multi-f
 ## Wedding template readiness
 
 Public wedding pages dispatch the browser event `memboux:wedding-template-ready` after motion capability detection. Its detail contains only `theme`, whether reveal motion is enabled, and the number of reveal elements. Names, event identifiers, media identifiers and guest data are excluded. The event is not currently transmitted or persisted; it is an integration point for a future consent-aware analytics collector and automated visual monitoring.
+
+## Wedding menu editing
+
+Successful automatic updates to an existing structured menu item dispatch `memboux:wedding-menu-autosaved`. Its detail contains only the canonical `courseType`; titles, descriptions, event identifiers and other user-entered content are excluded. The event is not currently transmitted or persisted and remains an integration point for a future consent-aware analytics collector.

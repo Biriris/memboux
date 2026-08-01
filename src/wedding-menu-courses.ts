@@ -42,3 +42,19 @@ export function isWeddingMenuCourseType(value: unknown): value is WeddingMenuCou
 export function weddingMenuCourseLabel(type: WeddingMenuCourseType, locale: Locale) {
   return labels[type][locale === "el" ? "el" : "en"];
 }
+
+export function sortWeddingMenuCourses(courses: readonly WeddingMenuCourseRow[]) {
+  const typeOrder = new Map(weddingMenuCourseTypes.map((type, index) => [type, index]));
+  return [...courses].sort((left, right) =>
+    (typeOrder.get(left.course_type) ?? weddingMenuCourseTypes.length) - (typeOrder.get(right.course_type) ?? weddingMenuCourseTypes.length)
+    || left.sort_order - right.sort_order
+    || left.id.localeCompare(right.id));
+}
+
+export function groupWeddingMenuCourses(courses: readonly WeddingMenuCourseRow[]) {
+  const sorted = sortWeddingMenuCourses(courses);
+  return weddingMenuCourseTypes.map((type) => ({
+    type,
+    courses: sorted.filter((course) => course.course_type === type),
+  })).filter((group) => group.courses.length > 0);
+}
