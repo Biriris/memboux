@@ -7,6 +7,8 @@ This directory contains the Memboux Operating Manual.
 - [Operating Manual](operating-manual/README.md)
 - [Codex Start Guide](operating-manual/00_Start_Here/CODEX_START_HERE.md)
 - [Manual Status](operating-manual/00_Start_Here/MANUAL_STATUS.md)
+- [Hybrid commercial model](operating-manual/01_Product_OS/HYBRID_COMMERCIAL_MODEL.md)
+- [Repository Audit](repository-audit/README.md)
 
 ## Important limitation
 

@@ -50,6 +50,12 @@ This is the durable product backlog and priority order for the Memboux platform.
 - [x] Redesign the public wedding pages into 15 distinct art directions across five responsive layout families.
 - [x] Make the 15-template Wedding picker expose exactly one accessible selected state and keep its radio, badge and live preview synchronized after draft recovery.
 - [x] Finish the six-step wedding wizard with draft protection, readiness checks and exact responsive previews.
+- [x] Separate wedding completion from publication: keep full owner preview private, require trial/unlock eligibility and provide explicit publish/unpublish controls.
+- [x] Snapshot the wedding base and add-on catalog per event so later feature changes use the promised active price window.
+- [x] Add an event-scoped wedding guest directory with households, contact details, secure personal invitation links and RSVP synchronization.
+- [x] Add capacity-aware wedding tables and guest-party assignments as the first seating-planner foundation.
+- [ ] Add consent-aware SMS delivery after selecting a provider and documenting sender, opt-out, retry and cost controls.
+- [ ] Add bulk guest import, drag-and-drop floor plans and reusable venue layouts.
 - [x] Turn the Wedding “Add to calendar” option into private, access-controlled ceremony and reception calendar files.
 - [x] Remove residual English labels from the live Wedding guest experience, navigation and upload picker in all six supported languages.
 - [x] Replace mixed Greek and Italian Wedding terminology with natural native copy across the live experience, menus and interactive demo.
@@ -66,6 +72,36 @@ This is the durable product backlog and priority order for the Memboux platform.
 - [x] Localize the real RSVP, guestbook and media-comment experience in all six supported languages, including accessible field and control names.
 - [x] Localize the real gallery, upload queue and errors, sharing, media reactions and lightbox controls in all six supported languages.
 - [x] Localize the real event-preview language selector instead of exposing an English-only accessible label.
+
+## P4 — Hybrid commerce and professional platform
+
+- [x] Approve the hybrid direction: guests participate free, self-service
+  weddings remain available, direct premium weddings use one-time purchases,
+  and professionals use subscriptions or event credits.
+- [ ] Validate free limits, direct package pricing, professional tiers and unit
+  economics before encoding them as product rules.
+- [ ] Define event-scoped commercial entitlements separately from user
+  permissions and organization billing.
+- [ ] Add professional organizations with separate owner, billing, manager and
+  assigned-staff responsibilities.
+- [ ] Add verified professional lifecycle, active-wedding capacity and
+  pay-as-you-go event credits.
+- [ ] Add two-couple-owner safeguards, dedicated ownership handoff and a
+  restricted planner-manager capability.
+- [ ] Adapt the current catalog/order infrastructure to approved free and
+  one-time premium self-service packages without removing direct wedding
+  creation.
+- [ ] Integrate hosted one-time checkout, subscription billing, customer portal
+  and signed replay-safe webhooks only after company, tax and policy readiness.
+- [ ] Roll out paid billing behind the existing launch guard through a limited
+  cohort with payment-failure and rollback runbooks exercised.
+- [ ] Treat archive extensions, white label, prints and premium AI as separately
+  validated add-ons.
+- [ ] Design marketplace discovery, payouts and commission in a separate ADR;
+  do not charge commission on independently sourced planner-client work.
+
+The authoritative product and rollout guide is
+[`docs/operating-manual/01_Product_OS/HYBRID_COMMERCIAL_MODEL.md`](docs/operating-manual/01_Product_OS/HYBRID_COMMERCIAL_MODEL.md).
 
 ## Product principles
 

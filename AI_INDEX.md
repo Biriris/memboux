@@ -14,6 +14,7 @@ Start with [`AGENTS.md`](AGENTS.md), then use this index to load only the contex
 ## Task-specific context
 
 - Product or business rules: `01_Product_OS/`
+- Pricing, payments, ownership, professional subscriptions, and commercial roles: [`HYBRID_COMMERCIAL_MODEL.md`](docs/operating-manual/01_Product_OS/HYBRID_COMMERCIAL_MODEL.md)
 - Backend implementation: `04_Backend/`
 - Frontend implementation: `05_Frontend/`
 - D1/schema/migrations: `06_Database/`
