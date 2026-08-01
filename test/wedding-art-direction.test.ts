@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { weddingThemeKeys } from "../src/wedding-themes";
 import { weddingArtDirectionStyles } from "../src/views/wedding-art-direction";
+import { weddingLuxuryStyles } from "../src/views/wedding-luxury-style";
 import { weddingTemplatePickerStyles } from "../src/views/wedding-template-picker-style";
 
 describe("wedding template art direction", () => {
@@ -42,6 +43,19 @@ describe("wedding template art direction", () => {
     expect(weddingArtDirectionStyles).toContain(".w-page .w-photo-grid");
     expect(weddingArtDirectionStyles).toContain('.w-page[data-wedding-layout="editorial"] .w-photo-card:nth-child(1)');
     expect(weddingArtDirectionStyles).toContain("grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:dense");
+    expect(weddingArtDirectionStyles).toContain(".w-page.is-motion-ready [data-reveal-item]");
+    expect(weddingArtDirectionStyles).toContain("transition-delay:calc(var(--w-reveal-index,0) * 70ms)");
+    expect(weddingArtDirectionStyles).toContain(".w-page .w-hero-media{position:absolute;z-index:-3");
+  });
+
+  it("keeps hero slides independent from the entrance animation and provides resilient font fallbacks", () => {
+    expect(weddingLuxuryStyles).toContain(".w-hero-media{animation:w-cover-arrive");
+    expect(weddingLuxuryStyles).not.toContain(".w-cover{z-index:-3");
+    expect(weddingLuxuryStyles).not.toContain(".w-cover{z-index:-3;transform:scale(1.012);animation");
+    expect(weddingLuxuryStyles).toContain('html[lang="el"] .w-page');
+    expect(weddingLuxuryStyles).toContain("'Noto Sans'");
+    expect(weddingLuxuryStyles).toContain("@supports ((background-clip:text) or (-webkit-background-clip:text))");
+    expect(weddingLuxuryStyles).toContain(".w-hero h1{position:relative;max-width:12ch;margin:0 auto;color:#fff");
   });
 
   it("adds restrained countdown typography and template-aware ornaments", () => {

@@ -134,8 +134,15 @@ describe("wedding event page", () => {
     expect(html).toContain("/wedding-media/story-photo?variant=preview");
     expect(html).toContain('id="prewedding"');
     expect(html).toContain('data-photo-count="4"');
+    expect(html).toContain("data-reveal-item");
+    expect(html).toContain("--w-reveal-index:0");
     expect(html).toContain("/wedding-media/gallery-photo?variant=thumb");
     expect(html).not.toContain("/gallery/ABC123/media/hero-photo");
+    expect(html).toContain("[data-reveal],[data-reveal-item]");
+    expect(html).toContain("is-motion-ready");
+    expect(html).toContain("memboux:wedding-template-ready");
+    expect(html).toContain("family=Noto+Sans");
+    expect(html).toContain("display=swap");
   });
 
   it("shows an optional wedding menu and uses locked map coordinates", () => {

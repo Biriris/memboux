@@ -22,3 +22,7 @@ Search text, names, email addresses, phone numbers and raw invitation tokens mus
 ## Multi-file selection
 
 All enhanced multi-file upload forms dispatch the browser event `memboux:multi-file-selection` after the selection changes. Its detail contains only the current `count`; filenames, media contents and file metadata are excluded. This makes adoption measurable once a consent-aware client analytics collector is selected. The event is not currently transmitted or persisted.
+
+## Wedding template readiness
+
+Public wedding pages dispatch the browser event `memboux:wedding-template-ready` after motion capability detection. Its detail contains only `theme`, whether reveal motion is enabled, and the number of reveal elements. Names, event identifiers, media identifiers and guest data are excluded. The event is not currently transmitted or persisted; it is an integration point for a future consent-aware analytics collector and automated visual monitoring.

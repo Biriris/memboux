@@ -51,7 +51,7 @@ export const weddingArtDirectionStyles = `
   .w-page[data-wedding-theme="atelier"] .w-countdown-grid,.w-page[data-wedding-theme="solstice"] .w-countdown-grid{border-width:2px}
 
   /* Pre-wedding imagery is part of the composition, not decorative content. */
-  .w-page .w-hero-media{position:absolute;inset:0;overflow:hidden}
+  .w-page .w-hero-media{position:absolute;z-index:-3;inset:0;overflow:hidden}
   .w-page .w-hero-slide{opacity:0;transform:scale(1.015);transition:opacity 1.4s ease,transform 8s cubic-bezier(.2,.72,.25,1)}
   .w-page .w-hero-slide.is-active{opacity:1;transform:scale(1.075)}
   .w-page .w-story-portrait{position:relative;grid-column:1/-1;justify-self:end;width:min(100%,36rem);margin:-1rem clamp(0rem,4vw,4rem) 0 0;aspect-ratio:4/5;overflow:hidden;background:var(--w-soft)}
@@ -71,6 +71,11 @@ export const weddingArtDirectionStyles = `
   .w-page .w-photo-card>img{display:block;width:100%;height:100%;object-fit:cover;transition:transform 1.25s cubic-bezier(.2,.75,.2,1),filter .6s ease}
   .w-page .w-photo-card:hover>img{transform:scale(1.035)}
   .w-page .w-photo-card>span{position:absolute;right:.8rem;bottom:.65rem;color:#fff;font-size:.62rem;font-weight:750;letter-spacing:.16em;text-shadow:0 1px 10px #000}
+  .w-page.is-motion-ready [data-reveal-item]{opacity:0;translate:0 2rem;scale:.985;transition:opacity .9s ease,translate 1.05s cubic-bezier(.16,1,.3,1),scale 1.05s cubic-bezier(.16,1,.3,1);transition-delay:calc(var(--w-reveal-index,0) * 70ms)}
+  .w-page [data-reveal-item].is-visible{opacity:1;translate:none;scale:1}
+  .w-page.is-motion-ready .w-photo-card[data-reveal-item]:nth-child(odd){translate:-1.25rem 1.5rem}
+  .w-page.is-motion-ready .w-photo-card[data-reveal-item]:nth-child(even){translate:1.25rem 1.5rem}
+  .w-page .w-photo-card[data-reveal-item].is-visible{translate:none}
   .w-page[data-wedding-layout="centered"] .w-photo-card:nth-child(1){grid-column:1/8;grid-row:span 2}
   .w-page[data-wedding-layout="centered"] .w-photo-card:nth-child(2),.w-page[data-wedding-layout="centered"] .w-photo-card:nth-child(3){grid-column:8/13}
   .w-page[data-wedding-layout="editorial"] .w-photo-grid{gap:clamp(.7rem,2vw,2rem)}
@@ -407,5 +412,5 @@ export const weddingArtDirectionStyles = `
     .w-page .w-countdown-grid>div:nth-child(3):before{display:none}
     .w-page .w-countdown-grid strong{font-size:clamp(2.1rem,12vw,3.4rem)}
   }
-  @media(prefers-reduced-motion:reduce){.w-page *{scroll-behavior:auto!important}}
+  @media(prefers-reduced-motion:reduce){.w-page *{scroll-behavior:auto!important}.w-page [data-reveal-item]{opacity:1;translate:none;scale:1;transition:none}}
 `;

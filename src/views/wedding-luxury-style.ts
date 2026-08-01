@@ -1,10 +1,12 @@
 export const weddingLuxuryStyles = `
-  .w-page{--w-display:'EB Garamond',Georgia,serif;--w-panel:color-mix(in srgb,var(--w-bg) 90%,#fff);overflow:clip;font-weight:330}
+  .w-page{--w-display:'EB Garamond','Noto Serif',Georgia,serif;--w-panel:color-mix(in srgb,var(--w-bg) 90%,#fff);overflow:clip;font-family:Manrope,'Noto Sans',Arial,sans-serif;font-weight:330}
   .w-page[data-wedding-font="didot"]{--w-display:'GFS Didot','Noto Serif',Georgia,serif}
   .w-page[data-wedding-font="garamond"]{--w-display:'EB Garamond','Noto Serif',Georgia,serif}
   .w-page[data-wedding-font="noto-serif"]{--w-display:'Noto Serif',Georgia,serif}
-  .w-page[data-wedding-font="modern"]{--w-display:Manrope,Arial,sans-serif}
-  .w-page[data-wedding-font="modern"] :is(.w-hero h1,.w-section h2,.w-event-card h3,.w-detail-grid h3,.w-experience-card h3,.w-menu-document strong){font-weight:250;letter-spacing:-.055em}
+  .w-page[data-wedding-font="modern"]{--w-display:Manrope,'Noto Sans',Arial,sans-serif}
+  html[lang="el"] .w-page{font-family:'Noto Sans',Manrope,Arial,sans-serif}
+  html[lang="el"] .w-page[data-wedding-font="modern"]{--w-display:'Noto Sans',Manrope,Arial,sans-serif}
+  .w-page[data-wedding-font="modern"] :is(.w-hero h1,.w-section h2,.w-event-card h3,.w-detail-grid h3,.w-experience-card h3,.w-menu-document strong){font-weight:300;letter-spacing:-.055em}
   .w-top{position:absolute;inset:0 0 auto;z-index:30;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1.25rem;padding:clamp(1rem,2.8vw,2.4rem) clamp(1rem,4vw,4.5rem);background:transparent!important;border:0!important;box-shadow:none!important;color:#fff}
   .w-top>.brand-mark{justify-self:start;color:#fff;filter:drop-shadow(0 2px 14px #0008)}
   .w-top>select{justify-self:end;min-width:4.6rem;border:1px solid #ffffff52;background:#10191624;color:#fff;box-shadow:inset 0 1px 0 #ffffff35,0 8px 28px #0002;backdrop-filter:blur(18px) saturate(130%)}
@@ -13,12 +15,14 @@ export const weddingLuxuryStyles = `
   .w-nav a:after{content:"";position:absolute;left:50%;right:50%;bottom:.15rem;height:1px;background:linear-gradient(90deg,transparent,#fff,transparent);transition:left .3s ease,right .3s ease}
   .w-nav a:hover:after,.w-nav a:focus-visible:after{left:0;right:0}
   .w-hero{isolation:isolate;min-height:100svh;place-items:center;background:radial-gradient(circle at 22% 15%,color-mix(in srgb,var(--w-accent) 80%,#fff),transparent 36%),linear-gradient(145deg,#102f27,#365f52)}
-  .w-cover{z-index:-3;transform:scale(1.012);animation:w-cover-arrive 2.2s cubic-bezier(.18,.75,.2,1) both}
+  .w-cover{transform:scale(1.012)}
+  .w-hero-media{animation:w-cover-arrive 2.2s cubic-bezier(.18,.75,.2,1) both}
   .w-hero:after{z-index:-1;background:linear-gradient(180deg,#08171070 0%,#10251d26 32%,#0b1e17d9 100%),linear-gradient(105deg,#0003,transparent 55%,#0004)}
   .w-hero:before{content:"";position:absolute;z-index:0;inset:-35%;pointer-events:none;background:radial-gradient(circle at 30% 28%,#fff5 0 2%,transparent 24%),radial-gradient(circle at 70% 45%,color-mix(in srgb,var(--w-accent) 48%,#fff) 0,transparent 26%),linear-gradient(115deg,transparent 38%,#fff1 48%,#fff4 50%,transparent 60%);background-size:auto,auto,220% 100%;mix-blend-mode:screen;opacity:.72;animation:w-aurora 10s ease-in-out infinite alternate}
   .w-hero-copy{display:flex;min-height:100svh;flex-direction:column;align-items:center;justify-content:flex-end;width:min(94%,78rem);padding:9.5rem 1rem clamp(4.5rem,9vh,8rem);text-align:center}
   .w-kicker{margin-bottom:clamp(1.4rem,3vw,2.4rem);font-size:.64rem;font-weight:600;letter-spacing:.38em;color:#fffef1;text-shadow:0 2px 18px #000b}
-  .w-hero h1{position:relative;max-width:12ch;margin:0 auto;background:linear-gradient(105deg,#fff 5%,#f4e4c3 30%,#fff 48%,#d6b77f 58%,#fff 80%);background-size:240% auto;-webkit-background-clip:text;background-clip:text;color:transparent;font-size:clamp(3.8rem,11.5vw,10rem);font-weight:400;line-height:.82;letter-spacing:-.055em;filter:drop-shadow(0 8px 28px #0008);animation:w-title-shine 7.5s ease-in-out infinite}
+  .w-hero h1{position:relative;max-width:12ch;margin:0 auto;color:#fff;font-size:clamp(3.8rem,11.5vw,10rem);font-weight:400;line-height:.82;letter-spacing:-.055em;filter:drop-shadow(0 8px 28px #0008)}
+  @supports ((background-clip:text) or (-webkit-background-clip:text)){.w-hero h1{background:linear-gradient(105deg,#fff 5%,#f4e4c3 30%,#fff 48%,#d6b77f 58%,#fff 80%);background-size:240% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:w-title-shine 7.5s ease-in-out infinite}}
   .w-hero h1:after{content:"";display:block;width:clamp(4rem,9vw,7rem);height:1px;margin:clamp(1.6rem,3vw,2.5rem) auto 0;background:linear-gradient(90deg,transparent,#fff9,transparent);box-shadow:0 0 18px #fff7}
   .w-hero-message{margin-top:1.1rem;color:#fffefa;font-weight:300;text-shadow:0 2px 16px #000a}
   .w-date{margin-top:1.25rem;color:#fff;font-weight:550;text-shadow:0 2px 14px #000b}
@@ -38,8 +42,9 @@ export const weddingLuxuryStyles = `
   .w-menu-document{display:flex;min-height:22rem;flex-direction:column;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--w-ink) 16%,transparent);background:color-mix(in srgb,var(--w-panel) 94%,transparent);padding:3rem;text-align:center;box-shadow:0 30px 80px #162b2317}
   .w-menu-document strong{font-family:var(--w-display);font-size:clamp(2rem,5vw,4rem);font-weight:400}
   .w-menu-document span{margin-top:1rem;color:color-mix(in srgb,var(--w-ink) 66%,transparent)}
-  .w-page [data-reveal]{transform:translateY(38px);transition-duration:1.05s;transition-timing-function:cubic-bezier(.16,1,.3,1)}
+  .w-page.is-motion-ready [data-reveal]{transform:translateY(38px);transition-duration:1.05s;transition-timing-function:cubic-bezier(.16,1,.3,1)}
   .w-page [data-reveal].is-visible{transform:none}
+  .w-page:not(.is-motion-ready) [data-reveal]{opacity:1;transform:none;transition:none}
   .w-page[data-wedding-theme="nocturne"] .w-hero h1{background-image:linear-gradient(110deg,#fff 5%,#d9c29e 35%,#fff 51%,#9c7548 64%,#fff 82%)}
   .w-page[data-wedding-theme="lumiere"] .w-hero h1{background-image:linear-gradient(105deg,#fff 10%,#f6ded6 34%,#fff 50%,#d6a996 63%,#fff 82%)}
   .w-page[data-wedding-theme="atelier"] .w-cover{filter:grayscale(1) contrast(1.08)}
@@ -93,7 +98,7 @@ export const weddingLuxuryStyles = `
     .w-page[data-wedding-layout="poster"] .w-hero-message{margin-left:0}
   }
   @media(max-width:759px){.w-top{grid-template-columns:1fr auto}.w-nav{display:none}.w-top>.brand-mark span{display:none}.w-hero-copy{width:100%;padding:8rem 1.15rem 4.5rem}.w-hero h1{width:100%;max-width:100%;font-size:clamp(2.8rem,13.5vw,5rem);line-height:.86;letter-spacing:-.05em;text-wrap:balance}.w-menu-frame:before{inset:-.55rem}.w-page[data-wedding-layout="framed"] .w-hero{min-height:calc(100svh - 1rem);margin:.5rem}.w-page[data-wedding-layout="framed"] .w-hero-copy{min-height:calc(100svh - 1rem)}.w-page[data-wedding-layout="poster"] .w-hero h1{font-size:clamp(3rem,14vw,5.5rem);line-height:.8}.w-page[data-wedding-layout="poster"] .w-kicker{letter-spacing:.22em}}
-  @media(prefers-reduced-motion:reduce){.w-cover,.w-hero:before,.w-hero h1{animation:none!important}.w-page [data-reveal]{opacity:1;transform:none;transition:none}}
+  @media(prefers-reduced-motion:reduce){.w-hero-media,.w-hero:before,.w-hero h1{animation:none!important}.w-page [data-reveal],.w-page [data-reveal-item]{opacity:1;transform:none;translate:none;scale:1;transition:none}}
   @keyframes w-title-shine{0%,18%{background-position:100% center}58%,100%{background-position:-35% center}}
   @keyframes w-aurora{0%{transform:translate3d(-2%,-1%,0) rotate(-2deg)}100%{transform:translate3d(3%,2%,0) rotate(2deg)}}
   @keyframes w-cover-arrive{from{opacity:.55;transform:scale(1.08)}to{opacity:1;transform:scale(1.012)}}
