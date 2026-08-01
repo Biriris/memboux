@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthEnv } from "../src/auth";
 import type { EventRow } from "../src/domain";
-import { deliverWeddingInvitationBatch, reserveWeddingInvitationBatch } from "../src/wedding-invitations";
+import { deliverWeddingInvitationBatch, reserveWeddingInvitation, reserveWeddingInvitationBatch } from "../src/wedding-invitations";
 
 describe("wedding invitation batches", () => {
   beforeEach(async () => {
@@ -51,5 +51,20 @@ describe("wedding invitation batches", () => {
     expect(deliver).toHaveBeenCalledTimes(2);
     expect(await env.DB.prepare("SELECT invitation_delivery_status FROM event_wedding_guests WHERE id='ok'").first()).toEqual({ invitation_delivery_status: "sent" });
     expect(await env.DB.prepare("SELECT invitation_delivery_status FROM event_wedding_guests WHERE id='bad'").first()).toEqual({ invitation_delivery_status: "failed" });
+  });
+
+  it("reserves one selected guest for an individual email", async () => {
+    const now = 3_000_000;
+    await env.DB.prepare(`INSERT INTO event_wedding_guests
+      (id,event_id,first_name,last_name,email,invitation_delivery_status,updated_at)
+      VALUES (?,?,?,?,?,'sent',?)`).bind("guest-1", "event-1", "Maria", "Guest", "maria@example.com", now).run();
+
+    const invitation = await reserveWeddingInvitation(env.DB, "event-1", "guest-1", now);
+
+    expect(invitation).toMatchObject({ guestId: "guest-1", guestName: "Maria Guest", email: "maria@example.com" });
+    expect(invitation?.token.length).toBeGreaterThan(60);
+    expect(await env.DB.prepare("SELECT invitation_delivery_status,invitation_delivery_attempted_at FROM event_wedding_guests WHERE id='guest-1'").first())
+      .toEqual({ invitation_delivery_status: "sending", invitation_delivery_attempted_at: now });
+    expect(await reserveWeddingInvitation(env.DB, "event-1", "missing", now)).toBeNull();
   });
 });

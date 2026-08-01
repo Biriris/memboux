@@ -192,6 +192,19 @@ describe("event workspace", () => {
     expect(html).not.toContain("data-media-cover");
   });
 
+  it("gives baptism events the shared guest invitation and seating workflow", () => {
+    const html = renderEventWorkspace({
+      ...baseInput,
+      membership: "owner",
+      event: { ...event, event_type: "baptism", eventName: "Anna's baptism" },
+    });
+
+    expect(html).toContain(`/dashboard/${event.code}/wedding/guests?lang=en`);
+    expect(html).toContain("Directory & invitations");
+    expect(html).toContain("Contacts, groups, delivery and seating.");
+    expect(html).toContain("directory → invitations → responses → live experience");
+  });
+
   it("keeps editor navigation focused on viewing, sharing and media management", () => {
     const html = renderEventWorkspace({ ...baseInput, membership: "editor", members: [] });
 

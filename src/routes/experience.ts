@@ -76,11 +76,11 @@ experienceRoutes.post("/api/gallery/:code/rsvp", async (c) => {
   let event: EventRow;
   if (invitationToken) {
     const invitedEvent = await getEvent(c.env.DB, c.req.param("code") ?? "");
-    if (!invitedEvent || invitedEvent.event_type !== "wedding") return c.text("Invitation not found", 404);
+    if (!invitedEvent || !["wedding", "baptism"].includes(invitedEvent.event_type ?? "")) return c.text("Invitation not found", 404);
     if (Date.now() > invitedEvent.expires_at) return c.text("Invitation expired", 410);
     event = invitedEvent;
     const [profile, access, guest] = await Promise.all([
-      c.env.DB.prepare("SELECT publish_status FROM event_wedding_profiles WHERE event_id=?")
+      c.env.DB.prepare(`SELECT publish_status FROM ${event.event_type === "wedding" ? "event_wedding_profiles" : "event_vertical_profiles"} WHERE event_id=?`)
         .bind(event.id).first<{ publish_status: string }>(),
       getEventAccess(c.env.DB, event.id),
       c.env.DB.prepare(`SELECT id,first_name,last_name,email,plus_one_limit
@@ -149,7 +149,7 @@ experienceRoutes.post("/api/gallery/:code/rsvp", async (c) => {
     ...(releaseSeat && invitedGuest ? [c.env.DB.prepare("DELETE FROM event_wedding_seat_assignments WHERE guest_id=?").bind(invitedGuest.id)] : []),
   ]);
   if (invitedGuest) {
-    return c.redirect(`/wedding/${event.code}/invite/${encodeURIComponent(invitationToken)}?lang=${locale}&rsvp=sent`, 303);
+    return c.redirect(`/event/${event.code}/invite/${encodeURIComponent(invitationToken)}?lang=${locale}&rsvp=sent`, 303);
   }
   const destination = event.event_type === "wedding" ? `/wedding/${event.code}` : `/gallery/${event.code}`;
   return c.redirect(`${destination}?lang=${locale}&rsvp=sent#participate`, 303);

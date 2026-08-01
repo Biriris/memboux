@@ -10,5 +10,6 @@
 | [ADR-0006](ADR_0006_SECURITY.md) | Accepted | Security baseline |
 | [ADR-0007](ADR_0007_PROFESSIONAL_LED_WEDDING_OWNERSHIP.md) | Superseded | Professional-led wedding creation and couple ownership |
 | [ADR-0008](ADR_0008_HYBRID_COMMERCE_OWNERSHIP_AND_ROLES.md) | Accepted; pending implementation | Hybrid commerce, ownership and role boundaries |
+| [ADR-0009](ADR_0009_MULTI_CHANNEL_EVENT_INVITATIONS.md) | Proposed | Provider-neutral email/SMS event invitations, reliable delivery and cost controls |
 
 Proposed ADRs guide design discussion but do not override current repository behavior or accepted decisions.

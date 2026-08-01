@@ -60,7 +60,9 @@ describe("account route boundaries", () => {
     ["/api/account/events/ABC123/wedding/guests", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
     ["/api/account/events/ABC123/wedding/guests/import", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
+    ["/api/account/events/ABC123/wedding/guests/guest/quick-update", { locale: "en", field: "rsvp", value: "yes" }],
     ["/api/account/events/ABC123/wedding/guests/guest/invite-link", { locale: "en" }],
+    ["/api/account/events/ABC123/wedding/guests/guest/invitations/send", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest/delete", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/invitations/send", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/tables", { locale: "en", name: "Table 1" }],
@@ -995,6 +997,12 @@ describe("account route boundaries", () => {
     expect(guestPlannerHtml).toContain("Send invitations (1)");
     expect(guestPlannerHtml).toContain("Print / PDF seating plan");
     expect(guestPlannerHtml).toContain("Edit groups");
+    expect(guestPlannerHtml).toContain("data-guest-quick");
+    expect(guestPlannerHtml).toContain('data-field="group"');
+    expect(guestPlannerHtml).toContain('data-field="rsvp"');
+    expect(guestPlannerHtml).toContain('data-field="table"');
+    expect(guestPlannerHtml).toContain("data-guest-toast");
+    expect(guestPlannerHtml).toContain("/quick-update");
 
     const renameGroup = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guest-groups/${guestGroup!.id}`, {
       method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en", name: "Close friends" }),
@@ -1082,6 +1090,17 @@ describe("account route boundaries", () => {
     expect(assignSeat.status).toBe(303);
     expect(await env.DB.prepare("SELECT table_id FROM event_wedding_seat_assignments WHERE guest_id=?").bind(weddingGuest!.id).first())
       .toEqual({ table_id: weddingTable!.id });
+    const removeGuestGroup = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "group", value: "" }),
+    });
+    expect(removeGuestGroup.status).toBe(200);
+    expect((await removeGuestGroup.json<{ guest: { group_id: string | null } }>()).guest.group_id).toBeNull();
+    const restoreGuestGroup = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "group", value: guestGroup!.id }),
+    });
+    expect(restoreGuestGroup.status).toBe(200);
     const updateTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables/${weddingTable!.id}`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
       body: new URLSearchParams({ locale: "en", name: "Family table", shape: "oval", capacity: "12" }),
@@ -1108,7 +1127,7 @@ describe("account route boundaries", () => {
     expect(invitationToken).toBeTruthy();
     const invitationPage = await SELF.fetch(`https://memboux.com/wedding/${weddingBody.code}/invite/${encodeURIComponent(invitationToken!)}?lang=en`);
     expect(invitationPage.status).toBe(200);
-    expect(await invitationPage.text()).toContain("Invitation for");
+    expect(await invitationPage.text()).toContain("Personal invitation");
     const invitedRsvp = await SELF.fetch(`https://memboux.com/api/gallery/${weddingBody.code}/rsvp`, {
       method: "POST", headers: { Origin: "https://memboux.com" }, redirect: "manual",
       body: new URLSearchParams({ locale: "en", invitationToken: invitationToken!, response: "yes", guestCount: "2", dietaryNotes: "Vegetarian" }),
@@ -1116,6 +1135,39 @@ describe("account route boundaries", () => {
     expect(invitedRsvp.status).toBe(303);
     expect(await env.DB.prepare("SELECT rsvp_status,party_size,dietary_notes FROM event_wedding_guests WHERE id=?").bind(weddingGuest!.id).first())
       .toEqual({ rsvp_status: "yes", party_size: 2, dietary_notes: "Vegetarian" });
+    const createSmallTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables`, {
+      method: "POST", headers: wizardHeaders, redirect: "manual",
+      body: new URLSearchParams({ locale: "en", name: "Small table", shape: "round", capacity: "1" }),
+    });
+    expect(createSmallTable.status).toBe(303);
+    const smallTable = await env.DB.prepare("SELECT id FROM event_wedding_tables WHERE event_id=? AND name='Small table'")
+      .bind(weddingEvent!.id).first<{ id: string }>();
+    const fullTableUpdate = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "table", value: smallTable!.id }),
+    });
+    expect(fullTableUpdate.status).toBe(409);
+    expect(await fullTableUpdate.text()).toContain("not enough seats");
+    const declineGuest = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "rsvp", value: "no" }),
+    });
+    expect(declineGuest.status).toBe(200);
+    expect((await declineGuest.json<{ guest: { rsvp_status: string; table_id: string | null }; assignedGuestCount: number }>()))
+      .toMatchObject({ guest: { rsvp_status: "no", table_id: null }, assignedGuestCount: 0 });
+    expect(await env.DB.prepare("SELECT response FROM event_rsvps WHERE wedding_guest_id=?").bind(weddingGuest!.id).first())
+      .toEqual({ response: "no" });
+    const attendGuest = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "rsvp", value: "yes" }),
+    });
+    expect(attendGuest.status).toBe(200);
+    const restoreSeat = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}/quick-update`, {
+      method: "POST", headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", field: "table", value: weddingTable!.id }),
+    });
+    expect(restoreSeat.status).toBe(200);
+    expect(await restoreSeat.json()).toMatchObject({ assignedGuestCount: 1 });
     const undersizedTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables/${weddingTable!.id}`, {
       method: "POST", headers: wizardHeaders,
       body: new URLSearchParams({ locale: "en", name: "Family table", shape: "oval", capacity: "1" }),
@@ -1124,9 +1176,11 @@ describe("account route boundaries", () => {
     expect(await undersizedTable.text()).toContain("already has 2 assigned seats");
     const editGuest = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/${weddingGuest!.id}`, {
       method: "POST", headers: wizardHeaders, redirect: "manual",
-      body: new URLSearchParams({ locale: "en", firstName: "Jamie", lastName: "Updated", email: "jamie-updated@example.com", groupId: guestGroup!.id, plusOneLimit: "1", ceremony: "1", reception: "1" }),
+      body: new URLSearchParams({ locale: "en", firstName: "Jamie", lastName: "Updated", email: "jamie-updated@example.com", groupId: guestGroup!.id, plusOneLimit: "1", rsvpStatus: "maybe", partySize: "1", dietaryNotes: "Owner assisted", ceremony: "1", reception: "1" }),
     });
     expect(editGuest.status).toBe(303);
+    expect(await env.DB.prepare("SELECT response,guest_count,dietary_notes,email FROM event_rsvps WHERE wedding_guest_id=?").bind(weddingGuest!.id).first())
+      .toEqual({ response: "maybe", guest_count: 1, dietary_notes: "Owner assisted", email: "jamie-updated@example.com" });
     const repeatedInvitedRsvp = await SELF.fetch(`https://memboux.com/api/gallery/${weddingBody.code}/rsvp`, {
       method: "POST", headers: { Origin: "https://memboux.com" }, redirect: "manual",
       body: new URLSearchParams({ locale: "en", invitationToken: invitationToken!, response: "no", guestCount: "1" }),

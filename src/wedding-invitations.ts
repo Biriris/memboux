@@ -11,6 +11,30 @@ export type ReservedWeddingInvitation = {
   tokenHash: string;
 };
 
+function reservedInvitation(guest: { id: string; first_name: string; last_name: string; email: string }, token: string, tokenHash: string): ReservedWeddingInvitation {
+  return {
+    guestId: guest.id,
+    guestName: `${guest.first_name} ${guest.last_name}`.trim(),
+    email: guest.email,
+    token,
+    tokenHash,
+  };
+}
+
+export async function reserveWeddingInvitation(db: D1Database, eventId: string, guestId: string, now: number) {
+  const guest = await db.prepare(`SELECT id,first_name,last_name,email FROM event_wedding_guests
+    WHERE id=? AND event_id=? AND email!=''`).bind(guestId, eventId)
+    .first<{ id: string; first_name: string; last_name: string; email: string }>();
+  if (!guest) return null;
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`;
+  const tokenHash = await sha256(token);
+  const result = await db.prepare(`UPDATE event_wedding_guests
+    SET invitation_token_hash=?,invitation_created_at=?,invitation_delivery_status='sending',
+      invitation_delivery_attempted_at=?,updated_at=?
+    WHERE id=? AND event_id=? AND email!=''`).bind(tokenHash, now, now, now, guest.id, eventId).run();
+  return result.meta.changes === 1 ? reservedInvitation(guest, token, tokenHash) : null;
+}
+
 export async function reserveWeddingInvitationBatch(db: D1Database, eventId: string, now: number, limit = 200) {
   const staleBefore = now - 10 * 60_000;
   const candidates = await db.prepare(`SELECT id,first_name,last_name,email
@@ -22,13 +46,7 @@ export async function reserveWeddingInvitationBatch(db: D1Database, eventId: str
     .bind(eventId, staleBefore, limit).all<{ id: string; first_name: string; last_name: string; email: string }>();
   const pending = await Promise.all(candidates.results.map(async (guest): Promise<ReservedWeddingInvitation> => {
     const token = `${crypto.randomUUID()}${crypto.randomUUID()}`;
-    return {
-      guestId: guest.id,
-      guestName: `${guest.first_name} ${guest.last_name}`.trim(),
-      email: guest.email,
-      token,
-      tokenHash: await sha256(token),
-    };
+    return reservedInvitation(guest, token, await sha256(token));
   }));
   const reserved: ReservedWeddingInvitation[] = [];
   for (let offset = 0; offset < pending.length; offset += 50) {
@@ -51,7 +69,7 @@ function invitationCopy(locale: Locale, guestName: string, eventName: string, in
   if (locale === "el") return {
     subject: `Η προσωπική σου πρόσκληση για το ${eventName}`,
     title: `Γεια σου ${guestName || ""}`.trim(),
-    intro: `Η προσωπική σου πρόσκληση για το «${eventName}» είναι έτοιμη. Από τον ασφαλή σύνδεσμο μπορείς να δεις τις πληροφορίες του γάμου και να απαντήσεις στο RSVP.`,
+    intro: `Η προσωπική σου πρόσκληση για το «${eventName}» είναι έτοιμη. Από τον ασφαλή σύνδεσμο μπορείς να δεις τις πληροφορίες της εκδήλωσης και να απαντήσεις στο RSVP.`,
     action: "Άνοιγμα πρόσκλησης",
     note: "Ο σύνδεσμος είναι προσωπικός. Μην τον προωθήσεις σε άλλον καλεσμένο.",
     text: `Η προσωπική σου πρόσκληση για το «${eventName}» είναι έτοιμη. Άνοιξέ την και απάντησε στο RSVP: ${invitationUrl}\n\nΟ σύνδεσμος είναι προσωπικός.`,
@@ -59,7 +77,7 @@ function invitationCopy(locale: Locale, guestName: string, eventName: string, in
   return {
     subject: `Your personal invitation to ${eventName}`,
     title: `Hello ${guestName || ""}`.trim(),
-    intro: `Your personal invitation to “${eventName}” is ready. Use the secure link to view the wedding details and reply to the RSVP.`,
+    intro: `Your personal invitation to “${eventName}” is ready. Use the secure link to view the event details and reply to the RSVP.`,
     action: "Open invitation",
     note: "This link is personal. Please do not forward it to another guest.",
     text: `Your personal invitation to “${eventName}” is ready. Open it and reply to the RSVP: ${invitationUrl}\n\nThis link is personal.`,
@@ -73,7 +91,7 @@ export async function deliverWeddingInvitation(
   origin: string,
   invitation: ReservedWeddingInvitation,
 ) {
-  const invitationUrl = `${origin}/wedding/${encodeURIComponent(event.code)}/invite/${encodeURIComponent(invitation.token)}?lang=${locale}`;
+  const invitationUrl = `${origin}/event/${encodeURIComponent(event.code)}/invite/${encodeURIComponent(invitation.token)}?lang=${locale}`;
   const copy = invitationCopy(locale, invitation.guestName, event.eventName, invitationUrl);
   await sendEmail(env, {
     to: invitation.email,
