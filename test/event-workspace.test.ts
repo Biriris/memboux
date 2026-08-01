@@ -175,6 +175,11 @@ describe("event workspace", () => {
     expect(html).toContain('data-workspace-section-link="media"');
     expect(html).toContain('href="/dashboard/ABC123/media?lang=en" aria-current="page"');
     expect(html).toContain('data-active-section="media"');
+    expect(html).toContain("data-workspace-mobile-navigation");
+    expect(html).toContain("data-workspace-mobile-nav");
+    expect(html).toContain("snap-mandatory");
+    expect(html).toContain("activeMobileLink?.scrollIntoView");
+    expect(html).not.toContain('<div class="mb-4 xl:hidden"><details');
     expect(html).toContain('[data-workspace-panel]:not([data-workspace-panel="media"])');
     expect(html).toContain('id="gallery" data-workspace-panel="media"');
     expect(html).toContain('id="overview" data-workspace-panel="overview"');

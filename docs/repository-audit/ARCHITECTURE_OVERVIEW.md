@@ -62,6 +62,8 @@ The code has recognizable layers, but their boundaries are not consistently enfo
 
 The navigation is derived from the verified event membership role without changing the capability model: owners receive website, guests, media, wedding-menu, sharing, team, and plan/settings pages; editors and viewers receive only overview, media, and sharing pages. Owner-only section requests are rejected server-side. The shell exposes `data-workspace-section-link` attributes, marks the selected page with `aria-current="page"`, and emits a local `memboux:workspace-navigation` browser event when a section link is selected. No analytics provider consumes that event in this repository.
 
+On narrow viewports, the shell keeps a compact sticky navigation strip visible instead of placing sections inside a collapsed disclosure. The active section is centered in the horizontal strip on page load; the desktop breakpoint retains the full sidebar navigation.
+
 ## State and external systems
 
 - D1 is authoritative for users, sessions, events, membership, media metadata, quotas, lifecycle state, commerce drafts, support, backup state, and audit records. See [Database schema](DATABASE_SCHEMA.md).
