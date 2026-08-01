@@ -69,7 +69,7 @@ This register contains conditions visible in the audited source. It does not tre
 
 ### Wedding guest contact retention is not yet operationalized
 
-- **Evidence:** [`0061_wedding_guest_planning.sql`](../../migrations/0061_wedding_guest_planning.sql) stores names, email addresses, phone numbers, dietary notes and invitation-token hashes under the event. Owners can edit/delete directory records and linked RSVP data through [`wedding-planning.ts`](../../src/routes/wedding-planning.ts), but no guest-specific retention, export or formal data-rights workflow is documented.
+- **Evidence:** [`0061_wedding_guest_planning.sql`](../../migrations/0061_wedding_guest_planning.sql) stores names, email addresses, phone numbers, dietary notes and invitation-token hashes under the event. Event managers can edit/delete directory records and export the event's guest directory through [`wedding-planning.ts`](../../src/routes/wedding-planning.ts), but no guest-specific retention or formal data-rights workflow is documented. Dietary notes held in linked RSVP records are not included in the directory CSV.
 - **Impact:** the product now holds additional personal and dietary data without a source-defined minimization or retention policy.
 - **Required follow-up:** approve purposes and retention periods, define guest data-rights handling, document SMS consent before delivery exists, and include the tables in privacy/export review.
 

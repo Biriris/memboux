@@ -38,6 +38,11 @@ describe("account route boundaries", () => {
     expect(response.status).toBe(401);
   });
 
+  it("rejects anonymous wedding guest exports", async () => {
+    const response = await SELF.fetch("https://memboux.com/api/account/events/ABC123/wedding/guests/export");
+    expect(response.status).toBe(401);
+  });
+
   it.each([
     ["/api/account/security/revoke-other-sessions", {}],
     ["/api/account/events", { eventName: "Test", locale: "en" }],
@@ -50,6 +55,7 @@ describe("account route boundaries", () => {
     ["/api/account/events/ABC123/wedding/unpublish", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guest-groups", { locale: "en", name: "Friends" }],
     ["/api/account/events/ABC123/wedding/guests", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
+    ["/api/account/events/ABC123/wedding/guests/import", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest", { locale: "en", firstName: "Guest", email: "guest@example.com" }],
     ["/api/account/events/ABC123/wedding/guests/guest/invite-link", { locale: "en" }],
     ["/api/account/events/ABC123/wedding/guests/guest/delete", { locale: "en" }],
@@ -948,6 +954,83 @@ describe("account route boundaries", () => {
     expect(createGuest.status).toBe(303);
     const weddingGuest = await env.DB.prepare("SELECT id FROM event_wedding_guests WHERE event_id=? AND email=?")
       .bind(weddingEvent!.id, "jamie@example.com").first<{ id: string }>();
+    const guestPlanner = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/guests?lang=en`, {
+      headers: { Cookie: cookieHeader },
+    });
+    expect(guestPlanner.status).toBe(200);
+    const guestPlannerHtml = await guestPlanner.text();
+    expect(guestPlannerHtml).toContain("Search and bulk import");
+    expect(guestPlannerHtml).toContain('name="guestFile"');
+    expect(guestPlannerHtml).toContain("Download CSV / template");
+
+    const uploadHeaders = { Origin: "https://memboux.com", Cookie: cookieHeader };
+    const invalidImportForm = new FormData();
+    invalidImportForm.set("locale", "en");
+    invalidImportForm.set("guestFile", new File([
+      "first_name,last_name,email,phone,group,plus_one_limit,ceremony,reception\nInvalid,,not-an-email,,Friends,0,yes,yes",
+    ], "invalid.csv", { type: "text/csv" }));
+    const invalidImport = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/import`, {
+      method: "POST", headers: uploadHeaders, body: invalidImportForm,
+    });
+    expect(invalidImport.status).toBe(400);
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_guests WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toEqual({ count: 1 });
+
+    const duplicateImportForm = new FormData();
+    duplicateImportForm.set("locale", "en");
+    duplicateImportForm.set("guestFile", new File([
+      "first_name,last_name,email,phone,group,plus_one_limit,ceremony,reception\nJamie,Duplicate,jamie@example.com,,Friends,0,yes,yes\nShould,Rollback,rollback@example.com,,Friends,0,yes,yes",
+    ], "duplicate.csv", { type: "text/csv" }));
+    const duplicateImport = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/import`, {
+      method: "POST", headers: uploadHeaders, body: duplicateImportForm,
+    });
+    expect(duplicateImport.status).toBe(409);
+    expect(await env.DB.prepare("SELECT id FROM event_wedding_guests WHERE event_id=? AND email='rollback@example.com'").bind(weddingEvent!.id).first()).toBeNull();
+
+    const bulkRows = Array.from({ length: 200 }, (_, index) =>
+      `Bulk ${String(index).padStart(3, "0")},Guest,bulk-${index}@example.com,,Imported ${index},0,yes,yes`).join("\n");
+    const validImportForm = new FormData();
+    validImportForm.set("locale", "en");
+    validImportForm.set("guestFile", new File([
+      `first_name,last_name,email,phone,group,plus_one_limit,ceremony,reception\n${bulkRows}`,
+    ], "guests.csv", { type: "text/csv" }));
+    const validImport = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/import`, {
+      method: "POST", headers: uploadHeaders, body: validImportForm, redirect: "manual",
+    });
+    expect(validImport.status).toBe(303);
+    expect(validImport.headers.get("location")).toContain("imported=200");
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_guests WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toEqual({ count: 201 });
+    expect(await env.DB.prepare("SELECT COUNT(*) count FROM event_wedding_guest_groups WHERE event_id=? AND name LIKE 'Imported %'").bind(weddingEvent!.id).first())
+      .toEqual({ count: 200 });
+
+    const searchedGuests = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/guests?lang=en&q=Bulk%20199`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const searchedHtml = await searchedGuests.text();
+    expect(searchedGuests.status).toBe(200);
+    expect(searchedHtml).toContain("Bulk 199");
+    expect(searchedHtml).toContain("1 guests");
+    expect(searchedHtml).not.toContain("Bulk 198");
+
+    const secondGuestPage = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/wedding/guests?lang=en&page=2`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const secondGuestPageHtml = await secondGuestPage.text();
+    expect(secondGuestPage.status).toBe(200);
+    expect(secondGuestPageHtml).toContain("2 / 5");
+    expect(secondGuestPageHtml).toContain("Previous");
+
+    const guestExport = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/guests/export`, {
+      headers: { Cookie: cookieHeader },
+    });
+    expect(guestExport.status).toBe(200);
+    expect(guestExport.headers.get("content-type")).toContain("text/csv");
+    expect(guestExport.headers.get("content-disposition")).toContain("attachment");
+    expect(guestExport.headers.get("cache-control")).toBe("private, no-store");
+    const guestExportCsv = await guestExport.text();
+    expect(guestExportCsv).toContain("first_name,last_name,email,phone,group,plus_one_limit,ceremony,reception");
+    expect(guestExportCsv).toContain("Bulk 199,Guest,bulk-199@example.com,,Imported 199,0,yes,yes");
     const createTable = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/wedding/tables`, {
       method: "POST", headers: wizardHeaders, redirect: "manual", body: new URLSearchParams({ locale: "en", name: "Table 1", shape: "round", capacity: "10" }),
     });
@@ -1016,5 +1099,5 @@ describe("account route boundaries", () => {
     expect(await bulkDelete.json()).toEqual({ action: "delete", processed: 1 });
     expect(await env.DB.prepare("SELECT id FROM events WHERE id=?").bind(event!.id).first()).toBeNull();
 
-  }, 15_000);
+  }, 25_000);
 });

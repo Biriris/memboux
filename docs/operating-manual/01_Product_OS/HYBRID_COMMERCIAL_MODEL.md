@@ -94,9 +94,11 @@ The following statements are repository facts as of 2026-08-01:
   RSVP synchronization and capacity-aware table assignments exist in migration
   [`0061_wedding_guest_planning.sql`](../../../migrations/0061_wedding_guest_planning.sql)
   and [`src/routes/wedding-planning.ts`](../../../src/routes/wedding-planning.ts).
+- Searchable, paginated wedding guest CSV import/export is implemented. Imports
+  are event-scoped, validated and atomic, and do not imply SMS consent.
 - SMS delivery, payment-provider checkout, professional organizations,
-  subscriptions/capacity, ownership handoff, bulk guest import and visual venue
-  layouts remain pending.
+  subscriptions/capacity, ownership handoff and visual venue layouts remain
+  pending.
 
 ## Customer and revenue channels
 

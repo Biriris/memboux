@@ -2,7 +2,7 @@
 
 ## Scope and counting
 
-[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **205 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
+[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **207 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
 
 It excludes dependency-internal Better Auth subroutes: the repository registers `GET|POST /api/auth/*`, and [`better-auth`](../../package.json) decides the concrete subpaths at runtime. It also excludes implicit Workers Assets paths because those are files/configuration, not Hono registrations.
 
@@ -314,15 +314,17 @@ POST   /api/account/events/:code/wedding/publish
 POST   /api/account/events/:code/wedding/unpublish
 ```
 
-## Wedding guest planning — `src/routes/wedding-planning.ts` (10)
+## Wedding guest planning — `src/routes/wedding-planning.ts` (12)
 
 Source: [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). The dashboard and all planning mutations require authenticated `manage_event` permission. The personalized invitation page is public but token-bound; it is available only for a published, unexpired wedding with active guest access. Invitation tokens are stored only as SHA-256 hashes.
 
 ```text
 GET   /dashboard/:code/wedding/guests
 GET   /dashboard/:code/wedding/guests/:guestId/edit
+GET   /api/account/events/:code/wedding/guests/export
 POST  /api/account/events/:code/wedding/guest-groups
 POST  /api/account/events/:code/wedding/guests
+POST  /api/account/events/:code/wedding/guests/import
 POST  /api/account/events/:code/wedding/guests/:guestId
 POST  /api/account/events/:code/wedding/guests/:guestId/invite-link
 POST  /api/account/events/:code/wedding/guests/:guestId/delete

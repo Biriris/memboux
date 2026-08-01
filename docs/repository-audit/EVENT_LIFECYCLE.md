@@ -47,9 +47,11 @@ For weddings, lifecycle access and publication are separate gates: trial/unlock 
 
 ## Wedding guest planning and RSVP
 
-Owners manage households, contacts, personalized invitation links and tables at `/dashboard/:code/wedding/guests` in [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). Raw invitation tokens are returned only when generated; D1 stores their SHA-256 hashes. A token-bound RSVP in [`src/routes/experience.ts`](../../src/routes/experience.ts) updates both `event_rsvps` and the matching `event_wedding_guests` record. Seating capacity counts the guest record's current party size; a decline or an RSVP increase that would overfill a table saves the response and removes that seating assignment for replanning.
+Owners manage households, contacts, personalized invitation links and tables at `/dashboard/:code/wedding/guests` in [`src/routes/wedding-planning.ts`](../../src/routes/wedding-planning.ts). The directory supports literal search and 50-row pages. Authenticated event managers can export the complete directory as CSV or atomically import up to 200 rows/1 MB through the same route module; required columns and cell validation are implemented in [`src/wedding-guests-csv.ts`](../../src/wedding-guests-csv.ts). Inserts are grouped to stay within D1's per-query bound-parameter limit and reduce invocation query count. An invalid row or an email already present in the event rejects the entire import. Exported cells that could be interpreted as spreadsheet formulas are escaped.
 
-Direct SMS delivery, bulk contact import, a drag-and-drop room canvas and venue-owned reusable layouts are **not implemented**.
+Raw invitation tokens are returned only when generated; D1 stores their SHA-256 hashes. A token-bound RSVP in [`src/routes/experience.ts`](../../src/routes/experience.ts) updates both `event_rsvps` and the matching `event_wedding_guests` record. Seating capacity counts the guest record's current party size; a decline or an RSVP increase that would overfill a table saves the response and removes that seating assignment for replanning.
+
+Direct SMS delivery, a drag-and-drop room canvas and venue-owned reusable layouts are **not implemented**. CSV import does not send invitations or infer consent for future SMS delivery.
 
 ## Expiry and notification
 
@@ -82,4 +84,4 @@ The daily [`purgeExpiredTrash`](../../src/repositories.ts) permanently deletes e
 
 ## Lifecycle tests
 
-Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`account-routes.test.ts`](../../test/account-routes.test.ts), [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`trial-lifecycle.test.ts`](../../test/trial-lifecycle.test.ts), [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
+Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`account-routes.test.ts`](../../test/account-routes.test.ts), [`wedding-guests-csv.test.ts`](../../test/wedding-guests-csv.test.ts), [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`trial-lifecycle.test.ts`](../../test/trial-lifecycle.test.ts), [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
