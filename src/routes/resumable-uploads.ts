@@ -232,6 +232,7 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   const consent = c.req.header("Upload-Consent") ?? "";
   const context = await authorizeUpload(c, { origin, name, consent });
   if (context instanceof Response) return context;
+  const authorizedAt = Date.now();
 
   const locale = normalizeLocale(c.req.header("Upload-Locale") ?? context.event.default_locale);
   const contentType = inferredContentType(filename, c.req.header("Content-Type") ?? "");
@@ -281,6 +282,7 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   });
   if (completedDuplicate)
     return c.json({ ok: true, duplicate: true, uploaded: 0, mediaId: completedDuplicate.id });
+  const duplicateChecksAt = Date.now();
 
   const reservation = await reserveStorageForEvent(c.env.DB, context.event.id, size);
   if (!reservation.allowed)
@@ -291,12 +293,15 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   const uploadId = `fast:${mediaId}`;
   const objectKey = `${context.event.id}/${mediaId}.${safeFileExtension(filename)}`;
   const now = Date.now();
+  let r2CompletedAt = duplicateChecksAt;
+  let persistedAt = duplicateChecksAt;
   try {
     const object = await c.env.MEDIA.put(objectKey, c.req.raw.body, {
       sha256: contentHash,
       httpMetadata: { contentType, cacheControl: "private, no-store" },
       customMetadata: { eventId: context.event.id, mediaId },
     });
+    r2CompletedAt = Date.now();
     if (object.size !== size) {
       await c.env.MEDIA.delete(objectKey);
       await releaseStorage(c.env.DB, reservation.ownerId, size);
@@ -366,6 +371,7 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
       ).bind(context.event.id, mediaId, context.uploader.id, 0, now));
     }
     await c.env.DB.batch(statements);
+    persistedAt = Date.now();
   } catch (error) {
     await c.env.MEDIA.delete(mediaObjectKeys(objectKey));
     await releaseStorage(c.env.DB, reservation.ownerId, size);
@@ -387,13 +393,26 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
     upload_id: uploadId,
   });
   const durationMs = Date.now() - startedAt;
-  c.header("Server-Timing", `memboux_upload;dur=${durationMs}`);
+  const phaseDurations = {
+    authorizationMs: authorizedAt - startedAt,
+    duplicateChecksMs: duplicateChecksAt - authorizedAt,
+    r2WriteMs: r2CompletedAt - duplicateChecksAt,
+    persistenceMs: persistedAt - r2CompletedAt,
+  };
+  c.header("Server-Timing", [
+    `memboux_upload;dur=${durationMs}`,
+    `authorization;dur=${phaseDurations.authorizationMs}`,
+    `duplicate_checks;dur=${phaseDurations.duplicateChecksMs}`,
+    `r2_write;dur=${phaseDurations.r2WriteMs}`,
+    `persistence;dur=${phaseDurations.persistenceMs}`,
+  ].join(", "));
   console.log(JSON.stringify({
     event: "fast_upload_completed",
     eventId: context.event.id,
     origin,
     sizeBytes: size,
     durationMs,
+    ...phaseDurations,
   }));
   return c.json({ ok: true, duplicate: false, uploaded: 1, mediaId, sessionId: id, token });
 });

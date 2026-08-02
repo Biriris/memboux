@@ -497,7 +497,7 @@ describe("gallery, upload, and media routes", () => {
       body: bytes,
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("server-timing")).toMatch(/^memboux_upload;dur=\d+$/);
+    expect(response.headers.get("server-timing")).toMatch(/^memboux_upload;dur=\d+, authorization;dur=\d+, duplicate_checks;dur=\d+, r2_write;dur=\d+, persistence;dur=\d+$/);
     const result = await response.json<{ sessionId: string; token: string; mediaId: string }>();
     expect(result).toMatchObject({ uploaded: 1, duplicate: false });
 

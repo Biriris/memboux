@@ -6,7 +6,7 @@ describe("multi-file upload view", () => {
   it("supports one hundred photos or videos and a twenty-gigabyte selection", () => {
     expect(MAX_UPLOAD_FILES).toBe(100);
     expect(MAX_UPLOAD_SELECTION_SIZE).toBe(20 * 1024 * 1024 * 1024);
-    expect(FAST_UPLOAD_MAX_SIZE).toBe(20 * 1024 * 1024);
+    expect(FAST_UPLOAD_MAX_SIZE).toBe(64 * 1024 * 1024);
     expect(MAX_UPLOAD_BATCH_SIZE).toBeLessThan(100 * 1024 * 1024);
     expect(uploadLimitsCopy("en")).toContain("Up to 100 photos");
     expect(uploadLimitsCopy("en")).toContain("videos");
@@ -42,8 +42,13 @@ describe("multi-file upload view", () => {
       expect(script).toContain("localStorage.setItem");
       expect(script).toContain("'/complete'");
       expect(script).toContain("progressByFile");
-      expect(script).toContain("maxFileConcurrency=constrained?2:coarse?4:6");
+      expect(script).toContain("maxFileConcurrency=constrained?2:coarse?5:8");
       expect(script).toContain("Math.min(maxFileConcurrency,files.length)");
+      expect(script).toContain("new XMLHttpRequest()");
+      expect(script).toContain("xhr.upload.onprogress");
+      expect(script).toContain("value.toFixed(1)");
+      expect(script).toContain("constrained?2:coarse?3:6");
+      expect(script).toContain("inFlightBytes");
       expect(script).toContain("partBytes=await blob.arrayBuffer()");
       expect(script).toContain("body:partBytes");
       expect(script).toContain("file.size<=limits.fastFileBytes");
