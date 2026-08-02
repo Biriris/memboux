@@ -146,11 +146,13 @@ describe("media views", () => {
     const script = galleryProgressiveScript("guest-gallery");
 
     expect(html.match(/data-gallery-deferred="true"/g)).toHaveLength(2);
+    expect(html.match(/style="display:none"/g)).toHaveLength(2);
     expect(html).toContain('data-deferred-src="/media/photo-12?variant=thumb"');
     expect(html).not.toContain('<img src="/media/photo-12?variant=thumb"');
     expect(controls).toContain('data-gallery-more="guest-gallery"');
     expect(controls).toContain("2 remaining");
     expect(script).toContain("data-deferred-src");
+    expect(script).toContain("card.style.display=show?'':'none'");
     expect(script).toContain("memboux:gallery-sorted");
     expect(script).toContain("visible+=12");
   });

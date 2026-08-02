@@ -320,6 +320,9 @@ input:disabled { cursor: not-allowed; }
   page-break-inside: avoid;
   vertical-align: top;
 }
+.memboux-ui .memboux-media-card.hidden {
+  display: none !important;
+}
 .memboux-ui .memboux-brickwall {
   position: relative;
   display: block !important;
