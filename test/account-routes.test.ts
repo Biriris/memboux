@@ -237,7 +237,13 @@ describe("account route boundaries", () => {
       env.DB.prepare(`CREATE TABLE media (
         id TEXT PRIMARY KEY,event_id TEXT NOT NULL,object_key TEXT NOT NULL,
         media_type TEXT NOT NULL DEFAULT 'image',content_type TEXT NOT NULL DEFAULT 'image/jpeg',
-        size_bytes INTEGER NOT NULL DEFAULT 0,deleted_at INTEGER,purge_at INTEGER
+        size_bytes INTEGER NOT NULL DEFAULT 0,uploaded_by TEXT NOT NULL DEFAULT 'Guest',
+        uploaded_at INTEGER NOT NULL DEFAULT 0,captured_at INTEGER,origin TEXT NOT NULL DEFAULT 'guest',
+        reported_at INTEGER,deleted_at INTEGER,purge_at INTEGER
+      )`),
+      env.DB.prepare(`CREATE TABLE media_likes (
+        media_id TEXT NOT NULL,actor_key TEXT NOT NULL,created_at INTEGER NOT NULL,
+        PRIMARY KEY(media_id,actor_key)
       )`),
       env.DB.prepare(`CREATE TABLE event_wedding_profiles (
         event_id TEXT PRIMARY KEY,partner_one_name TEXT NOT NULL DEFAULT '',partner_two_name TEXT NOT NULL DEFAULT '',
@@ -434,6 +440,11 @@ describe("account route boundaries", () => {
     expect(continueStep.status).toBe(303);
     expect(continueStep.headers.get("location")).toBe(`/dashboard/${createBody.code}/setup?lang=en&step=2`);
 
+    await env.DB.prepare(`INSERT INTO media
+      (id,event_id,object_key,media_type,content_type,size_bytes,uploaded_by,uploaded_at,origin)
+      SELECT ?,id,?,?,?,?,?,?,? FROM events WHERE code=?`)
+      .bind("trip-guest-photo", "trip/guest-photo.jpg", "image", "image/jpeg", 1200, "Maya", Date.now(), "guest", createBody.code).run();
+
     const ownerPreview = await SELF.fetch(`https://memboux.com/event/${createBody.code}?lang=en&preview=1`, {
       headers: { Cookie: cookieHeader },
     });
@@ -443,6 +454,9 @@ describe("account route boundaries", () => {
     expect(ownerPreviewHtml).toContain("Zanzibar together");
     expect(ownerPreviewHtml).toContain("Start the trial to open guest access and uploads.");
     expect(ownerPreviewHtml).toContain("Zanzibar");
+    expect(ownerPreviewHtml).toContain('id="guest-album"');
+    expect(ownerPreviewHtml).toContain('data-gallery-grid="event-guest-gallery"');
+    expect(ownerPreviewHtml).toContain("trip-guest-photo");
 
     for (const [step, fields] of [
       [2, { scheduleNotes: "Day one: Stone Town. Day two: Nungwi.", mustSeeStops: "Stone Town, Nungwi" }],

@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { accountMenu, brandMark, eventHeader, googleIcon, logoutScript, page, settingsBackLink } from "../src/views/shared";
 
 describe("shared views", () => {
+  it("adds swipe-up dismissal only to pages with a media lightbox", () => {
+    const gallery = page("Gallery", '<dialog id="media-lightbox"><div id="lightbox-content"></div></dialog>');
+    const plain = page("Plain", "<main>No lightbox</main>");
+    expect(gallery).toContain("swipeDismissReady");
+    expect(gallery).toContain("dragY<-80");
+    expect(gallery).toContain("translateY(-110vh)");
+    expect(plain).not.toContain("swipeDismissReady");
+  });
+
   it("renders the production stylesheet and escapes the page title", () => {
     const html = page(`Memboux <script>alert("x")</script>`, "<main>safe body</main>");
 

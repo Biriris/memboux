@@ -253,7 +253,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?")
       .bind(event.id)
       .first<{ updated_at: number }>(),
-    c.env.DB.prepare("SELECT author_name,message,created_at FROM event_guestbook_entries WHERE event_id=? AND status='approved' ORDER BY created_at DESC LIMIT 6")
+    c.env.DB.prepare("SELECT author_name,message,created_at FROM event_guestbook_entries WHERE event_id=? AND status!='hidden' ORDER BY created_at DESC LIMIT 6")
       .bind(event.id)
       .all<GuestbookPreview>()
       .catch(() => ({ results: [] as GuestbookPreview[] })),

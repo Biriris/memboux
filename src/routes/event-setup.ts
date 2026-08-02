@@ -9,6 +9,7 @@ import { eventAccessAllows, getEventAccess } from "../event-access";
 import { eventUiCopy, eventWizardCopy } from "../event-ui-copy";
 import { mergeWizardFields, parseCustomFields, wizardFieldsFor } from "../event-wizard-schema";
 import { hasGalleryAccess } from "../gallery-access";
+import { existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
 import { esc } from "../utils";
 import { eventVerticalPreviewPage, type EventVerticalProfile } from "../views/event-vertical-preview";
 import { eventHeader, logoutScript, page } from "../views/shared";
@@ -161,12 +162,18 @@ eventSetupRoutes.get("/event/:code", async (c) => {
   }
   const previewTheme = manager && preview ? normalizeEventTheme(c.req.query("theme")) : null;
   const renderedProfile = previewTheme ? { ...profile, theme_key: previewTheme } : profile;
+  const likeVisitor = existingMediaLikeVisitor(c.req.raw);
+  const likeActorKey = likeVisitor
+    ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
+    : "";
+  const guestItems = (await getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey))
+    .filter((item) => item.origin !== "official");
   return c.html(eventVerticalPreviewPage(
     normalizeLocale(c.req.query("lang") ?? event.default_locale),
     event,
     vertical,
     renderedProfile,
     manager && preview,
-    { guestExperienceOpen: eventAccessAllows(access, "guest_access") },
+    { guestExperienceOpen: eventAccessAllows(access, "guest_access"), guestItems },
   ));
 });

@@ -84,7 +84,7 @@ describe("event engagement experience", () => {
     expect(row).toEqual({ response: "maybe", guest_count: 1 });
   });
 
-  it("queues guestbook messages for owner approval", async () => {
+  it("publishes guestbook messages immediately", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/gallery/${code}/guestbook`, {
       method: "POST", headers: postHeaders,
       body: "locale=en&name=Maria&message=Wonderful+memories",
@@ -92,7 +92,7 @@ describe("event engagement experience", () => {
     });
     expect(response.status).toBe(303);
     const row = await env.DB.prepare("SELECT status,message FROM event_guestbook_entries WHERE event_id=?").bind(eventId).first<{ status: string; message: string }>();
-    expect(row).toEqual({ status: "pending", message: "Wonderful memories" });
+    expect(row).toEqual({ status: "approved", message: "Wonderful memories" });
   });
 
   it("adds comments and returns them with the slideshow feed", async () => {

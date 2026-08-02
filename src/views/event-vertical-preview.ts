@@ -5,6 +5,16 @@ import { eventUiCopy } from "../event-ui-copy";
 import { parseCustomFields, wizardFieldsFor } from "../event-wizard-schema";
 import { localeNames, supportedLocales, type Locale } from "../i18n";
 import { esc } from "../utils";
+import {
+  cards,
+  galleryFilterControls,
+  galleryFilterScript,
+  galleryProgressiveControls,
+  galleryProgressiveScript,
+  lightboxMarkup,
+  mediaLikesScript,
+  type MediaCardRow,
+} from "./media";
 import { brandMark, page } from "./shared";
 
 export type EventVerticalProfile = {
@@ -149,7 +159,7 @@ export function eventVerticalPreviewPage(
   vertical: EventVertical,
   profile: EventVerticalProfile,
   ownerPreview: boolean,
-  options: { demo?: boolean; guestExperienceOpen?: boolean } = {},
+  options: { demo?: boolean; guestExperienceOpen?: boolean; guestItems?: readonly MediaCardRow[] } = {},
 ) {
   const ui = eventUiCopy[locale];
   const headline = profile.headline.trim() || event.eventName;
@@ -177,6 +187,19 @@ export function eventVerticalPreviewPage(
     es: { kicker: "Un evento. Todas las perspectivas.", title: "Los momentos de todos los móviles merecen estar juntos.", text: "Los invitados abren un enlace privado, sin aplicación ni cuenta, y añaden fotos y vídeos que quizá nunca llegarían a verse.", album: "Abrir álbum compartido", add: "Añadir mis momentos", locked: "Inicia la prueba para habilitar el acceso y las subidas de invitados.", trial: "Iniciar o revisar prueba" },
     it: { kicker: "Un evento. Ogni prospettiva.", title: "I momenti su tutti i telefoni meritano di stare insieme.", text: "Gli invitati aprono un link privato, senza app né account, e aggiungono foto e video che altrimenti potrebbero non essere mai visti.", album: "Apri l’album condiviso", add: "Aggiungi i miei momenti", locked: "Avvia la prova per aprire l’accesso e i caricamenti degli invitati.", trial: "Avvia o controlla la prova" },
   }[locale];
+  const guestAlbumCopy = ({
+    en: { kicker: "Guest album", title: "The event through everyone’s eyes.", empty: "The first shared moments will appear here.", count: (value: number) => `${value} shared moments`, open: "Open full album", add: "Add photos or videos" },
+    el: { kicker: "Album καλεσμένων", title: "Το event μέσα από τα μάτια όλων.", empty: "Οι πρώτες κοινές στιγμές θα εμφανιστούν εδώ.", count: (value: number) => `${value} κοινές στιγμές`, open: "Άνοιγμα πλήρους album", add: "Πρόσθεσε φωτογραφίες ή βίντεο" },
+    fr: { kicker: "Album des invités", title: "L’événement vu par tous.", empty: "Les premiers moments partagés apparaîtront ici.", count: (value: number) => `${value} moments partagés`, open: "Ouvrir l’album complet", add: "Ajouter des photos ou vidéos" },
+    de: { kicker: "Gästealbum", title: "Das Event durch die Augen aller.", empty: "Die ersten gemeinsamen Momente erscheinen hier.", count: (value: number) => `${value} gemeinsame Momente`, open: "Ganzes Album öffnen", add: "Fotos oder Videos hinzufügen" },
+    es: { kicker: "Álbum de invitados", title: "El evento a través de todos.", empty: "Los primeros momentos compartidos aparecerán aquí.", count: (value: number) => `${value} momentos compartidos`, open: "Abrir álbum completo", add: "Añadir fotos o vídeos" },
+    it: { kicker: "Album degli ospiti", title: "L’evento attraverso gli occhi di tutti.", empty: "I primi momenti condivisi appariranno qui.", count: (value: number) => `${value} momenti condivisi`, open: "Apri l’album completo", add: "Aggiungi foto o video" },
+  } satisfies Record<Locale, { kicker: string; title: string; empty: string; count: (value: number) => string; open: string; add: string }>)[locale];
+  const guestItems = [...(options.guestItems ?? [])];
+  const guestAlbum = options.demo ? "" : `<section id="guest-album" class="mx-auto max-w-7xl px-4 pb-20 sm:px-6"><div class="rounded-[2.5rem] p-5 sm:p-8 lg:p-10" style="background:${theme.card}"><header class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-xs font-bold uppercase tracking-[.2em]" style="color:${theme.accent}">${esc(guestAlbumCopy.kicker)}</p><h2 class="mt-3 max-w-3xl text-4xl font-medium leading-tight tracking-[-.04em] sm:text-5xl">${esc(guestAlbumCopy.title)}</h2>${guestItems.length ? `<div class="mt-4">${galleryFilterControls(guestItems, "event-guest-gallery", locale)}</div>` : ""}</div><span class="text-sm font-bold opacity-60">${esc(guestAlbumCopy.count(guestItems.length))}</span></header>${guestItems.length ? `<div data-gallery-grid="event-guest-gallery" class="mt-8 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">${cards(guestItems, { lightbox: true, reportCode: event.code, locale, likes: true, deferAfter: 12 })}</div>${galleryProgressiveControls(guestItems.length, "event-guest-gallery", locale)}` : `<p class="mt-8 rounded-2xl border border-dashed border-current/20 px-5 py-12 text-center opacity-65">${esc(guestAlbumCopy.empty)}</p>`}<div class="mt-7 flex flex-col gap-3 sm:flex-row"><a href="/gallery/${encodeURIComponent(event.code)}?lang=${locale}" class="inline-flex min-h-12 items-center justify-center rounded-xl px-5 py-3 text-sm font-bold text-white" style="background:${theme.accent}">${esc(guestAlbumCopy.open)}</a><a href="/gallery/${encodeURIComponent(event.code)}?lang=${locale}#guest-upload" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-current/20 px-5 py-3 text-sm font-bold">${esc(guestAlbumCopy.add)}</a></div></div></section>`;
+  const guestAlbumScripts = !options.demo && guestItems.length
+    ? `${galleryFilterScript(guestItems, "event-guest-gallery")}${galleryProgressiveScript("event-guest-gallery")}${lightboxMarkup(locale, true)}${mediaLikesScript(event.code, locale)}`
+    : "";
   const languageLabel = ({ en: "Language", el: "Γλώσσα", fr: "Langue", de: "Sprache", es: "Idioma", it: "Lingua" } as const)[locale];
   const languagePicker = `<label class="sr-only" for="event-language">${esc(languageLabel)}</label><select id="event-language" aria-label="${esc(languageLabel)}" class="max-w-[7rem] rounded-full border border-current/15 bg-transparent px-3 py-2 text-xs font-bold" onchange="location.href=this.value">${supportedLocales.map((language) => {
     const href = options.demo
@@ -202,10 +225,11 @@ export function eventVerticalPreviewPage(
     </section>
     <section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6"><div class="overflow-hidden rounded-[2.5rem] p-7 sm:p-10 lg:p-14" style="background:${theme.ink};color:${theme.bg}"><p class="text-xs font-bold uppercase tracking-[.22em]" style="color:${theme.accent}">${esc(experience.kicker)}</p><h2 class="mt-4 max-w-4xl text-4xl font-medium leading-tight tracking-[-.04em] sm:text-5xl">${esc(experience.title)}</h2><p class="mt-5 max-w-3xl text-base leading-8 opacity-75">${esc(experience.text)}</p>${ownerPreview && options.guestExperienceOpen === false ? `<div class="mt-8 rounded-2xl border border-current/15 p-5"><p class="text-sm leading-6 opacity-80">${esc(experience.locked)}</p><a href="/dashboard/${encodeURIComponent(event.code)}/trial?lang=${locale}" class="mt-4 inline-flex rounded-xl px-5 py-3 text-sm font-bold" style="background:${theme.accent};color:white">${esc(experience.trial)} →</a></div>` : `<div class="mt-8 flex flex-col gap-3 sm:flex-row"><a href="${options.demo ? "#demo-gallery" : `/gallery/${encodeURIComponent(event.code)}?lang=${locale}`}" class="inline-flex min-h-12 items-center justify-center rounded-xl px-6 py-3 text-sm font-bold" style="background:${theme.accent};color:white">${esc(experience.album)}</a><a href="${options.demo ? "#demo-contribute" : `/gallery/${encodeURIComponent(event.code)}?lang=${locale}#guest-upload`}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-current/20 px-6 py-3 text-sm font-bold">${esc(experience.add)}</a></div>`}</div></section>
     ${details ? `<section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6"><div class="rounded-[2rem] p-7 sm:p-9" style="background:${theme.card}"><dl class="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">${details}</dl></div></section>` : ""}
+    ${guestAlbum}
     ${options.demo ? demoExperience(locale, vertical, theme.card, theme.accent) : ""}
     <footer class="border-t border-current/10"><div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-sm opacity-65 sm:px-6"><span>Memboux · ${esc(event.eventName)}</span>${profile.contact_email ? `<a href="mailto:${esc(profile.contact_email)}">${esc(profile.contact_email)}</a>` : ""}</div></footer>
   </main>`;
-  return page(`${headline} | Memboux`, body, {
+  return page(`${headline} | Memboux`, `${body}${guestAlbumScripts}`, {
     locale,
     description: intro,
     index: !options.demo && !ownerPreview && profile.publish_status === "published",

@@ -260,6 +260,8 @@ describe("media views", () => {
     expect(html).toContain("getComputedStyle(grid).columnGap");
     expect(html).toContain("breakpoints={sm:640,md:768,lg:1024,xl:1280,'2xl':1536}");
     expect(html).toContain("responsiveColumns");
+    expect(html).toContain("responsiveColumns(grid,innerWidth)");
+    expect(html).not.toContain("responsiveColumns(grid,width)");
     expect(html).toContain("/^grid-cols-(\\d+)$/");
     expect(html).toContain("/^(sm|md|lg|xl|2xl):grid-cols-(\\d+)$/");
     expect(html).toContain("columnWidth=(width-gap*(columns-1))/columns");
