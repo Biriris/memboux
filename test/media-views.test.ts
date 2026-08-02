@@ -34,9 +34,10 @@ describe("media views", () => {
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('decoding="async"');
     expect(html).toContain("memboux-media-card");
-    expect(html).toContain("h-auto w-full object-contain");
+    expect(html).toContain("memboux-media-preview");
+    expect(html).toContain('style="aspect-ratio:4/5"');
+    expect(html).toContain("absolute inset-0 block h-full w-full object-cover");
     expect(html).not.toContain("aspect-square");
-    expect(html).not.toContain("object-cover");
   });
 
   it("renders image and video cards with media-type metadata", () => {
@@ -50,8 +51,9 @@ describe("media views", () => {
     expect(html).toContain('data-type="image"');
     expect(html).toContain('data-type="video"');
     expect(html).toContain('poster="/media/22222222-2222-4222-8222-222222222222?variant=thumb"');
-    expect(html).toContain('class="relative block aspect-[4/5] w-full overflow-hidden');
-    expect(html).toContain('class="absolute inset-0 block h-full w-full object-cover"');
+    expect(html.match(/class="memboux-media-preview/g)).toHaveLength(2);
+    expect(html.match(/style="aspect-ratio:4\/5"/g)).toHaveLength(2);
+    expect(html.match(/class="absolute inset-0 block h-full w-full object-cover"/g)).toHaveLength(2);
     expect(html).not.toContain('class="block h-auto min-h-36 w-full object-contain"');
     expect(html).toContain("VIDEO</span>");
     expect(html).toContain("#t=0.1");
