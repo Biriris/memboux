@@ -80,6 +80,16 @@ describe("six-language guest participation experience", () => {
     });
   }
 
+  it("describes immediate guestbook publishing instead of an approval queue", () => {
+    const english = renderGuestParticipation("EVENT1", [], "en");
+    const greek = renderGuestParticipation("EVENT1", [], "el");
+
+    expect(english).toContain("Your message appears immediately and the host can hide it if needed.");
+    expect(english).not.toContain("after host approval");
+    expect(greek).toContain("Η ευχή σου εμφανίζεται αμέσως και ο διοργανωτής μπορεί να την αποκρύψει αν χρειαστεί.");
+    expect(greek).not.toContain("μετά από έγκριση");
+  });
+
   it("renders only the enabled participation module", () => {
     const rsvpOnly = renderGuestParticipation("EVENT1", [], "fr", {
       rsvp_enabled: 1,

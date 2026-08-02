@@ -23,7 +23,7 @@ type GuestExperienceCopy = {
   yourName: string;
   wish: string;
   addToGuestbook: string;
-  moderation: string;
+  publishingNote: string;
   commentsTitle: string;
   noComments: string;
   comment: string;
@@ -52,7 +52,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Your name",
     wish: "Write your wish or memory…",
     addToGuestbook: "Add to guestbook",
-    moderation: "New messages appear after host approval.",
+    publishingNote: "Your message appears immediately and the host can hide it if needed.",
     commentsTitle: "Comments",
     noComments: "No comments yet.",
     comment: "Write a comment…",
@@ -79,7 +79,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Το όνομά σου",
     wish: "Γράψε την ευχή ή την ανάμνησή σου…",
     addToGuestbook: "Προσθήκη στο ευχολόγιο",
-    moderation: "Οι νέες ευχές εμφανίζονται μετά από έγκριση του διοργανωτή.",
+    publishingNote: "Η ευχή σου εμφανίζεται αμέσως και ο διοργανωτής μπορεί να την αποκρύψει αν χρειαστεί.",
     commentsTitle: "Σχόλια",
     noComments: "Δεν υπάρχουν σχόλια ακόμη.",
     comment: "Γράψε ένα σχόλιο…",
@@ -106,7 +106,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Votre nom",
     wish: "Écrivez un vœu ou un souvenir…",
     addToGuestbook: "Ajouter au livre d’or",
-    moderation: "Les nouveaux messages apparaissent après validation de l’organisateur.",
+    publishingNote: "Votre message apparaît immédiatement et l’organisateur peut le masquer si nécessaire.",
     commentsTitle: "Commentaires",
     noComments: "Aucun commentaire pour le moment.",
     comment: "Écrivez un commentaire…",
@@ -133,7 +133,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Dein Name",
     wish: "Schreibe einen Wunsch oder eine Erinnerung…",
     addToGuestbook: "Ins Gästebuch eintragen",
-    moderation: "Neue Nachrichten erscheinen nach Freigabe durch den Gastgeber.",
+    publishingNote: "Deine Nachricht erscheint sofort und kann bei Bedarf vom Gastgeber ausgeblendet werden.",
     commentsTitle: "Kommentare",
     noComments: "Noch keine Kommentare.",
     comment: "Schreibe einen Kommentar…",
@@ -160,7 +160,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Tu nombre",
     wish: "Escribe un deseo o un recuerdo…",
     addToGuestbook: "Añadir al libro de visitas",
-    moderation: "Los mensajes nuevos aparecen tras la aprobación del anfitrión.",
+    publishingNote: "Tu mensaje aparece inmediatamente y el anfitrión puede ocultarlo si es necesario.",
     commentsTitle: "Comentarios",
     noComments: "Todavía no hay comentarios.",
     comment: "Escribe un comentario…",
@@ -187,7 +187,7 @@ const guestExperienceCopy: Record<Locale, GuestExperienceCopy> = {
     yourName: "Il tuo nome",
     wish: "Scrivi un augurio o un ricordo…",
     addToGuestbook: "Aggiungi al guestbook",
-    moderation: "I nuovi messaggi vengono mostrati dopo l’approvazione dell’organizzatore.",
+    publishingNote: "Il tuo messaggio appare subito e l’organizzatore può nasconderlo se necessario.",
     commentsTitle: "Commenti",
     noComments: "Non ci sono ancora commenti.",
     comment: "Scrivi un commento…",
@@ -204,7 +204,7 @@ export function renderGuestParticipation(code: string, entries: GuestbookPreview
     ? entries.map((entry) => `<blockquote class="rounded-2xl border border-[#ece6f3] bg-white p-4"><p class="text-sm leading-6 text-[#65566f]">“${esc(entry.message)}”</p><footer class="mt-3 text-xs font-bold text-[#6d28d9]">${esc(entry.author_name)}</footer></blockquote>`).join("")
     : `<p class="rounded-2xl border border-dashed border-[#ccdcd5] bg-white/70 p-6 text-center text-sm text-[#756b82]">${esc(copy.firstMessage)}</p>`;
   const rsvp = settings.rsvp_enabled ? `<div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">RSVP</p><h2 class="mt-2 text-3xl text-[#2b174d]">${esc(copy.rsvpTitle)}</h2><p class="mt-2 text-sm leading-6 text-[#756b82]">${esc(copy.rsvpText)}</p><form action="/api/gallery/${encodeURIComponent(code)}/rsvp" method="post" aria-label="RSVP" class="mt-5 grid gap-3 sm:grid-cols-2"><input type="hidden" name="locale" value="${locale}"><input name="name" required maxlength="80" aria-label="${esc(copy.fullName)}" placeholder="${esc(copy.fullName)}" autocomplete="name" class="rounded-xl border px-4 py-3 sm:col-span-2"><input name="email" required type="email" maxlength="254" aria-label="${esc(copy.email)}" placeholder="${esc(copy.email)}" autocomplete="email" class="rounded-xl border px-4 py-3 sm:col-span-2"><select name="response" required aria-label="${esc(copy.attendance)}" class="rounded-xl border px-4 py-3"><option value="yes">${esc(copy.attending)}</option><option value="maybe">${esc(copy.maybe)}</option><option value="no">${esc(copy.notAttending)}</option></select><input name="guestCount" type="number" min="1" max="20" value="1" aria-label="${esc(copy.guestCount)}" class="rounded-xl border px-4 py-3"><input name="dietaryNotes" maxlength="300" aria-label="${esc(copy.dietary)}" placeholder="${esc(copy.dietary)}" class="rounded-xl border px-4 py-3 sm:col-span-2"><textarea name="message" maxlength="500" rows="3" aria-label="${esc(copy.hostMessage)}" placeholder="${esc(copy.hostMessage)}" class="rounded-xl border px-4 py-3 sm:col-span-2"></textarea><button class="rounded-xl bg-[#2b174d] px-5 py-3 font-semibold text-white sm:col-span-2">${esc(copy.sendRsvp)}</button></form></div>` : "";
-  const guestbook = settings.guestbook_enabled ? `<div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(copy.guestbookLabel)}</p><h2 class="mt-2 text-3xl text-[#2b174d]">${esc(copy.guestbookTitle)}</h2><form action="/api/gallery/${encodeURIComponent(code)}/guestbook" method="post" aria-label="${esc(copy.guestbookLabel)}" class="mt-5 space-y-3"><input type="hidden" name="locale" value="${locale}"><input name="name" required maxlength="80" aria-label="${esc(copy.yourName)}" placeholder="${esc(copy.yourName)}" autocomplete="name" class="w-full rounded-xl border px-4 py-3"><textarea name="message" required maxlength="800" rows="4" aria-label="${esc(copy.wish)}" placeholder="${esc(copy.wish)}" class="w-full rounded-xl border px-4 py-3"></textarea><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 font-semibold text-white">${esc(copy.addToGuestbook)}</button><p class="text-xs leading-5 text-[#756b82]">${esc(copy.moderation)}</p></form><div class="mt-5 grid gap-3 sm:grid-cols-2">${messages}</div></div>` : "";
+  const guestbook = settings.guestbook_enabled ? `<div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(copy.guestbookLabel)}</p><h2 class="mt-2 text-3xl text-[#2b174d]">${esc(copy.guestbookTitle)}</h2><form action="/api/gallery/${encodeURIComponent(code)}/guestbook" method="post" aria-label="${esc(copy.guestbookLabel)}" class="mt-5 space-y-3"><input type="hidden" name="locale" value="${locale}"><input name="name" required maxlength="80" aria-label="${esc(copy.yourName)}" placeholder="${esc(copy.yourName)}" autocomplete="name" class="w-full rounded-xl border px-4 py-3"><textarea name="message" required maxlength="800" rows="4" aria-label="${esc(copy.wish)}" placeholder="${esc(copy.wish)}" class="w-full rounded-xl border px-4 py-3"></textarea><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 font-semibold text-white">${esc(copy.addToGuestbook)}</button><p class="text-xs leading-5 text-[#756b82]">${esc(copy.publishingNote)}</p></form><div class="mt-5 grid gap-3 sm:grid-cols-2">${messages}</div></div>` : "";
   return `<section id="participate" class="mt-6 scroll-mt-6 rounded-[2rem] border border-[#e9e3f2] bg-[#f2f6f4] p-5 shadow-sm sm:p-8"><div class="grid gap-7 ${settings.rsvp_enabled && settings.guestbook_enabled ? "lg:grid-cols-2" : ""}">${rsvp}${guestbook}</div></section>`;
 }
 
