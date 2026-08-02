@@ -1,7 +1,9 @@
 ﻿@import "tailwindcss" source("./");
 
 :root {
-  color-scheme: light dark;
+  /* The current design system is light-only. Prevent mobile browsers from
+     auto-darkening controls and mixing their dark palette with our tokens. */
+  color-scheme: only light;
   --canvas: #fbf9ff;
   --surface: #ffffff;
   --surface-soft: #f2efff;
@@ -705,81 +707,6 @@ html {
   .memboux-ui h2 {
     font-size: clamp(1.3rem, 4vw, 1.7rem);
   }
-}
-
-/* ============================================================
-   Dark mode refinements
-   ============================================================ */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #10091f;
-    --surface: #1b1230;
-    --surface-soft: #271a43;
-    --line: #49376e;
-    --ink: #f7f3ff;
-    --muted: #b8aecb;
-    --accent-soft: #7d68d8;
-    --accent: #9277ff;
-    --accent-deep: #c2b4ff;
-  }
-  html, body,
-  body:has(.guest-album-page),
-  body:has(.official-album-page),
-  .memboux-ui {
-    background: #10091f;
-    color: var(--ink);
-  }
-  .memboux-ui {
-    background:
-      radial-gradient(circle at 8% 0%, rgba(146, 119, 255, .17), transparent 26rem),
-      radial-gradient(circle at 92% 8%, rgba(32, 191, 169, .09), transparent 30rem),
-      var(--canvas);
-  }
-  .memboux-ui [class~="bg-white"],
-  .memboux-ui [class~="bg-[#f7f3ff]"],
-  .memboux-ui [class~="bg-[#f7faf8]"],
-  .memboux-ui [class~="bg-[#faf8ff]"],
-  .memboux-ui [class~="bg-[#fafcfb]"],
-  .memboux-ui [class~="bg-[#f2f6f4]"],
-  .memboux-ui [class~="bg-[#f2ecff]"],
-  .memboux-ui [class~="bg-[#f1eaff]"] {
-    background-color: var(--surface) !important;
-  }
-  .memboux-ui [class~="text-[#2b174d]"],
-  .memboux-ui [class~="text-[#49395a]"],
-  .memboux-ui [class~="text-[#443653]"] { color: var(--ink) !important; }
-  .memboux-ui [class~="text-[#746a80]"],
-  .memboux-ui [class~="text-[#6f657c]"],
-  .memboux-ui [class~="text-[#756b82]"],
-  .memboux-ui [class~="text-[#756b82]"],
-  .memboux-ui [class~="text-[#7a7085]"],
-  .memboux-ui [class~="text-[#807588]"],
-  .memboux-ui [class~="text-[#877d91]"],
-  .memboux-ui [class~="text-[#8b9994]"] { color: var(--muted) !important; }
-  .memboux-ui input:not([type="checkbox"]):not([type="radio"]),
-  .memboux-ui select,
-  .memboux-ui textarea,
-  .memboux-ui dialog {
-    border-color: var(--line);
-    background: #21163a;
-    color: var(--ink);
-  }
-  .memboux-ui .gallery-upload,
-  .memboux-ui .gallery-upload input[type="file"] {
-    border-color: var(--line);
-    background: #21163a;
-    color: var(--ink);
-  }
-  .memboux-ui section,
-  .memboux-ui article,
-  .memboux-ui aside { border-color: var(--line); }
-  .memboux-ui [data-gallery-filter] {
-    border-color: var(--line);
-    background: #1b1230;
-    color: var(--ink);
-  }
-  .memboux-ui .empty-state { border-color: var(--line); background: rgba(23, 27, 36, .82); }
-  ::selection { background: #5d43c7; color: #fff; }
 }
 
 .seating-print-table th,
