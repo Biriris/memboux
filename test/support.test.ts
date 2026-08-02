@@ -1,5 +1,5 @@
 import { env, SELF } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addAiReply, markSupportConversationHumanOwned, normalizeSupportMessage, validSupportEmail } from "../src/routes/support";
 import { privacySupportWidgets } from "../src/views/privacy-support";
 import { classifySupportRequest } from "../src/support-routing";
@@ -7,6 +7,10 @@ import { SupportRepository } from "../src/support-repository";
 import { SupportService } from "../src/support-service";
 
 beforeEach(async () => {
+  vi.restoreAllMocks();
+  vi.spyOn(env.AI, "run").mockResolvedValue({
+    response: "ANSWER: Your support request has been received.",
+  });
   await env.DB.batch([
     env.DB.prepare("DROP TABLE IF EXISTS support_attachments"),
     env.DB.prepare("DROP TABLE IF EXISTS support_messages"),
@@ -200,7 +204,8 @@ describe("guest support conversation API", () => {
     expect(response.status).toBe(200);
     const restored = await response.json<{ conversation: { id: string }; messages: Array<{ body: string }> }>();
     expect(restored.conversation.id).toBe(payload.conversation.id);
-    expect(restored.messages).toHaveLength(1);
+    expect(restored.messages).toHaveLength(2);
+    expect(restored.messages[1].body).toBe("Your support request has been received.");
   });
 
   it("serves ticket attachments only to the visitor who owns the conversation", async () => {

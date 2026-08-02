@@ -13,6 +13,11 @@ Worker integration tests retain Vitest file isolation and run with at most four
 workers. The explicit limit avoids exhausting the CPU and memory available on
 hosted CI runners while retaining parallel execution.
 
+Remote Cloudflare bindings are disabled in the test pool. Workers AI has no
+local simulator and would otherwise require account credentials and consume a
+remote resource during CI. Tests must provide explicit mocks for code paths
+that invoke the AI binding.
+
 ## Production smoke
 
 The independent `Production smoke` workflow checks the deployed application on
