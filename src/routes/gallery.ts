@@ -22,7 +22,7 @@ import {
   toggleMediaLike,
 } from "../media-likes";
 import { isCanonicalDuplicateConstraint, mediaCanonicalHash } from "../media-fingerprint";
-import { getOrCreateMediaVariant, parseMediaVariant } from "../media-variants";
+import { getOrCreateMediaVariant, mediaVariantKey, parseMediaVariant } from "../media-variants";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent } from "../repositories";
@@ -266,9 +266,11 @@ galleryRoutes.get("/gallery/:code", async (c) => {
   const photoItems = items;
   const officialCount = officialResult?.total ?? 0;
   const guestQrSvg = guestQrRaw.replace("<svg", '<svg class="block h-auto w-full max-w-full"');
-  const participationSettings = experienceSettings
-    ? { ...experienceSettings, rsvp_enabled: ["wedding", "baptism"].includes(event.event_type ?? "") ? 0 : experienceSettings.rsvp_enabled }
-    : undefined;
+  const participationSettings: GuestParticipationSettings = {
+    rsvp_enabled: 0,
+    guestbook_enabled: experienceSettings?.guestbook_enabled ?? 1,
+    comments_enabled: experienceSettings?.comments_enabled ?? 1,
+  };
   const selectionScript = originalDownloads ? bulkSelectionScript({
     selectButtonId: "select-media",
     cardSelector: ".selectable-media",
@@ -302,22 +304,16 @@ galleryRoutes.get("/gallery/:code", async (c) => {
             <div class="mt-7 flex flex-col gap-3 sm:flex-row"><a href="#guest-upload" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-[#2b174d] shadow-lg"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5"/></svg>${esc(g.add)}</a><a href="#guest-moments" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm">${esc(g.explore)}</a></div>
           </div>
         </section>
-        <div class="mt-6 grid items-stretch gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(19rem,.75fr)]">
+        <div class="mt-6">
           <section id="guest-upload" class="gallery-upload-card scroll-mt-6 rounded-[2rem] border border-[#e9e3f2] bg-white p-5 shadow-sm sm:p-8">
             <div class="flex items-start gap-4"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f2ecff] text-[#7c3aed]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5"/></svg></span><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.uploads)}</p><h2 class="mt-1 text-3xl">${esc(g.addTitle)}</h2><p class="mt-2 text-sm leading-6 text-[#756b82]">${esc(g.noAccount)}</p></div></div>
             <form data-multi-upload action="/api/upload/${event.code}" method="post" enctype="multipart/form-data" class="gallery-upload mt-6 space-y-3 text-left"><input type="hidden" name="locale" value="${locale}"><input name="name" maxlength="60" aria-label="${esc(g.name)}" placeholder="${esc(g.name)}" autocomplete="name" class="w-full rounded-xl border px-4 py-3"><input name="file" required multiple type="file" accept="${UPLOAD_ACCEPT}" aria-label="${esc(g.addPhotos)}" class="w-full rounded-xl border p-3"><p class="text-xs text-[#6f657c]">${esc(uploadLimitsCopy(locale))}</p><section id="guest-upload-confirmation" aria-labelledby="guest-upload-confirmation-title" class="rounded-2xl border border-[#eae4f3] bg-[#f7f3ff] p-4 text-sm text-[#675a72]"><div class="flex items-center gap-2"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 shrink-0 text-[#6d28d9]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><strong id="guest-upload-confirmation-title" class="font-semibold text-[#49395a]">${esc(g.privacy)}</strong></div><p class="mt-3 leading-6">${esc(g.privacyText)}</p><label class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl bg-white/75 p-3"><input name="upload_confirmation" value="accepted" required type="checkbox" class="mt-1 h-4 w-4 shrink-0"><span>${esc(g.confirmation)}</span></label></section><button class="w-full rounded-xl bg-[#7c3aed] py-3.5 font-bold text-white shadow-lg shadow-indigo-950/10">${esc(g.upload)}</button></form>
           </section>
-          <aside class="guest-share-card flex flex-col rounded-[2rem] border border-[#e9e3f2] bg-[#f6f2fc] p-5 sm:p-7">
-            <div class="flex items-center justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.shareKicker)}</p><h2 class="mt-1 text-2xl">${esc(g.inviteMore)}</h2></div><span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#746a80]">${esc(g.noApp)}</span></div>
-            <div class="mx-auto mt-5 w-full max-w-[180px] overflow-hidden rounded-[1.4rem] border border-[#d9e3df] bg-white p-3 shadow-sm" role="img" aria-label="${esc(g.qrLabel)}">${guestQrSvg}</div>
-            <p class="mt-4 text-center text-sm leading-6 text-[#756b82]">${esc(g.scan)}</p>
-            ${shareIconButtons(guestUrl, event.eventName, locale, false)}
-            <button id="copy-guest-link" type="button" data-copy-label="${esc(g.copyLink)}" data-copied-label="${esc(g.copiedLink)}" class="mt-4 w-full rounded-xl border border-[#d3e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#443653]">${esc(g.copyLink)}</button>
-          </aside>
         </div>
-        <section class="official-album-teaser mt-6 overflow-hidden rounded-[2rem] border border-[#e9e3f2] bg-white shadow-sm"><a href="/gallery/${event.code}/official?lang=${locale}" class="group grid min-h-[18rem] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,.9fr)]"><div class="flex flex-col justify-center p-6 sm:p-9 lg:p-12"><p class="text-xs font-bold uppercase tracking-[.2em] text-[#7c3aed]">${esc(g.officialCollection)}</p><h2 class="mt-3 text-4xl text-[#2b174d]">${esc(g.officialAlbum)}</h2><p class="mt-3 max-w-xl text-sm leading-7 text-[#756b82]">${esc(g.officialTeaser)}</p><span class="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-[#2b174d] px-5 py-3 text-sm font-semibold text-white">${esc(officialCount ? g.viewCurated(officialCount) : g.viewCollection)}<span aria-hidden="true" class="transition group-hover:translate-x-1">→</span></span></div><div class="relative min-h-64 overflow-hidden bg-gradient-to-br from-[#2a4139] via-[#6d28d9] to-[#b5d0c5]"><div class="absolute inset-0 opacity-50" style="background:radial-gradient(circle at 72% 28%,rgba(200,221,213,.55),transparent 24%),radial-gradient(circle at 30% 76%,rgba(117,168,149,.35),transparent 28%)"></div><div class="absolute inset-0 flex items-center justify-center"><span class="flex h-36 w-36 items-center justify-center rounded-full border border-white/15 bg-white/5 backdrop-blur-sm"><img src="/brand/memboux-icon.png" alt="" class="h-24 w-24 opacity-40 brightness-0 invert transition duration-500 group-hover:scale-110"></span></div><div class="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"></div><span class="absolute bottom-5 left-5 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">Memboux Studio</span></div></a></section>
         <section id="guest-moments" class="guest-gallery mt-6 scroll-mt-6 rounded-[2rem] border border-[#e9e3f2] bg-white p-5 shadow-sm sm:p-8"><div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.guestMoments)}</p><h2 class="mt-1 text-3xl">${esc(g.galleryTitle)}</h2>${galleryFilterControls(photoItems, "guest-gallery", locale)}</div><div class="flex flex-wrap gap-2"><button id="select-media" class="rounded-xl border px-4 py-2 text-sm font-semibold">${esc(g.select)}</button><button id="download-selected" class="hidden rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-semibold text-white">${esc(g.downloadSelected)}</button></div></div>${photoItems.length ? `<div data-gallery-grid="guest-gallery" class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">${cards(photoItems, { selectable: true, deferredSelection: true, lightbox: true, reportCode: event.code, locale, likes: true, deferAfter: 12 })}</div>${galleryProgressiveControls(photoItems.length, "guest-gallery", locale)}` : `<div class="rounded-3xl border border-dashed border-[#cfdbd6] bg-[#faf8ff] px-6 py-16 text-center"><p class="text-2xl">${esc(g.firstMoment)}</p><a href="#guest-upload" class="mt-4 inline-flex rounded-xl bg-[#2b174d] px-5 py-3 text-sm font-semibold text-white">${esc(g.addPhotos)}</a></div>`}</section>
         ${renderGuestParticipation(event.code, guestbookResult.results, locale, participationSettings)}
+        ${officialCount ? `<section class="official-album-teaser mt-6 overflow-hidden rounded-[2rem] border border-[#e9e3f2] bg-white shadow-sm"><a href="/gallery/${event.code}/official?lang=${locale}" class="group grid min-h-[18rem] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,.9fr)]"><div class="flex flex-col justify-center p-6 sm:p-9 lg:p-12"><p class="text-xs font-bold uppercase tracking-[.2em] text-[#7c3aed]">${esc(g.officialCollection)}</p><h2 class="mt-3 text-4xl text-[#2b174d]">${esc(g.officialAlbum)}</h2><p class="mt-3 max-w-xl text-sm leading-7 text-[#756b82]">${esc(g.officialTeaser)}</p><span class="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-[#2b174d] px-5 py-3 text-sm font-semibold text-white">${esc(g.viewCurated(officialCount))}<span aria-hidden="true" class="transition group-hover:translate-x-1">→</span></span></div><div class="relative min-h-64 overflow-hidden bg-gradient-to-br from-[#2a4139] via-[#6d28d9] to-[#b5d0c5]"><div class="absolute inset-0 opacity-50" style="background:radial-gradient(circle at 72% 28%,rgba(200,221,213,.55),transparent 24%),radial-gradient(circle at 30% 76%,rgba(117,168,149,.35),transparent 28%)"></div><div class="absolute inset-0 flex items-center justify-center"><span class="flex h-36 w-36 items-center justify-center rounded-full border border-white/15 bg-white/5 backdrop-blur-sm"><img src="/brand/memboux-icon.png" alt="" class="h-24 w-24 opacity-40 brightness-0 invert transition duration-500 group-hover:scale-110"></span></div><div class="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"></div><span class="absolute bottom-5 left-5 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">Memboux Studio</span></div></a></section>` : ""}
+        <section id="guest-share" class="guest-share-card mt-6 rounded-[2rem] border border-[#e9e3f2] bg-[#f6f2fc] p-5 sm:p-7"><div class="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_12rem]"><div><div class="flex items-center justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.shareKicker)}</p><h2 class="mt-1 text-2xl">${esc(g.inviteMore)}</h2></div><span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#746a80]">${esc(g.noApp)}</span></div><p class="mt-4 text-sm leading-6 text-[#756b82]">${esc(g.scan)}</p>${shareIconButtons(guestUrl, event.eventName, locale, false)}<button id="copy-guest-link" type="button" data-copy-label="${esc(g.copyLink)}" data-copied-label="${esc(g.copiedLink)}" class="mt-4 rounded-xl border border-[#d3e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#443653]">${esc(g.copyLink)}</button></div><div class="mx-auto w-full max-w-[180px] overflow-hidden rounded-[1.4rem] border border-[#d9e3df] bg-white p-3 shadow-sm" role="img" aria-label="${esc(g.qrLabel)}">${guestQrSvg}</div></div></section>
       </main>${galleryFilterScript(photoItems, "guest-gallery")}${galleryProgressiveScript("guest-gallery")}${lightboxMarkup(locale, true, originalDownloads)}${experienceSettings?.comments_enabled === 0 ? "" : mediaCommentsOverlay(event.code, locale)}${selectionScript}${mediaLikesScript(event.code, locale)}<script>(()=>{const button=document.getElementById('copy-guest-link');button?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(${JSON.stringify(guestUrl)});button.textContent=button.dataset.copiedLabel;setTimeout(()=>button.textContent=button.dataset.copyLabel,1800)}catch{}})})()<\/script>`,
       { locale },
     ),
@@ -403,7 +399,7 @@ galleryRoutes.get("/gallery/:code/official", async (c) => {
   const items = officialItems;
   const featured = items[0];
   const featuredMedia = featured
-    ? `<button type="button" class="lightbox-item group block h-full min-h-[20rem] w-full overflow-hidden" data-src="/media/${encodeURIComponent(featured.id)}${featured.media_type === "image" ? "?variant=preview" : ""}" data-full="/media/${encodeURIComponent(featured.id)}" data-original="/media/${encodeURIComponent(featured.id)}?download=1" data-type="${featured.media_type}" data-uploader="${esc(featured.uploaded_by)}"${featured.media_type === "image" ? ` data-media-id="${esc(featured.id)}" data-like-count="${Number(featured.like_count ?? 0)}" data-liked="${Boolean(featured.viewer_liked)}"` : ""}>${featured.media_type === "image" ? `<img src="/media/${encodeURIComponent(featured.id)}?variant=preview" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]">` : `<video src="/media/${encodeURIComponent(featured.id)}" muted playsinline preload="metadata" class="h-full w-full object-cover"></video>`}</button>`
+    ? `<button type="button" class="lightbox-item group relative block h-full min-h-[20rem] w-full overflow-hidden" data-src="/media/${encodeURIComponent(featured.id)}${featured.media_type === "image" ? "?variant=preview" : ""}" data-full="/media/${encodeURIComponent(featured.id)}" data-original="/media/${encodeURIComponent(featured.id)}?download=1" data-type="${featured.media_type}" data-uploader="${esc(featured.uploaded_by)}"${featured.media_type === "image" ? ` data-media-id="${esc(featured.id)}" data-like-count="${Number(featured.like_count ?? 0)}" data-liked="${Boolean(featured.viewer_liked)}"` : ""}>${featured.media_type === "image" ? `<img src="/media/${encodeURIComponent(featured.id)}?variant=preview" alt="" class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]">` : `<video src="/media/${encodeURIComponent(featured.id)}#t=0.1" poster="/media/${encodeURIComponent(featured.id)}?variant=thumb" muted playsinline preload="metadata" class="h-full w-full object-cover"></video><span class="pointer-events-none absolute left-5 top-5 rounded-full border border-white/20 bg-black/65 px-3 py-1.5 text-[10px] font-bold tracking-[.12em] text-white backdrop-blur">VIDEO</span>`}</button>`
     : `<div class="flex min-h-[20rem] items-center justify-center bg-gradient-to-br from-[#2a4139] via-[#6d28d9] to-[#b5d0c5]"><img src="/brand/memboux-icon.png" alt="" class="h-28 w-28 opacity-25 brightness-0 invert"></div>`;
   return c.html(
     page(
@@ -668,7 +664,7 @@ galleryRoutes.get("/media/:id", async (c) => {
     return c.text("Οι λήψεις πρωτοτύπων ξεκλειδώνουν με την αναβάθμιση του event.", 403);
   }
 
-  const requestedVariant = wantsOriginalDownload || row.media_type !== "image"
+  const requestedVariant = wantsOriginalDownload
     ? null
     : parseMediaVariant(c.req.query("variant"));
   // A missing variant used to expose the original object directly. During an
@@ -676,10 +672,16 @@ galleryRoutes.get("/media/:id", async (c) => {
   // regardless of the URL a client constructs.
   const variant = row.media_type === "image" && !originalDownloadsAllowed
     ? "preview"
-    : requestedVariant;
+    : row.media_type === "video" && requestedVariant !== "thumb"
+      ? null
+      : requestedVariant;
   let object: R2ObjectBody | null = null;
   let transformed = false;
-  if (variant) {
+  if (variant && row.media_type === "video") {
+    object = await c.env.MEDIA.get(mediaVariantKey(row.object_key, "thumb"));
+    transformed = Boolean(object);
+    if (!object) return c.text("Video preview unavailable.", 404);
+  } else if (variant) {
     try {
       const result = await getOrCreateMediaVariant(c.env, row.object_key, variant);
       object = result?.object ?? null;

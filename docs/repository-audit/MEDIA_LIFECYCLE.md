@@ -37,18 +37,19 @@ Admin and studio uploads follow similar R2-then-D1 compensation patterns, but us
 
 [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) implements:
 
-1. `POST /api/upload/:code/multipart` to authorize, validate, reserve trial/storage capacity, create an R2 multipart upload, and store a session.
-2. `PUT .../parts/:partNumber` to upload and record parts together with the required SHA-256 part fingerprint.
-3. Optional `PUT .../variants/:variant` for client-produced thumbnail/preview objects.
-4. `POST .../complete` to validate every part manifest, derive a deterministic content hash from the ordered SHA-256 part fingerprints, complete R2 multipart state, insert the `media` row, and mark the session complete. A matching active media row causes the new R2 original and its variants to be deleted and its storage reservation to be released.
-5. `POST .../finalize` to finalize multiple client sessions.
-6. `DELETE .../:sessionId` and scheduled reconciliation to abort/clean incomplete or expired sessions and release reservations.
+1. `PUT /api/upload/:code/fast` for a single streamed browser-to-Worker-to-R2 request for common files up to 20 MB. The route preserves authorization, quotas, exact SHA-256 duplicate detection, storage compensation, official-album insertion, and the batch notification/finalization contract.
+2. `POST /api/upload/:code/multipart` to authorize, validate, reserve trial/storage capacity, create an R2 multipart upload, and store a session.
+3. `PUT .../parts/:partNumber` to upload and record parts together with the required SHA-256 part fingerprint.
+4. Optional `PUT .../variants/:variant` for client-produced image thumbnail/preview objects and video poster thumbnails. A video thumbnail may also be attached immediately after the fast path has completed its session.
+5. `POST .../complete` to validate every part manifest, derive a deterministic content hash from the ordered SHA-256 part fingerprints, complete R2 multipart state, insert the `media` row, and mark the session complete. A matching active media row causes the new R2 original and its variants to be deleted and its storage reservation to be released.
+6. `POST .../finalize` to finalize multiple client sessions.
+7. `DELETE .../:sessionId` and scheduled reconciliation to abort/clean incomplete or expired sessions and release reservations.
 
 Before a new multipart session reserves storage, completed sessions are checked by client fingerprint plus size/type, with a conservative filename/size/type/timestamp fallback. Filename alone is never treated as proof of duplication. The deterministic manifest helper is in [`src/media-fingerprint.ts`](../../src/media-fingerprint.ts).
 
 The session/token authorization, duplicate cleanup, and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts), [`media-fingerprint.test.ts`](../../test/media-fingerprint.test.ts), and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts). No Queue is involved.
 
-The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) uses adaptive file concurrency: up to five files on an unconstrained desktop connection, three on coarse-pointer/mobile devices, and two when data-saver or a 2G-class connection is reported. A single large file can use up to four R2 part workers; batches use one part worker per active file. Image thumbnail/preview generation is limited to two concurrent jobs and runs after an original's parts have transferred. The UI exposes aggregate progress rather than a per-file queue. Resumability, per-part fingerprints, retries, local session state, early duplicate responses, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these concurrency markers.
+The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) uses the single-request fast path for files up to 20 MB and resumable multipart uploads for larger files. Adaptive file concurrency allows up to six files on an unconstrained desktop connection, four on coarse-pointer/mobile devices, and two when data-saver or a 2G-class connection is reported. A single large file can use up to four R2 part workers; batches use one part worker per active file. Each payload is read once into an `ArrayBuffer`, fingerprinted, and uploaded from the same bytes. The upload critical path does not create or transfer client-side image variants; thumbnails and previews are produced and cached by the existing Cloudflare Images read path when requested. For video files, browser poster extraction runs in parallel and stores a small WebP thumbnail when the browser can decode the selected format. The UI exposes aggregate bytes plus completed/selected file counts, rather than a per-file queue. Its cancel action aborts active browser requests and calls the existing authenticated session-abort route for every known multipart session. Resumability, per-part fingerprints, retries, local session state, early duplicate responses, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these concurrency/cancellation markers.
 
 ## Read and transformation
 
@@ -59,7 +60,7 @@ The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) uses ad
 - Use Cloudflare Images to scale down to 640 px/76 quality or 1600 px/82 quality.
 - Persist the generated WebP back to R2 with an immutable private cache directive.
 
-Wedding, account-trash, and studio serving routes reuse the same helper. Video is streamed from the original object; no transcoding pipeline exists in the repository.
+Wedding, account-trash, and studio serving routes reuse the same helper. Video originals are streamed directly and support byte ranges. Gallery cards request the client-produced WebP poster thumbnail and retain a first-frame video fallback plus a visible video badge. Historical videos without a stored poster return `404` for the poster request and rely on that fallback. No transcoding pipeline exists in the repository.
 
 ## Curation and secondary objects
 

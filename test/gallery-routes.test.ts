@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { sha256 } from "../src/utils";
+import { sha256, sha256Bytes } from "../src/utils";
 
 const now = Date.now();
 const publicCode = "GAL901";
@@ -220,7 +220,10 @@ describe("gallery, upload, and media routes", () => {
   it("keeps the wedding guest gallery separate from the wedding website", async () => {
     const response = await SELF.fetch(`https://memboux.com/gallery/${weddingCode}?lang=fr`);
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Wedding gallery");
+    const html = await response.text();
+    expect(html).toContain("Wedding gallery");
+    expect(html).not.toContain('aria-label="RSVP"');
+    expect(html).not.toContain("official-album-teaser");
   });
 
   it("renders an active public gallery", async () => {
@@ -245,6 +248,12 @@ describe("gallery, upload, and media routes", () => {
     expect(html).not.toContain('<summary class="cursor-pointer font-semibold">Privacy and confirmation</summary>');
     expect(html).toContain("Up to 100 photos or videos");
     expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif,video/mp4');
+    expect(html).not.toContain('aria-label="RSVP"');
+    expect(html.indexOf('id="guest-upload"')).toBeLessThan(html.indexOf('id="guest-moments"'));
+    expect(html.indexOf('id="guest-moments"')).toBeLessThan(html.indexOf('id="participate"'));
+    expect(html.indexOf('id="participate"')).toBeLessThan(html.indexOf("official-album-teaser"));
+    expect(html.indexOf("official-album-teaser")).toBeLessThan(html.indexOf('id="guest-share"'));
+    expect(html.indexOf('id="guest-share"')).toBeGreaterThan(html.indexOf('id="participate"'));
   });
 
   it("localizes the core guest upload journey in every supported language", async () => {
@@ -465,6 +474,104 @@ describe("gallery, upload, and media routes", () => {
     expect(stored).toEqual({ media_type: "video", content_type: "video/mp4" });
   });
 
+  it("stores common-size files through the single-request fast path", async () => {
+    const bytes = new Uint8Array([9, 8, 7, 6, 5, 4]);
+    const contentHash = await sha256Bytes(bytes.buffer);
+    const headers = {
+      Origin: "https://memboux.com",
+      "CF-Connecting-IP": "198.51.100.205",
+      "Content-Type": "image/jpeg",
+      "Upload-Filename": encodeURIComponent("fast moment.jpg"),
+      "Upload-Size": String(bytes.byteLength),
+      "Upload-Last-Modified": String(now),
+      "Upload-Fingerprint": "e".repeat(64),
+      "Upload-Content-SHA256": contentHash,
+      "Upload-Origin": "guest",
+      "Upload-Name": encodeURIComponent("Fast Guest"),
+      "Upload-Consent": "accepted",
+      "Upload-Locale": "en",
+    };
+    const response = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/fast`, {
+      method: "PUT",
+      headers,
+      body: bytes,
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("server-timing")).toMatch(/^memboux_upload;dur=\d+$/);
+    const result = await response.json<{ sessionId: string; token: string; mediaId: string }>();
+    expect(result).toMatchObject({ uploaded: 1, duplicate: false });
+
+    const stored = await env.DB.prepare(
+      "SELECT id,object_key,size_bytes,content_hash,uploaded_by FROM media WHERE id=?",
+    ).bind(result.mediaId).first<{
+      id: string;
+      object_key: string;
+      size_bytes: number;
+      content_hash: string;
+      uploaded_by: string;
+    }>();
+    expect(stored).toMatchObject({
+      id: result.mediaId,
+      size_bytes: bytes.byteLength,
+      content_hash: contentHash,
+      uploaded_by: "Fast Guest",
+    });
+    expect((await env.MEDIA.get(stored!.object_key))?.size).toBe(bytes.byteLength);
+    expect(await env.DB.prepare(
+      "SELECT status,notified_at FROM multipart_upload_sessions WHERE id=?",
+    ).bind(result.sessionId).first()).toEqual({ status: "completed", notified_at: null });
+
+    const finalize = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart/finalize`, {
+      method: "POST",
+      headers: { Origin: "https://memboux.com", "Content-Type": "application/json" },
+      body: JSON.stringify({ sessions: [{ id: result.sessionId, token: result.token }] }),
+    });
+    expect(finalize.status).toBe(200);
+    expect(await finalize.json()).toMatchObject({ ok: true, uploaded: 1 });
+
+    const duplicate = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/fast`, {
+      method: "PUT",
+      headers: { ...headers, "CF-Connecting-IP": "198.51.100.206" },
+      body: bytes,
+    });
+    expect(duplicate.status).toBe(200);
+    expect(await duplicate.json()).toMatchObject({ ok: true, uploaded: 0, duplicate: true });
+
+    const videoBytes = new Uint8Array([1, 3, 5, 7, 9]);
+    const videoResponse = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/fast`, {
+      method: "PUT",
+      headers: {
+        ...headers,
+        "CF-Connecting-IP": "198.51.100.207",
+        "Content-Type": "video/mp4",
+        "Upload-Filename": encodeURIComponent("fast-video.mp4"),
+        "Upload-Size": String(videoBytes.byteLength),
+        "Upload-Fingerprint": "1".repeat(64),
+        "Upload-Content-SHA256": await sha256Bytes(videoBytes.buffer),
+      },
+      body: videoBytes,
+    });
+    expect(videoResponse.status).toBe(200);
+    const video = await videoResponse.json<{ sessionId: string; token: string; mediaId: string }>();
+    const posterBytes = new Uint8Array([82, 73, 70, 70, 4, 3, 2, 1]);
+    const poster = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${video.sessionId}/variants/thumb`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": video.token,
+          "Content-Type": "image/webp",
+        },
+        body: posterBytes,
+      },
+    );
+    expect(poster.status).toBe(200);
+    const servedPoster = await SELF.fetch(`https://memboux.com/media/${video.mediaId}?variant=thumb`);
+    expect(servedPoster.status).toBe(200);
+    expect(servedPoster.headers.get("content-type")).toBe("image/webp");
+  });
+
   it("resumes a multipart video and stores it only after every part completes", async () => {
     const fingerprint = "a".repeat(64);
     const metadata = {
@@ -538,6 +645,21 @@ describe("gallery, upload, and media routes", () => {
     );
     expect(uploadPart.status).toBe(200);
 
+    const posterBytes = new Uint8Array([82, 73, 70, 70, 9, 8, 7, 6]);
+    const poster = await SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/variants/thumb`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "Upload-Token": session.token,
+          "Content-Type": "image/webp",
+        },
+        body: posterBytes,
+      },
+    );
+    expect(poster.status).toBe(200);
+
     const complete = await SELF.fetch(
       `https://memboux.com/api/upload/${publicCode}/multipart/${session.sessionId}/complete`,
       {
@@ -556,14 +678,19 @@ describe("gallery, upload, and media routes", () => {
     expect(finalize.status).toBe(200);
     expect(await finalize.json()).toMatchObject({ ok: true, uploaded: 1 });
     const stored = await env.DB.prepare(
-      "SELECT media_type,content_type,size_bytes,uploaded_by FROM media WHERE event_id=? AND uploaded_by='Resumable Guest'",
-    ).bind(publicEventId).first();
-    expect(stored).toEqual({
+      "SELECT id,object_key,media_type,content_type,size_bytes,uploaded_by FROM media WHERE event_id=? AND uploaded_by='Resumable Guest'",
+    ).bind(publicEventId).first<{ id: string; object_key: string; media_type: string; content_type: string; size_bytes: number; uploaded_by: string }>();
+    expect(stored).toMatchObject({
       media_type: "video",
       content_type: "video/mp4",
       size_bytes: 6,
       uploaded_by: "Resumable Guest",
     });
+    expect((await env.MEDIA.get(`${stored!.object_key}.memboux-thumb-v1.webp`))?.size).toBe(posterBytes.byteLength);
+    const servedPoster = await SELF.fetch(`https://memboux.com/media/${stored!.id}?variant=thumb`);
+    expect(servedPoster.status).toBe(200);
+    expect(servedPoster.headers.get("content-type")).toBe("image/webp");
+    expect(new Uint8Array(await servedPoster.arrayBuffer())).toEqual(posterBytes);
 
     const earlyDuplicate = await SELF.fetch(`https://memboux.com/api/upload/${publicCode}/multipart`, {
       method: "POST",

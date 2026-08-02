@@ -116,7 +116,7 @@ export function renderWeddingPage(input: {
     hasGuestInfo ? ["details", t(locale, "Guest guide", "Οδηγός καλεσμένων", "Guide invités", "Gäste-Guide", "Guía", "Guida ospiti")] : null,
     ["moments", t(locale, "Moments", "Στιγμές", "Moments", "Momente", "Momentos", "Momenti")],
     experienceHtml ? ["guest-experience", t(locale, "Guests", "Καλεσμένοι", "Invités", "Gäste", "Invitados", "Ospiti")] : null,
-    experienceHtml ? ["official-album", t(locale, "Official", "Επίσημο", "Officiel", "Offiziell", "Oficial", "Ufficiale")] : null,
+    experienceHtml?.includes('id="official-album"') ? ["official-album", t(locale, "Official", "Επίσημο", "Officiel", "Offiziell", "Oficial", "Ufficiale")] : null,
     experienceHtml && features.has("live_slideshow") ? ["live", t(locale, "Live", "Ζωντανά", "Direct", "Live", "En vivo", "Diretta")] : null,
   ].filter((item): item is string[] => Boolean(item));
   const previewQuery = preview

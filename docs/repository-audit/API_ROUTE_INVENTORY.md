@@ -240,11 +240,12 @@ POST  /api/upload/:code
 GET   /media/:id
 ```
 
-## Resumable upload — `src/routes/resumable-uploads.ts` (7)
+## Resumable upload — `src/routes/resumable-uploads.ts` (8)
 
 Source: [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts). Initial authorization mirrors direct-upload access; continuation calls require the stored upload token and valid session state.
 
 ```text
+PUT    /api/upload/:code/fast
 POST   /api/upload/:code/multipart
 GET    /api/upload/:code/multipart/:sessionId
 PUT    /api/upload/:code/multipart/:sessionId/parts/:partNumber

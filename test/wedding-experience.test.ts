@@ -27,7 +27,7 @@ const photo = (id: string, origin: "guest" | "official"): LikeableMediaRow => ({
 });
 
 describe("integrated wedding guest experience", () => {
-  it("renders uploads, sharing, gallery, RSVP, guestbook, official album and live", () => {
+  it("renders uploads, gallery, guestbook, official album, live and sharing in that order without RSVP", () => {
     const result = renderWeddingExperience({
       code: "ABC123",
       eventName: "Alex & Sam",
@@ -45,6 +45,12 @@ describe("integrated wedding guest experience", () => {
     expect(result.html).toContain('id="participate"');
     expect(result.html).toContain('id="official-album"');
     expect(result.html).toContain('id="live"');
+    expect(result.html).toContain('id="guest-share"');
+    expect(result.html).not.toContain('aria-label="RSVP"');
+    expect(result.html.indexOf('id="guest-upload"')).toBeLessThan(result.html.indexOf('id="guest-moments"'));
+    expect(result.html.indexOf('id="guest-moments"')).toBeLessThan(result.html.indexOf('id="participate"'));
+    expect(result.html.indexOf('id="participate"')).toBeLessThan(result.html.indexOf('id="official-album"'));
+    expect(result.html.indexOf('id="official-album"')).toBeLessThan(result.html.indexOf('id="guest-share"'));
     expect(result.html).toContain('data-test="guest-qr"');
     expect(result.html).toContain("North Studio");
     expect(result.html).toContain("Guest Maria");
@@ -69,6 +75,7 @@ describe("integrated wedding guest experience", () => {
     expect(result.html).toContain("2 remaining");
     expect(result.html).toContain('data-gallery-deferred="true"');
     expect(result.scripts).toContain('data-gallery-grid="wedding-guest-gallery"');
+    expect(result.html).not.toContain('id="official-album"');
   });
 
   it("localizes every integrated Wedding section and the visible media picker", () => {
@@ -121,7 +128,6 @@ describe("integrated wedding guest experience", () => {
 
     const greek = render("el");
     for (const phrase of [
-      "Το επαγγελματικό άλμπουμ",
       "Ζωντανές στιγμές",
       "Οι νέες φωτογραφίες και τα βίντεο θα εμφανίζονται εδώ αυτόματα.",
       "Προσθήκη στο άλμπουμ",

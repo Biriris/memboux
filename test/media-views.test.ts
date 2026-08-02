@@ -49,6 +49,9 @@ describe("media views", () => {
     expect(html).toContain('data-media-type="video"');
     expect(html).toContain('data-type="image"');
     expect(html).toContain('data-type="video"');
+    expect(html).toContain('poster="/media/22222222-2222-4222-8222-222222222222?variant=thumb"');
+    expect(html).toContain("VIDEO</span>");
+    expect(html).toContain("#t=0.1");
     expect(html).toContain('data-media-uploaded="1700000000000"');
     expect(html).toContain('data-media-rating="0"');
   });
@@ -224,6 +227,8 @@ describe("media views", () => {
     expect(html).toContain("native-save-image");
     expect(html).toContain("image.draggable=false");
     expect(html).toContain('id="lightbox-zoom-controls"');
+    expect(html).toContain('id="lightbox-close"');
+    expect(html).toContain("closeButton?.addEventListener('click',()=>dialog.close())");
     expect(html).toContain("touchDistance(event.touches)");
     expect(html).toContain("setZoom(pinchZoom");
     expect(html).toContain("fallbackTried");

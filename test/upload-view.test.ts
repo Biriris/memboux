@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MAX_UPLOAD_BATCH_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_SELECTION_SIZE } from "../src/config";
+import { FAST_UPLOAD_MAX_SIZE, MAX_UPLOAD_BATCH_SIZE, MAX_UPLOAD_FILES, MAX_UPLOAD_SELECTION_SIZE } from "../src/config";
 import { additiveFileSelectionScript, multiUploadScript, photoUploadMarkup, uploadLimitsCopy, uploadQueueScript } from "../src/views/upload";
 
 describe("multi-file upload view", () => {
   it("supports one hundred photos or videos and a twenty-gigabyte selection", () => {
     expect(MAX_UPLOAD_FILES).toBe(100);
     expect(MAX_UPLOAD_SELECTION_SIZE).toBe(20 * 1024 * 1024 * 1024);
+    expect(FAST_UPLOAD_MAX_SIZE).toBe(20 * 1024 * 1024);
     expect(MAX_UPLOAD_BATCH_SIZE).toBeLessThan(100 * 1024 * 1024);
     expect(uploadLimitsCopy("en")).toContain("Up to 100 photos");
     expect(uploadLimitsCopy("en")).toContain("videos");
@@ -41,10 +42,22 @@ describe("multi-file upload view", () => {
       expect(script).toContain("localStorage.setItem");
       expect(script).toContain("'/complete'");
       expect(script).toContain("progressByFile");
-      expect(script).toContain("maxFileConcurrency=constrained?2:coarse?3:5");
+      expect(script).toContain("maxFileConcurrency=constrained?2:coarse?4:6");
       expect(script).toContain("Math.min(maxFileConcurrency,files.length)");
-      expect(script).toContain("withVariantSlot(()=>imageVariants(file))");
-      expect(script).toContain("Promise.all(variants.map");
+      expect(script).toContain("partBytes=await blob.arrayBuffer()");
+      expect(script).toContain("body:partBytes");
+      expect(script).toContain("file.size<=limits.fastFileBytes");
+      expect(script).toContain("endpoint.replace(/\\/multipart$/,'/fast')");
+      expect(script).toContain("'Upload-Content-SHA256':contentHash");
+      expect(script).not.toContain("imageVariants(file)");
+      expect(script).toContain("/variants/thumb");
+      expect(script).toContain("videoPoster(file)");
+      expect(script).toContain("data-upload-count");
+      expect(script).toContain("data-upload-cancel");
+      expect(script).toContain("new AbortController()");
+      expect(script).toContain("controller.abort()");
+      expect(script).toContain("method:'DELETE'");
+      expect(script).toContain("completedFiles+' / '+totalFiles");
       expect(script).toContain("if(session.duplicate)");
       expect(script).toContain("beforeunload");
       expect(script).toContain("memboux-upload-return");
