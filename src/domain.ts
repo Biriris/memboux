@@ -152,7 +152,7 @@ export type EventInvitationRow = {
   id: string;
   event_id: string;
   email: string;
-  role: "editor" | "viewer";
+  role: "owner" | "editor" | "viewer";
   created_at: number;
   expires_at: number;
   accepted_at: number | null;

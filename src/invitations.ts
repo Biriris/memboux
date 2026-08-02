@@ -4,7 +4,8 @@ import { sha256 } from "./utils";
 export type InviteRole = EventInvitationRow["role"];
 export type InvitationKind = EventInvitationRow["invitation_kind"];
 
-export const normalizeInviteRole = (value: unknown): InviteRole => value === "viewer" ? "viewer" : "editor";
+export const normalizeInviteRole = (value: unknown): InviteRole =>
+  value === "owner" || value === "viewer" ? value : "editor";
 
 type CreateInvitationInput = {
   id: string;
@@ -176,6 +177,14 @@ export async function respondToInvitation(
       VALUES (?,?,?,?,?,?, 'invitation_accepted',1,?,NULL)`)
       .bind(crypto.randomUUID(), invitation.invited_by, invitation.event_id, invitation.id, user.id, user.name ?? user.email, now)
       .run();
+    if (!professional && invitation.role === "owner") {
+      console.log(JSON.stringify({
+        event: "event_co_owner_invitation_accepted",
+        eventId: invitation.event_id,
+        invitedBy: invitation.invited_by,
+        acceptedBy: user.id,
+      }));
+    }
   }
   return accepted
     ? { status: "accepted", eventId: invitation.event_id, eventCode: invitation.event_code, professional }

@@ -5,7 +5,7 @@ import { getEventRole, roleCan } from "../access";
 import { sendEmail } from "../auth";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventInvitationRow, EventMemberRow } from "../domain";
-import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEventRole, removeEventPersonAccess } from "../event-people";
+import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEventRole, normalizePendingManagedEventRole, removeEventPersonAccess } from "../event-people";
 import { eventTypeLabel, isEventType, normalizeEventType } from "../event-types";
 import { EVENT_TRIAL_DAYS, EVENT_TRIAL_MEDIA_LIMIT, eventMediaUsage, getEventAccess, startEventTrial } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
@@ -432,34 +432,48 @@ eventRoutes.post("/api/account/events/:code/invite", async (c) => {
   const role = invitationKind === "professional" ? "viewer" : normalizeInviteRole(requestedRole);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.text("Invalid email", 400);
   if (email === user.email.toLowerCase()) return c.text(locale === "el" ? "Είσαι ήδη ο ιδιοκτήτης αυτού του event." : "You already own this event.", 400);
-  if (!(await canInviteToEvent(c.env.DB, event.id)).allowed) return c.text(locale === "el" ? "Έφτασες το όριο συνεργατών του plan σου." : "You reached your plan collaborator limit.", 409);
   const existingUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE lower(email)=lower(?)`).bind(email).first<{ id: string }>();
+  let existingMember = false;
   if (existingUser && invitationKind === "member") {
-    const existingMember = await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, existingUser.id).first();
-    if (existingMember) return wantsJson
+    existingMember = Boolean(await c.env.DB.prepare("SELECT 1 FROM event_members WHERE event_id=? AND user_id=?").bind(event.id, existingUser.id).first());
+    if (existingMember && role !== "owner") return wantsJson
       ? c.json({ message: locale === "el" ? "Ο χρήστης έχει ήδη πρόσβαση σε αυτό το album." : "This user already has access to the album." }, 409)
       : c.redirect(`/dashboard/${event.code}/team?lang=${locale}`, 303);
   }
+  if (!existingMember && !(await canInviteToEvent(c.env.DB, event.id)).allowed) return c.text(locale === "el" ? "Έφτασες το όριο συνεργατών του plan σου." : "You reached your plan collaborator limit.", 409);
   const invitationId = crypto.randomUUID();
   const invitationToken = createInvitationToken();
   const now = Date.now();
   await createOrReplaceInvitation(c.env.DB, { id: invitationId, eventId: event.id, email, role, invitationKind, invitedBy: user.id, createdAt: now, expiresAt: now + 14 * 86_400_000, tokenHash: await hashInvitationToken(invitationToken) });
+  if (role === "owner") {
+    console.log(JSON.stringify({
+      event: "event_co_owner_invitation_created",
+      eventId: event.id,
+      invitedBy: user.id,
+      invitationId,
+    }));
+  }
   const invitationUrl = `${new URL(c.req.url).origin}/invite/${encodeURIComponent(invitationToken)}?lang=${locale}`;
   const subject = locale === "el" ? `Πρόσκληση στο event ${event.eventName}` : `Invitation to ${event.eventName}`;
   const roleLabel = invitationKind === "professional"
     ? (locale === "el" ? "επίσημος φωτογράφος" : "professional photographer")
-    : locale === "el" ? (role === "editor" ? "διαχειριστής" : "θεατής") : (role === "editor" ? "manager" : "viewer");
+    : locale === "el"
+      ? (role === "owner" ? "συνιδιοκτήτης" : role === "editor" ? "διαχειριστής" : "θεατής")
+      : (role === "owner" ? "co-owner" : role === "editor" ? "manager" : "viewer");
   const invitationInstruction = eventInvitationInstruction(Boolean(existingUser), locale);
   const invitationIntro = locale === "el"
     ? `${user.name} σε προσκάλεσε ως ${roleLabel} στο ιδιωτικό album «${event.eventName}» στο Memboux. ${invitationInstruction}`
     : `${user.name} invited you as a ${roleLabel} to the private album “${event.eventName}” on Memboux. ${invitationInstruction}`;
+  const accessDescription = role === "owner"
+    ? (locale === "el" ? "Η αποδοχή δίνει πλήρη διαχείριση του event, των μελών και του περιεχομένου του." : "Accepting grants full control of the event, its members, and its content.")
+    : (locale === "el" ? "Η πρόσκληση αφορά μόνο αυτό το album." : "This invitation only grants access to this album.");
   const text = `${invitationIntro}\n\n${invitationUrl}`;
   await sendEmail(c.env, {
     to: email,
     purpose: "event_invitation",
     subject,
     text,
-    html: `<div style="font-family:Manrope,Arial,sans-serif;max-width:560px;margin:auto;color:#24143b"><h1 style="font-family:Manrope,Arial,sans-serif;font-weight:500">Memboux</h1><p>${esc(invitationIntro)}</p><p><a href="${invitationUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 20px;border-radius:10px;text-decoration:none">${locale === "el" ? "Προβολή πρόσκλησης" : "View invitation"}</a></p><p style="color:#6f657c;font-size:13px">${locale === "el" ? "Η πρόσκληση λήγει σε 14 ημέρες, αφορά μόνο αυτό το album και απαιτεί λογαριασμό με το ίδιο email." : "This invitation expires in 14 days, only grants access to this album, and requires an account with the same email."}</p></div>`,
+    html: `<div style="font-family:Manrope,Arial,sans-serif;max-width:560px;margin:auto;color:#24143b"><h1 style="font-family:Manrope,Arial,sans-serif;font-weight:500">Memboux</h1><p>${esc(invitationIntro)}</p><p><a href="${invitationUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:12px 20px;border-radius:10px;text-decoration:none">${locale === "el" ? "Προβολή πρόσκλησης" : "View invitation"}</a></p><p style="color:#6f657c;font-size:13px">${esc(accessDescription)} ${locale === "el" ? "Η πρόσκληση λήγει σε 14 ημέρες και απαιτεί λογαριασμό με το ίδιο email." : "The invitation expires in 14 days and requires an account with the same email."}</p></div>`,
   });
   if (wantsJson) {
     c.header("Cache-Control", "private, no-store");
@@ -503,12 +517,14 @@ eventRoutes.post("/api/account/events/:code/members/role", async (c) => {
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_members")) return c.text("Only the event owner can change roles", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const role = normalizeManagedEventRole(body.role);
-  if (!role) return c.text(locale === "el" ? "Μη έγκυρος ρόλος." : "Invalid role.", 400);
   const userId = String(body.userId ?? "");
   const invitationId = String(body.invitationId ?? "");
+  const role = invitationId
+    ? normalizePendingManagedEventRole(body.role)
+    : normalizeManagedEventRole(body.role);
+  if (!role) return c.text(locale === "el" ? "Μη έγκυρος ρόλος." : "Invalid role.", 400);
   const changed = userId
-    ? await changeEventPersonRole(c.env.DB, { eventId: event.id, userId, assignedBy: user.id, role, now: Date.now() })
+    ? await changeEventPersonRole(c.env.DB, { eventId: event.id, userId, assignedBy: user.id, role: role === "owner" ? "editor" : role, now: Date.now() })
     : invitationId
       ? await changePendingInvitationRole(c.env.DB, event.id, invitationId, role)
       : false;

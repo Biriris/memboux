@@ -34,6 +34,12 @@ Event membership is stored in `event_members` and evaluated by [`src/access.ts`]
 | `editor` | `view`, `manage_media` |
 | `viewer` | `view` |
 
+An owner can invite another account as a co-owner. The invitation remains
+token-bound and email-bound until acceptance; after acceptance, the new owner
+receives the same four event capabilities and may invite additional members.
+The invitation UI explicitly warns that this includes member management and
+event deletion.
+
 Routes still perform authorization individually; there is no single event-route middleware. Owners manage details, privacy, members, setup, commerce, and specialized wedding configuration. Editors can manage media where the route checks `manage_media`. Viewers can view authenticated event workspaces.
 
 Professional access is separate: `professional_profiles` and `event_professional_assignments` authorize the studio. Accepted professionals can upload official media and curate `official_album_items`; implementation is in [`src/studio.ts`](../../src/studio.ts) and [`src/routes/studio.ts`](../../src/routes/studio.ts).

@@ -36,6 +36,8 @@ invitationRoutes.get("/invite/:token", async (c) => {
 
   const roleLabel = invitation.invitation_kind === "professional"
     ? (el ? "Professional · επίσημος φωτογράφος" : "Professional · official photographer")
+    : invitation.role === "owner"
+    ? (el ? "Συνιδιοκτήτης · πλήρης διαχείριση" : "Co-owner · full control")
     : invitation.role === "viewer"
     ? (el ? "Θεατής · προβολή και λήψη" : "Viewer · view and download")
     : (el ? "Διαχειριστής · διαχείριση περιεχομένου" : "Manager · manage content");
@@ -43,6 +45,9 @@ invitationRoutes.get("/invite/:token", async (c) => {
   const expired = invitation.expires_at <= now;
   const resolved = invitation.accepted_at !== null || invitation.declined_at !== null;
   const matchingUser = Boolean(user && user.email.toLowerCase() === invitation.email.toLowerCase());
+  const accessExplanation = invitation.role === "owner" && invitation.invitation_kind === "member"
+    ? (el ? "Με την αποδοχή θα έχεις πλήρη διαχείριση του event, των μελών, των ρυθμίσεων και του περιεχομένου του." : "Accepting gives you full control of the event, its members, settings, and content.")
+    : (el ? "Η πρόσβαση αφορά μόνο αυτό το album και μπορεί να αφαιρεθεί οποιαδήποτε στιγμή από τον ιδιοκτήτη." : "Access is limited to this album and can be removed by the owner at any time.");
   let actions = "";
 
   if (invitation.accepted_at !== null) {
@@ -64,7 +69,7 @@ invitationRoutes.get("/invite/:token", async (c) => {
 
   return c.html(page(
     `${invitation.event_name} – ${el ? "Πρόσκληση" : "Invitation"}`,
-    `${header}<main class="mx-auto flex min-h-[75vh] max-w-4xl items-center p-5"><section class="grid w-full overflow-hidden rounded-[2rem] border border-[#e6dff0] bg-white shadow-[0_30px_100px_rgba(24,60,51,.13)] lg:grid-cols-[.82fr_1.18fr]"><aside class="bg-[#2b174d] p-8 text-white sm:p-10"><p class="text-xs uppercase tracking-[.22em] text-[#c4b5fd]">Album invitation</p><h1 class="mt-4 break-words text-4xl leading-tight">${esc(invitation.event_name)}</h1><p class="mt-5 text-sm leading-6 text-white/65">${el ? `${esc(invitation.inviter_name)} σε προσκαλεί σε ένα ιδιωτικό album στο Memboux.` : `${esc(invitation.inviter_name)} invited you to a private album on Memboux.`}</p><div class="mt-8 rounded-2xl bg-white/10 p-4"><p class="text-xs uppercase tracking-[.15em] text-white/50">${el ? "Ρόλος" : "Role"}</p><strong class="mt-1 block text-sm">${roleLabel}</strong></div></aside><div class="p-8 sm:p-10"><p class="text-xs uppercase tracking-[.2em] text-[#7c3aed]">${resolved ? (el ? "Κατάσταση πρόσκλησης" : "Invitation status") : (el ? "Μοιρασμένο μαζί σου" : "Shared with you")}</p><h2 class="mt-3 text-3xl">${el ? "Αποδέχεσαι την πρόσκληση;" : "Accept this invitation?"}</h2><p class="mt-4 text-sm leading-6 text-[#6f657c]">${el ? "Η πρόσβαση αφορά μόνο αυτό το album και μπορεί να αφαιρεθεί οποιαδήποτε στιγμή από τον ιδιοκτήτη." : "Access is limited to this album and can be removed by the owner at any time."}</p><dl class="my-7 space-y-3 rounded-2xl bg-[#faf8ff] p-5 text-sm"><div class="flex justify-between gap-4"><dt class="text-[#6f657c]">Email</dt><dd class="break-all text-right font-medium">${esc(maskEmail(invitation.email))}</dd></div><div class="flex justify-between gap-4"><dt class="text-[#6f657c]">${el ? "Λήξη" : "Expires"}</dt><dd class="text-right font-medium">${esc(formatDateTime(invitation.expires_at, locale))}</dd></div></dl>${actions}</div></section></main>${user ? logoutScript(locale) : ""}`,
+    `${header}<main class="mx-auto flex min-h-[75vh] max-w-4xl items-center p-5"><section class="grid w-full overflow-hidden rounded-[2rem] border border-[#e6dff0] bg-white shadow-[0_30px_100px_rgba(24,60,51,.13)] lg:grid-cols-[.82fr_1.18fr]"><aside class="bg-[#2b174d] p-8 text-white sm:p-10"><p class="text-xs uppercase tracking-[.22em] text-[#c4b5fd]">Event invitation</p><h1 class="mt-4 break-words text-4xl leading-tight">${esc(invitation.event_name)}</h1><p class="mt-5 text-sm leading-6 text-white/65">${el ? `${esc(invitation.inviter_name)} σε προσκαλεί στο event στο Memboux.` : `${esc(invitation.inviter_name)} invited you to the event on Memboux.`}</p><div class="mt-8 rounded-2xl bg-white/10 p-4"><p class="text-xs uppercase tracking-[.15em] text-white/50">${el ? "Ρόλος" : "Role"}</p><strong class="mt-1 block text-sm">${roleLabel}</strong></div></aside><div class="p-8 sm:p-10"><p class="text-xs uppercase tracking-[.2em] text-[#7c3aed]">${resolved ? (el ? "Κατάσταση πρόσκλησης" : "Invitation status") : (el ? "Μοιρασμένο μαζί σου" : "Shared with you")}</p><h2 class="mt-3 text-3xl">${el ? "Αποδέχεσαι την πρόσκληση;" : "Accept this invitation?"}</h2><p class="mt-4 text-sm leading-6 text-[#6f657c]">${accessExplanation}</p><dl class="my-7 space-y-3 rounded-2xl bg-[#faf8ff] p-5 text-sm"><div class="flex justify-between gap-4"><dt class="text-[#6f657c]">Email</dt><dd class="break-all text-right font-medium">${esc(maskEmail(invitation.email))}</dd></div><div class="flex justify-between gap-4"><dt class="text-[#6f657c]">${el ? "Λήξη" : "Expires"}</dt><dd class="text-right font-medium">${esc(formatDateTime(invitation.expires_at, locale))}</dd></div></dl>${actions}</div></section></main>${user ? logoutScript(locale) : ""}`,
     { locale },
   ));
 });

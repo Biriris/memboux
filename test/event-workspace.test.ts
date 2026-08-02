@@ -59,6 +59,8 @@ describe("event workspace", () => {
     expect(html).toContain('id="settings"');
     expect(html).toContain("Event details");
     expect(html).toContain('id="people"');
+    expect(html).toContain("Co-owner — full control");
+    expect(html).toContain("A co-owner gets full control");
     expect(html).toContain('id="danger"');
     expect(html).toContain('data-test="guest-qr"');
     expect(html).toContain('data-test="official-qr"');

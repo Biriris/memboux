@@ -79,9 +79,9 @@ No route in the current inventory starts a Stripe checkout or consumes a payment
 
 ## Collaboration and professional lifecycle
 
-- Owners invite `editor` or `viewer` members through event routes; invitations are hashed, expiring records.
+- Owners invite `owner`, `editor`, or `viewer` members through event routes; invitations are hashed, expiring records. An accepted `owner` invitation grants full co-owner capabilities.
 - The recipient authenticates and accepts/declines through the invitation API; acceptance creates membership and notifications.
-- Owners can change/remove non-owner members. Ownership transfer is not exposed by the registered routes; account deletion requires no active owned events.
+- Owners can change/remove non-owner members. Co-owners are added through explicit invitation acceptance and are protected from the ordinary member role/removal controls; account deletion requires no active owned events.
 - Professional assignment uses `event_professional_assignments`; a professional accepts from the studio and can curate/upload official media until revoked.
 
 Evidence: [`src/invitations.ts`](../../src/invitations.ts), [`src/routes/invitations.ts`](../../src/routes/invitations.ts), [`src/routes/event-professional.ts`](../../src/routes/event-professional.ts), and [`src/routes/studio.ts`](../../src/routes/studio.ts).

@@ -72,4 +72,14 @@ describe("event people role management", () => {
     expect(await env.DB.prepare("SELECT role,invitation_kind FROM event_invitations WHERE id='invite-1'").first())
       .toEqual({ role: "viewer", invitation_kind: "professional" });
   });
+
+  it("can turn a pending member invitation into a co-owner invitation", async () => {
+    await env.DB.prepare("INSERT INTO event_invitations VALUES (?,?,?,?,?,?,?,?)")
+      .bind("invite-owner", "event-1", "owner-two@example.com", "viewer", "member", null, null, Date.now() + 100_000)
+      .run();
+
+    expect(await changePendingInvitationRole(env.DB, "event-1", "invite-owner", "owner")).toBe(true);
+    expect(await env.DB.prepare("SELECT role,invitation_kind FROM event_invitations WHERE id='invite-owner'").first())
+      .toEqual({ role: "owner", invitation_kind: "member" });
+  });
 });

@@ -34,7 +34,7 @@ beforeEach(async () => {
       id TEXT PRIMARY KEY,
       event_id TEXT NOT NULL,
       email TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('editor','viewer')),
+      role TEXT NOT NULL CHECK (role IN ('owner','editor','viewer')),
       invited_by TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL,
@@ -67,7 +67,7 @@ beforeEach(async () => {
 async function createInvitation(options: {
   id?: string;
   email?: string;
-  role?: "editor" | "viewer";
+  role?: "owner" | "editor" | "viewer";
   expiresAt?: number;
   token?: string;
   invitationKind?: "member" | "professional";
@@ -91,7 +91,7 @@ describe("invitation roles and secure links", () => {
   it("accepts supported roles and generates URL-safe high-entropy tokens", () => {
     expect(normalizeInviteRole("viewer")).toBe("viewer");
     expect(normalizeInviteRole("editor")).toBe("editor");
-    expect(normalizeInviteRole("owner")).toBe("editor");
+    expect(normalizeInviteRole("owner")).toBe("owner");
     const token = createInvitationToken();
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
@@ -115,6 +115,16 @@ describe("invitation roles and secure links", () => {
     expect(html).toContain("Sign in to accept");
     expect(html).not.toContain("guest@example.com");
   });
+
+  it("clearly identifies the full-control co-owner invitation", async () => {
+    const token = await createInvitation({ role: "owner", token: "D".repeat(43) });
+    const response = await SELF.fetch(`https://memboux.com/invite/${token}?lang=en`);
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Co-owner · full control");
+    expect(html).toContain("full control of the event, its members, settings, and content");
+  });
 });
 
 describe("explicit invitation responses", () => {
@@ -134,6 +144,36 @@ describe("explicit invitation responses", () => {
     expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1", professional: false });
     expect((await env.DB.prepare("SELECT role FROM event_members WHERE event_id='event-1' AND user_id='guest-1'").first<{ role: string }>())?.role).toBe("viewer");
     expect((await env.DB.prepare("SELECT accepted_at FROM event_invitations WHERE id='invite-1'").first<{ accepted_at: number }>())?.accepted_at).toBe(now + 2);
+  });
+
+  it("grants full owner membership only after the invited user accepts", async () => {
+    await createInvitation({ role: "owner" });
+    expect(await env.DB.prepare("SELECT 1 FROM event_members WHERE user_id='guest-1'").first()).toBeNull();
+
+    const response = await respondToInvitation(
+      env.DB,
+      "invite-1",
+      { id: "guest-1", email: "guest@example.com", name: "Co Owner" },
+      "accept",
+      now + 2,
+    );
+
+    expect(response).toEqual({ status: "accepted", eventId: "event-1", eventCode: "ALBUM1", professional: false });
+    expect(await env.DB.prepare("SELECT role FROM event_members WHERE event_id='event-1' AND user_id='guest-1'").first())
+      .toEqual({ role: "owner" });
+  });
+
+  it("promotes an existing collaborator to owner only after acceptance", async () => {
+    await env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)")
+      .bind("event-1", "guest-1", "viewer", now)
+      .run();
+    await createInvitation({ role: "owner" });
+
+    expect(await env.DB.prepare("SELECT role FROM event_members WHERE user_id='guest-1'").first())
+      .toEqual({ role: "viewer" });
+    await respondToInvitation(env.DB, "invite-1", { id: "guest-1", email: "guest@example.com" }, "accept", now + 2);
+    expect(await env.DB.prepare("SELECT role FROM event_members WHERE user_id='guest-1'").first())
+      .toEqual({ role: "owner" });
   });
 
   it("declines without creating membership and removes the notification", async () => {

@@ -1,4 +1,5 @@
 export type ManagedEventRole = "viewer" | "editor" | "professional";
+export type PendingManagedEventRole = ManagedEventRole | "owner";
 
 type PersonRoleChange = {
   eventId: string;
@@ -10,6 +11,10 @@ type PersonRoleChange = {
 
 export function normalizeManagedEventRole(value: unknown): ManagedEventRole | null {
   return value === "viewer" || value === "editor" || value === "professional" ? value : null;
+}
+
+export function normalizePendingManagedEventRole(value: unknown): PendingManagedEventRole | null {
+  return value === "owner" ? "owner" : normalizeManagedEventRole(value);
 }
 
 export async function changeEventPersonRole(db: D1Database, input: PersonRoleChange): Promise<boolean> {
@@ -60,7 +65,7 @@ export async function changePendingInvitationRole(
   db: D1Database,
   eventId: string,
   invitationId: string,
-  role: ManagedEventRole,
+  role: PendingManagedEventRole,
 ): Promise<boolean> {
   const result = await db.prepare(`UPDATE event_invitations
     SET role=?,invitation_kind=?
