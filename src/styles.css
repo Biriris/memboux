@@ -343,6 +343,9 @@ input:disabled { cursor: not-allowed; }
 .memboux-ui .memboux-media-card video {
   border-radius: 0 !important;
 }
+.memboux-ui .memboux-media-card {
+  contain: layout paint;
+}
 #lightbox-double-heart {
   opacity: 0;
   transform: translate(-50%, -50%) scale(.35);

@@ -50,6 +50,9 @@ describe("media views", () => {
     expect(html).toContain('data-type="image"');
     expect(html).toContain('data-type="video"');
     expect(html).toContain('poster="/media/22222222-2222-4222-8222-222222222222?variant=thumb"');
+    expect(html).toContain('class="relative block aspect-[4/5] w-full overflow-hidden');
+    expect(html).toContain('class="absolute inset-0 block h-full w-full object-cover"');
+    expect(html).not.toContain('class="block h-auto min-h-36 w-full object-contain"');
     expect(html).toContain("VIDEO</span>");
     expect(html).toContain("#t=0.1");
     expect(html).toContain('data-media-uploaded="1700000000000"');
