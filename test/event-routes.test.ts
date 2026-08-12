@@ -94,6 +94,8 @@ describe("event route boundaries", () => {
     `/api/account/events/${code}/professional/assign`,
     `/api/account/events/${code}/professional/revoke`,
     `/api/account/events/${code}/qr-template-activity`,
+    `/api/account/events/${code}/qr-designs`,
+    `/api/account/events/${code}/qr-designs/design-1/delete`,
     `/api/account/events/${code}/media/11111111-1111-4111-8111-111111111111/rename`,
     `/api/account/events/${code}/media/11111111-1111-4111-8111-111111111111/trash`,
     `/api/account/events/${code}/media/bulk-trash`,

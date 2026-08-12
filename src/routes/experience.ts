@@ -8,10 +8,11 @@ import { hasEventSurfaceAccess, hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent } from "../repositories";
+import { listQrDesigns, normalizeQrDesignConfig } from "../qr-template-designs";
 import { currentUser } from "../session";
 import { esc, formatEventDates, sha256 } from "../utils";
 import { eventHeader, page } from "../views/shared";
-import { renderQrTemplateStudio, type QrStudioDestination } from "../views/qr-template-studio";
+import { qrTemplateCopyPresets, qrTemplateFamilies, qrTemplateFormats, renderQrTemplateStudio, type QrStudioDestination } from "../views/qr-template-studio";
 import { weddingThemeFor } from "../wedding-themes";
 
 type ExperienceSettings = {
@@ -390,6 +391,47 @@ experienceRoutes.post("/api/account/events/:code/qr-template-activity", async (c
   return c.json({ ok: true });
 });
 
+experienceRoutes.post("/api/account/events/:code/qr-designs", async (c) => {
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.json({ error: "Forbidden" }, 403);
+  const payload: { id?: string; name?: string; config?: unknown } = await c.req.json().catch(() => ({}));
+  const name = String(payload.name ?? "").trim().slice(0, 80);
+  const config = normalizeQrDesignConfig(payload.config);
+  const validFamily = config && qrTemplateFamilies.some((item) => item.key === config.family);
+  const validFormat = config && qrTemplateFormats.some((item) => item.key === config.format);
+  const validCopy = config && qrTemplateCopyPresets.some((item) => item.key === config.copy);
+  if (!name || !config || !validFamily || !validFormat || !validCopy) return c.json({ error: "Invalid design" }, 400);
+  const now = Date.now();
+  if (payload.id) {
+    const result = await c.env.DB.prepare(`UPDATE event_qr_designs SET name=?,config_json=?,updated_by=?,updated_at=?
+      WHERE id=? AND event_id=?`).bind(name, JSON.stringify(config), user.id, now, payload.id, event.id).run();
+    if (!result.meta.changes) return c.json({ error: "Design not found" }, 404);
+    return c.json({ ok: true, id: payload.id, name, config, updatedAt: now });
+  }
+  const count = await c.env.DB.prepare("SELECT COUNT(*) total FROM event_qr_designs WHERE event_id=?").bind(event.id).first<{ total: number }>();
+  if (Number(count?.total ?? 0) >= 50) return c.json({ error: "Design limit reached" }, 409);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(`INSERT INTO event_qr_designs
+    (id,event_id,name,config_json,created_by,updated_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`)
+    .bind(id, event.id, name, JSON.stringify(config), user.id, user.id, now, now).run();
+  return c.json({ ok: true, id, name, config, updatedAt: now }, 201);
+});
+
+experienceRoutes.post("/api/account/events/:code/qr-designs/:designId/delete", async (c) => {
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.json({ error: "Forbidden" }, 403);
+  const result = await c.env.DB.prepare("DELETE FROM event_qr_designs WHERE id=? AND event_id=?")
+    .bind(c.req.param("designId"), event.id).run();
+  if (!result.meta.changes) return c.json({ error: "Design not found" }, 404);
+  return c.json({ ok: true });
+});
+
 experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
   if (c.req.path.endsWith("/qr-templates")) {
     const locale = normalizeLocale(c.req.query("lang") ?? "en");
@@ -398,12 +440,13 @@ experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
     const user = await currentUser(c);
     if (!user) return c.redirect(`/${locale}/login`);
     if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Forbidden", 403);
-    const [weddingProfile, albums] = await Promise.all([
+    const [weddingProfile, albums, savedDesigns] = await Promise.all([
       event.event_type === "wedding"
         ? c.env.DB.prepare("SELECT template_key,accent_color FROM event_wedding_profiles WHERE event_id=?")
           .bind(event.id).first<{ template_key: string; accent_color: string | null }>()
         : null,
       listEventAlbums(c.env.DB, event.id),
+      listQrDesigns(c.env.DB, event.id),
     ]);
     const weddingTheme = weddingProfile ? weddingThemeFor(weddingProfile.template_key) : null;
     const palette = weddingTheme?.palette ?? (["#2b174d", "#c8b7e8", "#f8f5ff"] as const);
@@ -426,6 +469,7 @@ experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
       headerHtml: eventHeader(locale, { name: user.name ?? user.email, email: user.email }),
       backUrl: `/dashboard/${encodeURIComponent(event.code)}?lang=${locale}`,
       destinations: studioDestinations,
+      savedDesigns,
       defaultBackground: palette[2],
       defaultAccent: weddingProfile?.accent_color ?? weddingTheme?.defaultAccent ?? "#7c3aed",
       defaultInk: palette[0],

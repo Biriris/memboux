@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeQrDesignConfig } from "../src/qr-template-designs";
 import {
   qrTemplateCopyPresets,
   qrTemplateFamilies,
@@ -7,6 +8,25 @@ import {
 } from "../src/views/qr-template-studio";
 
 describe("QR template studio", () => {
+  it("normalizes persisted design data and rejects unsafe keys or colors", () => {
+    const config = normalizeQrDesignConfig({
+      family: "minimal",
+      format: "a4",
+      copy: "remember",
+      destination: "album_photobooth",
+      title: "Welcome".repeat(20),
+      heading: "Share the moment",
+      subtitle: "Upload your photos",
+      background: "#ffffff",
+      accent: "#7c3aed",
+      ink: "#111111",
+    });
+    expect(config).not.toBeNull();
+    expect(config?.title).toHaveLength(70);
+    expect(normalizeQrDesignConfig({ ...config, family: "../unsafe" })).toBeNull();
+    expect(normalizeQrDesignConfig({ ...config, accent: "red" })).toBeNull();
+  });
+
   it("offers more than 180 editable design combinations", () => {
     expect(qrTemplateFamilies).toHaveLength(12);
     expect(qrTemplateFormats).toHaveLength(6);
@@ -39,6 +59,7 @@ describe("QR template studio", () => {
     expect(html).toContain('id="qr-png"');
     expect(html).toContain('id="qr-print"');
     expect(html).toContain("qr-template-activity");
+    expect(html).toContain('id="qr-saved-list"');
     const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
     expect(scripts.length).toBeGreaterThan(1);
     expect(() => new Function(scripts.at(-1)?.[1] ?? "")).not.toThrow();

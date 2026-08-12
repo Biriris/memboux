@@ -258,7 +258,7 @@ POST   /api/upload/:code/multipart/finalize
 DELETE /api/upload/:code/multipart/:sessionId
 ```
 
-## Guest engagement — `src/routes/experience.ts` (12)
+## Guest engagement — `src/routes/experience.ts` (14)
 
 Source: [`src/routes/experience.ts`](../../src/routes/experience.ts). Guest actions require the corresponding experience setting and gallery/lifecycle access. Wedding and baptism RSVP submissions require a hashed personalized guest token; the handler binds the response to the matching guest-directory record and enforces publication and active guest access. Generic public RSVP remains available only to other event types. Dashboard/moderation actions require event management.
 
@@ -275,6 +275,8 @@ POST  /api/account/events/:code/guestbook/:id/status
 POST  /api/account/events/:code/comments/:id/hide
 GET   /dashboard/:code/qr-templates
 POST  /api/account/events/:code/qr-template-activity
+POST  /api/account/events/:code/qr-designs
+POST  /api/account/events/:code/qr-designs/:designId/delete
 ```
 
 ## Invitations — `src/routes/invitations.ts` (2)

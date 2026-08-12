@@ -2,9 +2,9 @@
 
 ## Authority and validation
 
-The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 66 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0066_event_co_owner_invitations.sql`](../../migrations/0066_event_co_owner_invitations.sql). Migrations `0061`, `0062`, `0064`, and `0066` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts), [`event-surface-pins-migration.test.ts`](../../test/event-surface-pins-migration.test.ts), and [`event-owner-invitations-migration.test.ts`](../../test/event-owner-invitations-migration.test.ts); migration `0063` is exercised through the complete migration chain in the Worker test suite.
+The D1 schema is defined by the ordered SQL files in [`migrations/`](../../migrations/), not by TypeScript types. The current chain contains 70 files, from [`0001_initial.sql`](../../migrations/0001_initial.sql) through [`0070_event_qr_designs.sql`](../../migrations/0070_event_qr_designs.sql). Migrations `0061`, `0062`, `0064`, and `0066` have dedicated D1 compatibility coverage in [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`wedding-invitation-delivery-migration.test.ts`](../../test/wedding-invitation-delivery-migration.test.ts), [`event-surface-pins-migration.test.ts`](../../test/event-surface-pins-migration.test.ts), and [`event-owner-invitations-migration.test.ts`](../../test/event-owner-invitations-migration.test.ts); migrations `0063` and `0067` through `0070` are exercised through the complete migration chain in the Worker test suite.
 
-Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0066`.
+Repository tests prove the newest migration against the D1 test runtime; they do not prove that remote D1 has applied migration `0070`.
 
 Notation in this document lists logical current columns. Full defaults, checks, indexes, and rebuild details remain canonical in the linked migrations.
 
@@ -35,6 +35,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `event_access` | `preview`/`trial`/`unlocked`/`expired`, observe/enforced mode, feature flags, trial dates, media limit, lifetime consumed-upload counter. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0044`](../../migrations/0044_enforce_new_event_trials.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql) |
 | `event_type_transitions` | Auditable event-type changes and generic vertical-profile snapshots used for reversible restoration. | [`0067`](../../migrations/0067_event_type_transitions.sql) |
 | `event_covers` | Event cover R2 key, source media, updater, content type, timestamp. | [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql) |
+| `event_qr_designs` | Up to 50 named event-scoped QR Studio design configurations with creator/updater audit fields and timestamps. | [`0070`](../../migrations/0070_event_qr_designs.sql) |
 | `event_experience_settings` | RSVP, guestbook, comments, slideshow, and moderation flags. | [`0027`](../../migrations/0027_event_engagement.sql) |
 | `event_rsvps` | Guest response, guest count, dietary notes, message, contact, timestamps, and optional wedding guest-directory link. | [`0027`](../../migrations/0027_event_engagement.sql), extended by [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
 | `event_guestbook_entries` | Author/message, moderation status, creation/moderation times. | [`0027`](../../migrations/0027_event_engagement.sql) |

@@ -56,5 +56,10 @@ the guest gallery, event website, official album and event album destinations.
 Exports are available as vector SVG, high-resolution PNG and browser print/PDF.
 No Canva account, Canva API integration or generated-image service is required.
 Export actions are emitted as structured Worker logs through the authenticated
-`POST /api/account/events/:code/qr-template-activity` endpoint. Cross-device
-design draft persistence and Canva Autofill export are not implemented.
+`POST /api/account/events/:code/qr-template-activity` endpoint. Owners and
+event managers can persist up to 50 named designs per event, reopen them across
+devices, update them, duplicate them and delete them. Persistence uses
+[`0070_event_qr_designs.sql`](../../../migrations/0070_event_qr_designs.sql).
+Canva Autofill export is not implemented because it requires a separately
+approved Canva Enterprise integration and credentials; SVG export remains the
+provider-independent handoff format.
