@@ -53,6 +53,14 @@ AI answering remains background work scheduled from the route with `waitUntil()`
 is passed directly to the Workers execution context. AI failures retain the existing human
 handoff behavior.
 
+Inbound messages whose subject matches the DMARC aggregate-report form
+(`Report domain: ... Submitter: ... Report-ID: ...`) are consumed by the email Worker but
+are not persisted as customer conversations. The SLA reconciliation query also excludes
+previously persisted reports with that subject form, preventing infrastructure reports from
+triggering staff-response reminders. This behavior is implemented in
+`src/support-email-filter.ts`, `src/inbound-support-email.ts`, and
+`src/support-sla-reminders.ts`.
+
 ## Remaining extraction work
 
 The following Support paths still access D1 directly and should be migrated in later vertical

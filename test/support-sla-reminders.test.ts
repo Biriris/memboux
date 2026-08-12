@@ -49,6 +49,33 @@ describe("support SLA reminders", () => {
       .toEqual({ sla_reminder_status: "disabled", sla_reminder_sent_at: null });
   });
 
+  it("does not notify staff about previously stored DMARC aggregate reports", async () => {
+    const now = Date.now();
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO "user" VALUES (?,?,?)').bind("owner-user", "Owner", "owner@example.com"),
+      env.DB.prepare("INSERT INTO admin_members VALUES (?,?,?,?,?,?,?)")
+        .bind("owner-member", "owner-user", "owner", "active", "owner@example.com", 1, 1),
+      env.DB.prepare(`INSERT INTO support_conversations
+        (id,subject,category,priority,status,first_response_due_at,first_admin_response_at,assigned_admin_member_id)
+        VALUES (?,?,?,?,?,?,NULL,?)`)
+        .bind(
+          "dmarc-ticket",
+          "Report domain: memboux.com Submitter: google.com Report-ID: 7221859183475261271",
+          "moderation",
+          "urgent",
+          "open",
+          now - 60_000,
+          "owner-member",
+        ),
+    ]);
+
+    expect(await reconcileSupportSlaReminders(env, now))
+      .toEqual({ processed: 0, reminders: 0, escalations: 0 });
+    expect(await env.DB.prepare(
+      "SELECT sla_escalation_status,sla_escalation_sent_at FROM support_conversations WHERE id='dmarc-ticket'",
+    ).first()).toEqual({ sla_escalation_status: null, sla_escalation_sent_at: null });
+  });
+
   it("sends a replyable, ticket-threaded reminder to the assigned personal address", async () => {
     const now = Date.now();
     await env.DB.batch([

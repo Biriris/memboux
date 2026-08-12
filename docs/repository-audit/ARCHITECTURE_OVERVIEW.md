@@ -41,7 +41,7 @@ Static assets are exposed through the `ASSETS` binding, but no explicit `ASSETS.
 | Entry point | Implementation | Responsibility |
 | --- | --- | --- |
 | `fetch` | `app.fetch` in [`src/index.ts`](../../src/index.ts) | HTTP pages, APIs, auth, admin, and media delivery. |
-| `email` | [`handleSupportEmailMessage`](../../src/inbound-support-email.ts) | Parses inbound support email, verifies ticket/actor rules, records messages and attachments, and may send customer replies. Dashboard Email Routing configuration is **Unknown**. |
+| `email` | [`handleSupportEmailMessage`](../../src/inbound-support-email.ts) | Parses inbound support email, ignores DMARC aggregate reports through [`support-email-filter.ts`](../../src/support-email-filter.ts), verifies ticket/actor rules, records messages and attachments, and may send customer replies. Dashboard Email Routing configuration is **Unknown**. |
 | `scheduled` | default export in [`src/index.ts`](../../src/index.ts) | Runs daily reconciliation/retention jobs or 15-minute support SLA reminders based on the triggering cron string. |
 | `GoogleDriveBackupWorkflow` | [`src/google-drive.ts`](../../src/google-drive.ts) | Durable snapshot and per-item upload of event media to Google Drive. |
 | `DropboxBackupWorkflow` | [`src/dropbox.ts`](../../src/dropbox.ts) | Durable snapshot and per-item upload of event media to Dropbox. |

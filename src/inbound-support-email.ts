@@ -11,6 +11,7 @@ import {
 import { esc } from "./utils";
 import { supportTicketIdFromSubject, supportTicketSubject } from "./support-email-threading";
 import { supportStaffForSender } from "./support-staff-email";
+import { automatedSupportEmailKind } from "./support-email-filter";
 import {
   deleteStoredSupportAttachments,
   inboundAttachmentSummary,
@@ -274,6 +275,8 @@ export async function ingestInboundSupportEmail(env: Bindings, raw: InboundSuppo
   if (!SUPPORT_RECIPIENTS.has(input.envelopeTo)) throw new Error("support_email_recipient_not_allowed");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.envelopeFrom)) throw new Error("support_email_sender_invalid");
   if (!input.messageId) throw new Error("support_email_message_id_missing");
+  const automatedKind = automatedSupportEmailKind(input.subject);
+  if (automatedKind) return { status: "ignored" as const, reason: automatedKind };
   const duplicate = await env.DB.prepare(
     "SELECT id FROM support_messages WHERE inbound_email_message_id=?",
   ).bind(input.messageId).first<{ id: string }>();
@@ -316,7 +319,7 @@ export async function handleSupportEmailMessage(
   const parsed = await PostalMime.parse(raw);
   const text = parsed.text?.trim() || plainTextFromHtml(parsed.html || "").trim();
   try {
-    await ingestInboundSupportEmail(env, {
+    const result = await ingestInboundSupportEmail(env, {
       envelopeFrom: message.from,
       envelopeTo: recipient,
       subject: parsed.subject || message.headers.get("subject") || "",
@@ -324,6 +327,13 @@ export async function handleSupportEmailMessage(
       messageId: message.headers.get("message-id") || `cloudflare:${crypto.randomUUID()}`,
       attachments: parsed.attachments,
     });
+    if (result.status === "ignored") {
+      console.info(JSON.stringify({
+        event: "support_automated_email_ignored",
+        kind: result.reason,
+        recipient,
+      }));
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : "";
     if (reason.startsWith("support_email_")) {

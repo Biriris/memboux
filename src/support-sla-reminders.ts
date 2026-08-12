@@ -1,6 +1,7 @@
 import { sendEmail } from "./auth";
 import type { Bindings } from "./domain";
 import { supportTicketSubject } from "./support-email-threading";
+import { DMARC_AGGREGATE_REPORT_SUBJECT_SQL } from "./support-email-filter";
 
 type ReminderConversation = {
   id: string;
@@ -68,6 +69,7 @@ export async function reconcileSupportSlaReminders(env: Bindings, now = Date.now
     LEFT JOIN admin_members m ON m.id=c.assigned_admin_member_id
     LEFT JOIN "user" u ON u.id=m.user_id
     WHERE c.status!='closed' AND c.first_admin_response_at IS NULL AND c.first_response_due_at IS NOT NULL
+      AND c.subject NOT LIKE ?
       AND c.first_response_due_at<=?
       AND ((c.first_response_due_at>? AND c.sla_reminder_sent_at IS NULL
             AND (c.sla_reminder_status IS NULL OR c.sla_reminder_status='failed')
@@ -76,7 +78,7 @@ export async function reconcileSupportSlaReminders(env: Bindings, now = Date.now
             AND (c.sla_escalation_status IS NULL OR c.sla_escalation_status='failed')
             AND (c.sla_escalation_last_attempt_at IS NULL OR c.sla_escalation_last_attempt_at<=?)))
     ORDER BY c.first_response_due_at ASC LIMIT 50`)
-    .bind(now + 60 * 60_000, now, retryBefore, now, retryBefore)
+    .bind(DMARC_AGGREGATE_REPORT_SUBJECT_SQL, now + 60 * 60_000, now, retryBefore, now, retryBefore)
     .all<ReminderConversation>();
 
   let reminders = 0;

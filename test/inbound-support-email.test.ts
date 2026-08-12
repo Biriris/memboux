@@ -78,6 +78,21 @@ describe("inbound support email", () => {
     )).toBe("My new answer\n\n[1 attachment added securely to this ticket.]");
   });
 
+  it("silently ignores DMARC aggregate reports instead of creating support tickets", async () => {
+    const subject = "Report domain: memboux.com Submitter: google.com Report-ID: 7221859183475261271";
+    expect(await ingestInboundSupportEmail(env, {
+      envelopeFrom: "noreply-dmarc-support@google.com",
+      envelopeTo: "support@memboux.com",
+      subject,
+      text: "This is an aggregate DMARC report.",
+      messageId: "<dmarc-report@google.com>",
+    })).toEqual({ status: "ignored", reason: "dmarc_aggregate_report" });
+
+    expect(await env.DB.prepare(
+      "SELECT count(*) total FROM support_conversations WHERE subject=?",
+    ).bind(subject).first<{ total: number }>()).toEqual({ total: 0 });
+  });
+
   it("explains secure personal-email replies without contradicting the inbound workflow", () => {
     const greek = staffEmailReplyCopy("el");
     const english = staffEmailReplyCopy("en");
