@@ -257,15 +257,15 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
         </div>
       </section>
 
-      <section class="px-5 py-20 sm:px-8 sm:py-28">
-        <div class="relative mx-auto max-w-7xl overflow-hidden rounded-[1.5rem] border border-[#ddd8e4] bg-[#eeebf4] px-6 py-16 text-center text-[#302b38] shadow-[0_18px_50px_rgba(57,48,69,.08)] sm:px-12 sm:py-24">
+      <section class="home-final-cta px-5 py-10 sm:px-8 sm:py-14 lg:py-16">
+        <div class="relative mx-auto max-w-7xl overflow-hidden rounded-[1.5rem] border border-[#ddd8e4] bg-[#eeebf4] px-6 py-12 text-center text-[#302b38] shadow-[0_18px_50px_rgba(57,48,69,.08)] sm:px-12 sm:py-16">
           <div class="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white/60 blur-2xl"></div><div class="absolute -bottom-24 -right-16 h-72 w-72 rounded-full bg-[#f4e7ea]/60 blur-2xl"></div>
           <div class="relative mx-auto max-w-3xl"><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${copy.finalEyebrow}</p><h2 class="mt-5 text-4xl font-medium tracking-[-.035em] sm:text-6xl">${copy.finalTitle}</h2><p class="mt-5 text-lg text-[#756f7c]">${copy.finalText}</p><a href="/${locale}/register" class="mt-9 inline-flex items-center gap-3 rounded-xl bg-[#7967bd] px-7 py-4 font-semibold text-white shadow-[0_8px_22px_rgba(87,70,142,.16)] hover:-translate-y-0.5 hover:bg-[#6855ad]">${copy.finalButton}${icons.arrow}</a></div>
         </div>
       </section>
 
       <footer class="border-t border-[#e9e2f2] bg-white">
-        <div class="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 md:grid-cols-[1fr_auto] md:items-end">
+        <div class="mx-auto grid max-w-7xl gap-6 px-5 py-7 sm:px-8 sm:py-8 md:grid-cols-[1fr_auto] md:items-end">
           <div>${brandMark(`/${locale}`, true)}<p class="mt-4 max-w-md text-sm leading-6 text-[#697f77]">${copy.footerText}</p></div>
           <div class="flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#596d65]"><a href="/${locale}/privacy-policy" class="hover:text-[#2b174d]">${copy.navPrivacy}</a><a href="/${locale}/terms" class="hover:text-[#2b174d]">${copy.terms}</a><a href="/${locale}/privacy-request" class="hover:text-[#2b174d]">${copy.dataRequest}</a></div>
         </div>

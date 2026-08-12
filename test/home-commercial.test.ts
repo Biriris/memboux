@@ -54,6 +54,7 @@ describe("public commercial homepage sections", () => {
     expect(html).toContain('id="pricing"');
     expect(html).toContain("Memboux Free");
     expect(html).toContain('id="faq"');
+    expect(html).toContain('class="home-faq');
     expect(html).toContain('class="home-event-grid');
     expect(html).toContain('class="home-plan-grid');
   });
