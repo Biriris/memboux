@@ -6,10 +6,11 @@ Memboux uses a light-only, token-driven visual system defined in
 
 ## Direction
 
-The visual direction is warm, playful and editorial without sacrificing the
-clarity required by event operations. The primary palette combines a neutral
-ivory canvas, deep aubergine ink, electric violet actions and restrained aqua,
-coral and sun accents.
+The visual direction is warm, minimal and editorial without sacrificing the
+clarity required by event operations. The primary palette combines a warm
+near-white canvas, charcoal-plum ink, a softened violet action color and
+restrained pastel aqua, rose and ochre accents. Dark blocks and gradients are
+used sparingly rather than as default section treatments.
 
 ## Foundations
 
@@ -19,8 +20,9 @@ coral and sun accents.
 - Color: use the semantic custom properties `--canvas`, `--surface`, `--ink`,
   `--muted`, `--line`, `--accent` and their documented variants. Do not add a
   raw color when an existing semantic token expresses the same purpose.
-- Shape: use `--radius-sm` through `--radius-xl`. Primary actions are pill
-  shaped; content surfaces use the medium-to-large radius scale.
+- Shape: use `--radius-sm` through `--radius-xl`. Text actions use restrained
+  rounded rectangles. Reserve pills for compact metadata, status, filters and
+  avatars where the silhouette communicates meaning.
 - Elevation: use `--shadow-sm` through `--shadow-2xl`. Elevation communicates
   hierarchy, not decoration.
 - Layout: the shared maximum content width is `--content-width` (80rem).

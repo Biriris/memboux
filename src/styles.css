@@ -4,37 +4,37 @@
   /* The current design system is light-only. Prevent mobile browsers from
      auto-darkening controls and mixing their dark palette with our tokens. */
   color-scheme: only light;
-  --canvas: #f8f7fc;
+  --canvas: #fbfafc;
   --surface: #ffffff;
-  --surface-soft: #f0edff;
+  --surface-soft: #f6f4fa;
   --surface-raised: #ffffff;
-  --line: #e5e0f0;
-  --line-strong: #d4cbe5;
-  --accent-soft: #ddd6ff;
-  --accent: #7152f3;
-  --accent-hover: #5f3ee6;
-  --accent-deep: #4d2fbd;
-  --accent-aqua: #17b8a6;
-  --accent-coral: #ff5f7e;
-  --accent-sun: #ffcf5c;
-  --ink: #20152f;
-  --ink-strong: #171021;
-  --muted: #70667d;
-  --muted-soft: #958b9f;
+  --line: #e9e6ed;
+  --line-strong: #dcd7e3;
+  --accent-soft: #e9e4f7;
+  --accent: #7967bd;
+  --accent-hover: #6855ad;
+  --accent-deep: #57468e;
+  --accent-aqua: #62a99e;
+  --accent-coral: #d98698;
+  --accent-sun: #e6bd6a;
+  --ink: #302b38;
+  --ink-strong: #242029;
+  --muted: #756f7c;
+  --muted-soft: #9a949f;
   --font-primary: "Manrope", sans-serif;
 
   --radius-sm: .75rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.5rem;
-  --radius-xl: 2rem;
+  --radius-md: .875rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.5rem;
   --content-width: 80rem;
 
   /* Enhanced shadow system */
-  --shadow-sm: 0 1px 3px rgba(37, 21, 71, .06);
-  --shadow-md: 0 4px 12px rgba(37, 21, 71, .08);
-  --shadow-lg: 0 8px 24px rgba(37, 21, 71, .10);
-  --shadow-xl: 0 14px 38px rgba(37, 21, 71, .12);
-  --shadow-2xl: 0 24px 60px rgba(37, 21, 71, .16);
+  --shadow-sm: 0 1px 2px rgba(41, 35, 49, .04);
+  --shadow-md: 0 5px 18px rgba(41, 35, 49, .055);
+  --shadow-lg: 0 10px 28px rgba(41, 35, 49, .07);
+  --shadow-xl: 0 18px 42px rgba(41, 35, 49, .09);
+  --shadow-2xl: 0 26px 64px rgba(41, 35, 49, .11);
 
   /* Animation durations */
   --duration-fast: .15s;
@@ -118,8 +118,8 @@ button { letter-spacing: .025em; }
 .mbx-card {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, .92);
-  box-shadow: var(--shadow-md);
+  background: rgba(255, 255, 255, .96);
+  box-shadow: var(--shadow-sm);
 }
 .mbx-button {
   display: inline-flex;
@@ -128,7 +128,7 @@ button { letter-spacing: .025em; }
   justify-content: center;
   gap: .5rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   padding: .72rem 1.2rem;
   font-size: .9rem;
   font-weight: 700;
@@ -140,7 +140,7 @@ button { letter-spacing: .025em; }
 .mbx-button--primary {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(113, 82, 243, .24);
+  box-shadow: 0 6px 16px rgba(87, 70, 142, .16);
 }
 .mbx-button--secondary {
   border-color: var(--line-strong);
@@ -171,11 +171,10 @@ button { letter-spacing: .025em; }
   font-weight: 650;
 }
 .mbx-app-header {
-  border-bottom: 1px solid rgba(255, 255, 255, .1);
-  background:
-    radial-gradient(circle at 82% -100%, rgba(113, 82, 243, .65), transparent 45%),
-    rgba(32, 21, 47, .96);
-  color: #fff;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .94);
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(41, 35, 49, .045);
   backdrop-filter: blur(20px) saturate(130%);
   -webkit-backdrop-filter: blur(20px) saturate(130%);
 }
@@ -192,15 +191,21 @@ button { letter-spacing: .025em; }
 }
 .home-demo-stage {
   background:
-    radial-gradient(circle at 90% 5%, rgba(255, 95, 126, .22), transparent 18rem),
-    rgba(255, 255, 255, .055);
+    radial-gradient(circle at 90% 5%, rgba(217, 134, 152, .16), transparent 18rem),
+    rgba(255, 255, 255, .7);
+}
+
+/* Text actions use restrained rounded rectangles. Pills remain available for
+   status labels, filters and avatars, where the shape carries meaning. */
+.memboux-ui :where(a, button, summary)[class~="rounded-full"][class*="px-"] {
+  border-radius: var(--radius-md) !important;
 }
 
 @media (hover: hover) {
   .mbx-button:hover { transform: translateY(-1px); }
   .mbx-button--primary:hover {
     background: var(--accent-hover);
-    box-shadow: 0 14px 30px rgba(113, 82, 243, .3);
+    box-shadow: 0 9px 22px rgba(87, 70, 142, .2);
   }
   .mbx-button--secondary:hover { border-color: var(--accent-soft); background: var(--surface-soft); }
   .home-event-card:hover,

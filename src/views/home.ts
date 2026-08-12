@@ -159,15 +159,15 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
     .join("");
   const chips = copy.eventChips.map((label) => `<span class="rounded-full border border-[#e3d5fb] bg-white px-4 py-2 text-sm text-[#5d477e] shadow-sm">${label}</span>`).join("");
   const trustItems = copy.trust.map((label) => `<li class="flex items-center gap-2"><span class="flex h-5 w-5 items-center justify-center rounded-full bg-[#ddfbf6] text-[#0f9f8c]">${icons.check}</span>${label}</li>`).join("");
-  const privacyItems = copy.privacyPoints.map((label) => `<li class="flex items-center gap-3"><span class="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-[#ddcff5]">${icons.check}</span><span>${label}</span></li>`).join("");
+  const privacyItems = copy.privacyPoints.map((label) => `<li class="flex items-center gap-3"><span class="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9e4f7] text-[#57468e]">${icons.check}</span><span>${label}</span></li>`).join("");
   const languageLinks = supportedLocales.map((code) => `<a href="/${code}" lang="${code}" hreflang="${code}" class="flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 text-sm ${code === locale ? "bg-[#f2ecff] font-semibold text-[#6d28d9]" : "text-[#675a72] hover:bg-[#f8f5ff] hover:text-[#2b174d]"}"><span>${localeNames[code]}</span>${code === locale ? `<span aria-hidden="true">${icons.check}</span>` : ""}</a>`).join("");
 
   const title = copy.title;
   const canonical = `https://memboux.com/${locale}`;
   return page(
     title,
-    `<main data-page="home" data-locale="${locale}" class="overflow-hidden bg-[#fff9f6] text-[#2b1b4b]">
-      <header class="home-header relative z-30 border-b border-[#eadffc]/80 bg-[#fff9f6]/90 backdrop-blur-xl">
+    `<main data-page="home" data-locale="${locale}" class="overflow-hidden bg-[#fbfafc] text-[#302b38]">
+      <header class="home-header relative z-30 border-b border-[#e9e6ed] bg-white/90 backdrop-blur-xl">
         <nav aria-label="${el ? "Κύρια πλοήγηση" : "Main navigation"}" class="home-nav mx-auto flex h-20 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
           ${brandMark(`/${locale}`, true)}
           <div class="hidden items-center gap-7 text-sm text-[#596d65] lg:flex">
@@ -180,28 +180,28 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
             <details class="home-mobile-menu group relative lg:hidden"><summary aria-label="Menu" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-[#e2dcef] bg-white text-lg text-[#443653] shadow-sm [&::-webkit-details-marker]:hidden">☰</summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-60 rounded-2xl border border-[#e7e0f0] bg-white p-2 text-sm shadow-[0_20px_55px_rgba(24,60,51,.16)]"><a href="#event-types" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Events</a><a href="#demo" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Demo</a><a href="#features" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${copy.navFeatures}</a><a href="#pricing" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${el ? "Πακέτα" : "Pricing"}</a><a href="#faq" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">FAQ</a><a href="/${locale}/login" class="mt-1 block rounded-xl bg-[#f0edff] px-3 py-3 font-bold text-[#4d2fbd] sm:hidden">${copy.login}</a><a href="/${locale}/register" class="mt-1 block rounded-xl bg-[#7152f3] px-3 py-3 font-bold text-white sm:hidden">${copy.register}</a></div></details>
             <details class="group relative"><summary aria-label="${copy.language}" title="${copy.language}" class="flex h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-[#e2dcef] bg-white px-3 text-xs font-semibold text-[#443653] shadow-sm transition hover:border-[#b8cbc3] hover:bg-[#fafcfb] [&::-webkit-details-marker]:hidden">${icons.globe}<span class="hidden sm:inline">${localeNames[locale]}</span><span class="sm:hidden">${locale.toUpperCase()}</span><span aria-hidden="true" class="text-[10px] transition group-open:rotate-180">⌄</span></summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-48 rounded-2xl border border-[#e7e0f0] bg-white p-2 shadow-[0_20px_55px_rgba(24,60,51,.16)]"><p class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#788b84]">${copy.language}</p>${languageLinks}</div></details>
             <a href="/${locale}/login" class="hidden rounded-full px-4 py-2.5 text-sm font-semibold text-[#2b174d] hover:bg-white sm:inline-flex">${copy.login}</a>
-            <a href="/${locale}/register" class="home-header-register inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(124,58,237,.22)] hover:-translate-y-0.5 sm:px-5">${copy.register}<span class="hidden sm:inline">${icons.arrow}</span></a>
+            <a href="/${locale}/register" class="home-header-register inline-flex items-center gap-2 rounded-xl bg-[#7967bd] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(87,70,142,.16)] hover:-translate-y-0.5 hover:bg-[#6855ad] sm:px-5">${copy.register}<span class="hidden sm:inline">${icons.arrow}</span></a>
           </div>
         </nav>
       </header>
 
       <section class="home-hero relative">
-        <div class="absolute left-1/2 top-0 h-[36rem] w-[55rem] -translate-x-1/2 rounded-full bg-[#e3f0eb] opacity-70 blur-3xl"></div>
+        <div class="absolute left-1/2 top-0 h-[32rem] w-[52rem] -translate-x-1/2 rounded-full bg-[#f0edf6] opacity-80 blur-3xl"></div>
         <div class="home-hero-grid relative mx-auto grid max-w-7xl items-center gap-14 px-5 pb-20 pt-16 sm:px-8 sm:pb-28 sm:pt-24 lg:grid-cols-[.88fr_1.12fr] lg:gap-20 lg:pb-32 lg:pt-28">
           <div class="home-hero-copy">
             <p class="text-xs font-semibold uppercase tracking-[.22em] text-[#f43f8f]">${copy.eyebrow}</p>
             <h1 class="mt-5 max-w-3xl text-[2.8rem] font-medium leading-[1.04] tracking-[-.045em] text-[#2b1b4b] sm:text-6xl lg:text-[4.6rem]">${copy.heroTitle}</h1>
             <p class="mt-7 max-w-2xl text-lg leading-8 text-[#6f6680] sm:text-xl">${copy.heroText}</p>
             <div class="home-hero-actions mt-9 flex flex-col gap-3 sm:flex-row">
-              <a href="/${locale}/register" class="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-semibold text-white shadow-[0_14px_35px_rgba(124,58,237,.28)] hover:-translate-y-0.5">${copy.heroPrimary}${icons.arrow}</a>
-              <a href="/${locale}/login" class="inline-flex items-center justify-center rounded-2xl border border-[#d9c8f7] bg-white/80 px-6 py-4 font-semibold text-[#2b1b4b] hover:border-[#b99aec] hover:bg-white">${copy.heroSecondary}</a>
+              <a href="/${locale}/register" class="inline-flex items-center justify-center gap-3 rounded-xl bg-[#7967bd] px-6 py-4 font-semibold text-white shadow-[0_8px_22px_rgba(87,70,142,.18)] hover:-translate-y-0.5 hover:bg-[#6855ad]">${copy.heroPrimary}${icons.arrow}</a>
+              <a href="/${locale}/login" class="inline-flex items-center justify-center rounded-xl border border-[#dcd7e3] bg-white px-6 py-4 font-semibold text-[#302b38] hover:border-[#bbb2c8]">${copy.heroSecondary}</a>
             </div>
             <ul class="home-trust-list mt-8 flex flex-col gap-3 text-xs text-[#756b82] sm:flex-row sm:flex-wrap sm:gap-x-5">${trustItems}</ul>
           </div>
 
           <div class="home-hero-preview relative mx-auto w-full max-w-2xl">
             <div class="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-[#ddcff5]/70 via-white/20 to-[#d9e8e2]/60 blur-2xl"></div>
-            <div class="relative overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-[#2b1b4b] via-[#6d28d9] to-[#f43f8f] p-3 shadow-[0_35px_100px_rgba(91,33,182,.28)] sm:rounded-[2.5rem] sm:p-5">
+            <div class="relative overflow-hidden rounded-[1.5rem] border border-[#ded9e6] bg-[#eeeaf5] p-3 shadow-[0_24px_70px_rgba(57,48,69,.12)] sm:rounded-[1.75rem] sm:p-5">
               <div class="rounded-[1.35rem] bg-[#faf8ff] p-4 sm:rounded-[1.75rem] sm:p-6">
                 <div class="flex items-start justify-between gap-4">
                   <div><p class="text-[10px] font-semibold uppercase tracking-[.18em] text-[#8b5cf6]">${copy.previewEyebrow}</p><h2 class="mt-2 text-xl font-medium sm:text-2xl">${copy.previewTitle}</h2><p class="mt-1 text-xs text-[#748a82]">${copy.previewDate}</p></div>
@@ -228,12 +228,12 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
 
       ${commercialSections}
 
-      <section class="relative overflow-hidden bg-[#2b1b4b] text-white">
-        <div class="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#7c3aed]/30 blur-3xl"></div>
-        <div class="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#f43f8f]/20 blur-3xl"></div>
+      <section class="relative overflow-hidden border-y border-[#e9e6ed] bg-[#f5f3f8] text-[#302b38]">
+        <div class="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#e8e2f3]/70 blur-3xl"></div>
+        <div class="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#f4e8eb]/70 blur-3xl"></div>
         <div class="relative mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
-          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#f9a8d4]">${vision.eyebrow}</p><h2 class="mt-5 max-w-4xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${vision.title}</h2><p class="mt-7 max-w-3xl text-base leading-8 text-white/70 sm:text-lg">${vision.text}</p></div>
-          <ul class="space-y-3">${vision.points.map((point) => `<li class="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/85 backdrop-blur"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-white">${icons.check}</span>${point}</li>`).join("")}</ul>
+          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${vision.eyebrow}</p><h2 class="mt-5 max-w-4xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${vision.title}</h2><p class="mt-7 max-w-3xl text-base leading-8 text-[#756f7c] sm:text-lg">${vision.text}</p></div>
+          <ul class="space-y-3">${vision.points.map((point) => `<li class="flex items-center gap-3 rounded-xl border border-[#e4e0e8] bg-white/80 px-5 py-4 text-sm text-[#514a58]"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e9e4f7] text-[#57468e]">${icons.check}</span>${point}</li>`).join("")}</ul>
         </div>
       </section>
 
@@ -243,24 +243,24 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
         <div class="mt-16 grid gap-10 md:grid-cols-3">${stepCards}</div>
       </section>
 
-      <section id="features" class="scroll-mt-24 bg-[#eff4f1] py-24 sm:py-32">
+      <section id="features" class="scroll-mt-24 bg-[#f6f5f7] py-24 sm:py-32">
         <div class="mx-auto max-w-7xl px-5 sm:px-8">
           <div class="max-w-4xl"><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7c3aed]">${copy.featuresEyebrow}</p><h2 class="mt-4 text-4xl font-medium leading-tight tracking-[-.035em] sm:text-5xl">${copy.featuresTitle}</h2></div>
           <div class="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3">${featureCards}</div>
         </div>
       </section>
 
-      <section id="privacy" class="scroll-mt-24 bg-[#2b1b4b] text-white">
+      <section id="privacy" class="scroll-mt-24 border-y border-[#e9e6ed] bg-white text-[#302b38]">
         <div class="mx-auto grid max-w-7xl items-center gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[1.05fr_.95fr] lg:gap-24">
-          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#c4b5fd]">${copy.privacyEyebrow}</p><h2 class="mt-5 max-w-3xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${copy.privacyTitle}</h2><p class="mt-7 max-w-2xl text-base leading-8 text-white/65 sm:text-lg">${copy.privacyText}</p></div>
-          <div class="relative"><div class="absolute -inset-8 rounded-full bg-[#7c3aed]/25 blur-3xl"></div><div class="relative rounded-[2rem] border border-white/10 bg-white/5 p-7 backdrop-blur sm:p-9"><span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-[#99f6e4]">${icons.shield}</span><ul class="mt-8 space-y-5 text-sm text-white/80 sm:text-base">${privacyItems}</ul><a href="/${locale}/privacy-policy" class="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-white hover:text-[#99f6e4]">${el ? "Δες την πολιτική απορρήτου" : "Read our privacy policy"}${icons.arrow}</a></div></div>
+          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${copy.privacyEyebrow}</p><h2 class="mt-5 max-w-3xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${copy.privacyTitle}</h2><p class="mt-7 max-w-2xl text-base leading-8 text-[#756f7c] sm:text-lg">${copy.privacyText}</p></div>
+          <div class="relative"><div class="absolute -inset-8 rounded-full bg-[#eeeaf5] blur-3xl"></div><div class="relative rounded-[1.5rem] border border-[#e4e0e8] bg-[#f8f7fa] p-7 sm:p-9"><span class="flex h-14 w-14 items-center justify-center rounded-xl bg-[#e9e4f7] text-[#57468e]">${icons.shield}</span><ul class="mt-8 space-y-5 text-sm text-[#625b69] sm:text-base">${privacyItems}</ul><a href="/${locale}/privacy-policy" class="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#57468e] hover:text-[#40336b]">${el ? "Δες την πολιτική απορρήτου" : "Read our privacy policy"}${icons.arrow}</a></div></div>
         </div>
       </section>
 
       <section class="px-5 py-20 sm:px-8 sm:py-28">
-        <div class="relative mx-auto max-w-7xl overflow-hidden rounded-[2.25rem] bg-gradient-to-br from-[#7c3aed] via-[#9d35d5] to-[#f43f8f] px-6 py-16 text-center text-white shadow-[0_30px_80px_rgba(124,58,237,.25)] sm:px-12 sm:py-24">
-          <div class="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#2dd4bf]/25 blur-2xl"></div><div class="absolute -bottom-24 -right-16 h-72 w-72 rounded-full bg-[#2b1b4b]/25 blur-2xl"></div>
-          <div class="relative mx-auto max-w-3xl"><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#fce7f3]">${copy.finalEyebrow}</p><h2 class="mt-5 text-4xl font-medium tracking-[-.035em] sm:text-6xl">${copy.finalTitle}</h2><p class="mt-5 text-lg text-white/80">${copy.finalText}</p><a href="/${locale}/register" class="mt-9 inline-flex items-center gap-3 rounded-2xl bg-white px-7 py-4 font-semibold text-[#5b21b6] shadow-xl hover:-translate-y-0.5">${copy.finalButton}${icons.arrow}</a></div>
+        <div class="relative mx-auto max-w-7xl overflow-hidden rounded-[1.5rem] border border-[#ddd8e4] bg-[#eeebf4] px-6 py-16 text-center text-[#302b38] shadow-[0_18px_50px_rgba(57,48,69,.08)] sm:px-12 sm:py-24">
+          <div class="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white/60 blur-2xl"></div><div class="absolute -bottom-24 -right-16 h-72 w-72 rounded-full bg-[#f4e7ea]/60 blur-2xl"></div>
+          <div class="relative mx-auto max-w-3xl"><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${copy.finalEyebrow}</p><h2 class="mt-5 text-4xl font-medium tracking-[-.035em] sm:text-6xl">${copy.finalTitle}</h2><p class="mt-5 text-lg text-[#756f7c]">${copy.finalText}</p><a href="/${locale}/register" class="mt-9 inline-flex items-center gap-3 rounded-xl bg-[#7967bd] px-7 py-4 font-semibold text-white shadow-[0_8px_22px_rgba(87,70,142,.16)] hover:-translate-y-0.5 hover:bg-[#6855ad]">${copy.finalButton}${icons.arrow}</a></div>
         </div>
       </section>
 
