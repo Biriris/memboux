@@ -313,7 +313,7 @@ describe("event workspace", () => {
     });
     expect(html).toContain('id="package-access-title"');
     expect(html).toContain(`/api/account/events/${event.code}/checkout/start-trial`);
-    expect(html).toContain("Choose package & start free 7-day trial");
+    expect(html).toContain("Choose package & start Memboux Free");
     expect(html).toContain("No card is requested and there is no automatic charge");
     expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
   });

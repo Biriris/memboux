@@ -1,7 +1,10 @@
 import type { EventAccessRow } from "./domain";
 
-export const EVENT_TRIAL_DAYS = 7;
-export const EVENT_TRIAL_MEDIA_LIMIT = 20;
+export const EVENT_FREE_ACCESS_DAYS = 37;
+export const EVENT_FREE_MEDIA_LIMIT = 50;
+// Compatibility exports while the persisted lifecycle state remains `trial`.
+export const EVENT_TRIAL_DAYS = EVENT_FREE_ACCESS_DAYS;
+export const EVENT_TRIAL_MEDIA_LIMIT = EVENT_FREE_MEDIA_LIMIT;
 
 export function isTrialMediaLimitConstraint(error: unknown) {
   return error instanceof Error && error.message.includes("trial_media_limit_reached");

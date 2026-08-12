@@ -83,8 +83,8 @@ describe("provider-neutral commerce catalog", () => {
       const localized = commerceCheckoutCopy[locale];
       expect(localized.title.length).toBeGreaterThan(20);
       expect(localized.noCart.length).toBeGreaterThan(20);
-      expect(localized.trialFiles).toContain("20");
-      expect(localized.trialDays).toContain("7");
+      expect(localized.trialFiles).toContain("50");
+      expect(localized.trialDays).toContain("37");
       expect(localized.savedNotice.length).toBeGreaterThan(35);
       expect(localized.noChargeLabel).toContain("0");
       expect(localized.draftReference.length).toBeGreaterThan(5);

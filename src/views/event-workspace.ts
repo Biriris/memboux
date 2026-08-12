@@ -180,7 +180,7 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
       ? `/api/account/events/${event.code}/checkout/activate-beta`
       : `/api/account/events/${event.code}/checkout/draft`;
   const packageButton = eventAccess.access_state === "preview"
-    ? (el ? "Επιλογή πακέτου & έναρξη δωρεάν trial 7 ημερών" : "Choose package & start free 7-day trial")
+    ? (el ? "Επιλογή πακέτου & έναρξη Memboux Free" : "Choose package & start Memboux Free")
     : eventAccess.access_state === "expired" && !input.commerceLaunchReady
       ? (el ? "Ενεργοποίηση πακέτου beta" : "Activate beta package")
       : (el ? "Αποθήκευση επιλογής πακέτου" : "Save package selection");

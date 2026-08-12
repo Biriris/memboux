@@ -8,7 +8,7 @@ New-event access defaults are enforced by the current code/migrations:
 
 - `access_state = preview`
 - `enforcement_state = enforced`
-- media limit 20
+- media limit 50
 - guest access/uploads and original downloads disabled until the trial starts
 
 Legacy events inserted into `event_access` by [`0041_event_access_lifecycle.sql`](../../migrations/0041_event_access_lifecycle.sql) are preserved as `unlocked` in `observe` mode.
@@ -28,7 +28,7 @@ The exact product rule for when a generic vertical page should be considered “
 
 ## Trial transition
 
-An owner now selects an event package and starts the trial in the same event-overview flow with `POST /api/account/events/:code/checkout/start-trial` in [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The legacy trial and checkout pages redirect to that unified panel, and the legacy direct-start mutation no longer changes access. [`startEventTrial`](../../src/event-access.ts) transitions only `preview` rows to `trial`, sets a 7-day end timestamp for new trials, enables guest access and guest uploads, keeps original downloads disabled, and leaves the lifetime media limit at 20. Existing trials retain their persisted end timestamp.
+An owner now selects an event package and starts the Memboux Free access period in the same event-overview flow with `POST /api/account/events/:code/checkout/start-trial` in [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The route and persisted `trial` state remain compatibility identifiers. [`startEventTrial`](../../src/event-access.ts) transitions only `preview` rows to `trial`, sets a 37-day end timestamp, enables guest access and guest uploads, keeps original downloads disabled, and applies a lifetime media limit of 50. Migration [`0068_free_plan_and_event_packages.sql`](../../migrations/0068_free_plan_and_event_packages.sql) raises existing enforced preview/trial capacity and establishes the inactive-checkout `Moments` and `Celebration` catalog entries.
 
 The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql) means deleting a file does not return a trial slot. D1 triggers enforce limits for ordinary media, wedding media, restores after expiry, and active multipart reservations. [`event-access.test.ts`](../../test/event-access.test.ts) and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts) cover this behavior.
 

@@ -993,7 +993,7 @@ describe("account route boundaries", () => {
     expect(anonymousCalendar.status).not.toBe(200);
 
     await env.DB.batch([
-      ...Array.from({ length: 19 }, (_, index) =>
+      ...Array.from({ length: 49 }, (_, index) =>
         env.DB.prepare("INSERT INTO media (id,event_id,object_key) VALUES (?,?,?)")
           .bind(`trial-cap-${index}`, weddingEvent!.id, `trial/cap-${index}.jpg`)),
       env.DB.prepare(`INSERT INTO event_wedding_media

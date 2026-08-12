@@ -22,8 +22,8 @@ const access = (overrides: Partial<EventAccessRow> = {}): EventAccessRow => ({
 
 describe("event access lifecycle", () => {
   it("uses the intended trial shape", () => {
-    expect(EVENT_TRIAL_DAYS).toBe(7);
-    expect(EVENT_TRIAL_MEDIA_LIMIT).toBe(20);
+    expect(EVENT_TRIAL_DAYS).toBe(37);
+    expect(EVENT_TRIAL_MEDIA_LIMIT).toBe(50);
   });
 
   it("keeps beta observe mode non-blocking", () => {
@@ -53,9 +53,9 @@ describe("event access lifecycle", () => {
             return {
               first: async () => {
                 if (sql.includes("SELECT * FROM event_access")) return trial;
-                if (sql.includes("media_uploads_consumed")) return { media_uploads_consumed: 18 };
-                if (sql.includes("FROM media ")) return { total: 12 };
-                if (sql.includes("event_wedding_media")) return { total: 6 };
+                if (sql.includes("media_uploads_consumed")) return { media_uploads_consumed: 48 };
+                if (sql.includes("FROM media ")) return { total: 32 };
+                if (sql.includes("event_wedding_media")) return { total: 16 };
                 if (sql.includes("multipart_upload_sessions")) return { total: 2 };
                 return null;
               },
@@ -66,15 +66,15 @@ describe("event access lifecycle", () => {
     } as unknown as D1Database;
 
     const full = await eventMediaCapacity(db, "event-1", 1);
-    expect(full).toMatchObject({ allowed: false, used: 20, remaining: 0 });
+    expect(full).toMatchObject({ allowed: false, used: 50, remaining: 0 });
     const completion = await eventMediaCapacity(db, "event-1", 0);
-    expect(completion).toMatchObject({ allowed: true, used: 20, remaining: 0 });
+    expect(completion).toMatchObject({ allowed: true, used: 50, remaining: 0 });
     expect(await eventMediaUsage(db, "event-1")).toEqual({
-      galleryMedia: 12,
-      weddingMedia: 6,
+      galleryMedia: 32,
+      weddingMedia: 16,
       pendingUploads: 2,
-      consumedUploads: 18,
-      total: 20,
+      consumedUploads: 48,
+      total: 50,
     });
   });
 

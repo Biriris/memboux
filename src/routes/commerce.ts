@@ -49,9 +49,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "One-time event unlock", subscription: "Subscription", files: "photos & videos",
     days: "days of access", originals: "Original-quality downloads", guestUploads: "Guest uploads",
     select: "Select package", selected: "Selected", save: "Save package for launch",
-    current: "Current access", preview: "Private preview", trial: "7-day trial", unlocked: "Unlocked", expired: "Trial expired",
-    trialIncludes: "The trial proves the full guest experience, with limits that protect the paid value.",
-    trialFiles: "20 lifetime upload slots (deletions do not return slots)", trialDays: "7 days after activation", noOriginals: "No original downloads",
+    current: "Current access", preview: "Private preview", trial: "Memboux Free", unlocked: "Unlocked", expired: "Free access expired",
+    trialIncludes: "Memboux Free lets you use the real guest experience without a card.",
+    trialFiles: "50 lifetime upload slots (deletions do not return slots)", trialDays: "37 days after activation", noOriginals: "No original downloads",
     unlockTitle: "What payment will unlock", unlockText: "More contributions, longer access and every original file ready to keep.",
     noCart: "No cart: this package belongs only to this event.", disabled: "Payments are not active yet",
     noCard: "No card details are requested", legalText: "The future Stripe Checkout will open only after company, tax, invoicing, refund and sales terms are ready.",
@@ -66,9 +66,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Εφάπαξ ξεκλείδωμα event", subscription: "Συνδρομή", files: "φωτογραφίες & βίντεο",
     days: "ημέρες πρόσβασης", originals: "Λήψεις αρχείων σε αρχική ποιότητα", guestUploads: "Uploads καλεσμένων",
     select: "Επιλογή πακέτου", selected: "Επιλεγμένο", save: "Αποθήκευση πακέτου για το launch",
-    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Trial 7 ημερών", unlocked: "Ξεκλειδωμένο", expired: "Το trial έληξε",
-    trialIncludes: "Το trial αποδεικνύει ολόκληρη την εμπειρία καλεσμένων, με όρια που διατηρούν την αξία του πακέτου.",
-    trialFiles: "20 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "7 ημέρες από την ενεργοποίηση", noOriginals: "Χωρίς λήψεις πρωτοτύπων",
+    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Memboux Free", unlocked: "Ξεκλειδωμένο", expired: "Η δωρεάν πρόσβαση έληξε",
+    trialIncludes: "Το Memboux Free σου επιτρέπει να χρησιμοποιήσεις την πραγματική εμπειρία καλεσμένων χωρίς κάρτα.",
+    trialFiles: "50 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "37 ημέρες από την ενεργοποίηση", noOriginals: "Χωρίς λήψεις πρωτοτύπων",
     unlockTitle: "Τι θα ξεκλειδώνει η πληρωμή", unlockText: "Περισσότερες συνεισφορές, μεγαλύτερη πρόσβαση και όλα τα πρωτότυπα έτοιμα να τα κρατήσεις.",
     noCart: "Χωρίς καλάθι: το πακέτο ανήκει μόνο σε αυτό το event.", disabled: "Οι πληρωμές δεν είναι ακόμη ενεργές",
     noCard: "Δεν ζητούνται στοιχεία κάρτας", legalText: "Το μελλοντικό Stripe Checkout θα ανοίξει μόνο αφού είναι έτοιμα εταιρεία, φορολογία, τιμολόγηση, επιστροφές και όροι πώλησης.",
@@ -85,7 +85,7 @@ export const commerceCheckoutCopy: Record<Locale, {
     selected: "Sélectionné", save: "Enregistrer pour le lancement", current: "Accès actuel", preview: "Aperçu privé",
     trial: "Essai de 7 jours", unlocked: "Débloqué", expired: "Essai expiré",
     trialIncludes: "L’essai montre toute l’expérience invité avec des limites qui préservent la valeur payante.",
-    trialFiles: "20 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "7 jours après activation", noOriginals: "Pas de téléchargement des originaux",
+    trialFiles: "50 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "37 jours après activation", noOriginals: "Pas de téléchargement des originaux",
     unlockTitle: "Ce que le paiement débloquera", unlockText: "Plus de contributions, un accès prolongé et tous les originaux à conserver.",
     noCart: "Pas de panier : ce forfait appartient uniquement à cet événement.", disabled: "Paiements pas encore actifs",
     noCard: "Aucune carte demandée", legalText: "Stripe Checkout ne sera activé qu’après les étapes légales, fiscales, de facturation et de remboursement.",
@@ -102,7 +102,7 @@ export const commerceCheckoutCopy: Record<Locale, {
     selected: "Ausgewählt", save: "Paket für den Start speichern", current: "Aktueller Zugriff", preview: "Private Vorschau",
     trial: "7-Tage-Test", unlocked: "Freigeschaltet", expired: "Test abgelaufen",
     trialIncludes: "Der Test zeigt das vollständige Gästeerlebnis mit Grenzen, die den Bezahlwert schützen.",
-    trialFiles: "20 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "7 Tage ab Aktivierung", noOriginals: "Keine Original-Downloads",
+    trialFiles: "50 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "37 Tage ab Aktivierung", noOriginals: "Keine Original-Downloads",
     unlockTitle: "Was die Zahlung freischaltet", unlockText: "Mehr Beiträge, längerer Zugriff und alle Originale zum Aufbewahren.",
     noCart: "Kein Warenkorb: Dieses Paket gehört nur zu diesem Event.", disabled: "Zahlungen sind noch nicht aktiv",
     noCard: "Keine Kartendaten erforderlich", legalText: "Stripe Checkout startet erst nach Unternehmens-, Steuer-, Rechnungs-, Rückerstattungs- und Verkaufsbedingungen.",
@@ -119,7 +119,7 @@ export const commerceCheckoutCopy: Record<Locale, {
     selected: "Seleccionado", save: "Guardar para el lanzamiento", current: "Acceso actual", preview: "Vista previa privada",
     trial: "Prueba de 7 días", unlocked: "Desbloqueado", expired: "Prueba vencida",
     trialIncludes: "La prueba muestra toda la experiencia con límites que protegen el valor de pago.",
-    trialFiles: "20 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "7 días desde la activación", noOriginals: "Sin descargas originales",
+    trialFiles: "50 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "37 días desde la activación", noOriginals: "Sin descargas originales",
     unlockTitle: "Qué desbloqueará el pago", unlockText: "Más aportaciones, acceso prolongado y todos los originales para conservar.",
     noCart: "Sin carrito: este paquete pertenece solo a este evento.", disabled: "Los pagos aún no están activos",
     noCard: "No se solicitan datos de tarjeta", legalText: "Stripe Checkout se abrirá solo tras completar empresa, impuestos, facturación, reembolsos y términos.",
@@ -136,7 +136,7 @@ export const commerceCheckoutCopy: Record<Locale, {
     selected: "Selezionato", save: "Salva per il lancio", current: "Accesso attuale", preview: "Anteprima privata",
     trial: "Prova di 7 giorni", unlocked: "Sbloccato", expired: "Prova scaduta",
     trialIncludes: "La prova mostra l’esperienza completa con limiti che proteggono il valore a pagamento.",
-    trialFiles: "20 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "7 giorni dall’attivazione", noOriginals: "Nessun download originale",
+    trialFiles: "50 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "37 giorni dall’attivazione", noOriginals: "Nessun download originale",
     unlockTitle: "Cosa sbloccherà il pagamento", unlockText: "Più contributi, accesso più lungo e tutti gli originali da conservare.",
     noCart: "Nessun carrello: questo pacchetto appartiene solo a questo evento.", disabled: "I pagamenti non sono ancora attivi",
     noCard: "Nessun dato carta richiesto", legalText: "Stripe Checkout partirà solo dopo azienda, fisco, fatturazione, rimborsi e condizioni di vendita.",
@@ -221,7 +221,7 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
       ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
       : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
   const checkoutButton = access.access_state === "preview"
-    ? (locale === "el" ? "Επιλογή πακέτου & έναρξη δωρεάν trial 7 ημερών" : "Choose package & start free 7-day trial")
+    ? (locale === "el" ? "Επιλογή πακέτου & έναρξη Memboux Free" : "Choose package & start Memboux Free")
     : complimentaryAvailable && access.access_state === "expired" ? beta.activate : t.save;
   const checkoutStateCard = complimentaryAvailable
     ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
