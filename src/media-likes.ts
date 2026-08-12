@@ -29,14 +29,19 @@ export async function getGalleryMediaWithLikes(
   db: D1Database,
   eventId: string,
   actorKey: string,
+  options: { albumId?: string | null; publicOnly?: boolean } = {},
 ) {
+  const albumFilter = options.albumId === undefined ? "" : options.albumId === null ? "AND m.album_id IS NULL" : "AND m.album_id=?";
+  const moderationFilter = options.publicOnly ? "AND m.moderation_status='approved'" : "";
+  const bindings: unknown[] = [actorKey, eventId];
+  if (typeof options.albumId === "string") bindings.push(options.albumId);
   const result = await db.prepare(`SELECT m.*,
       (SELECT COUNT(*) FROM media_likes ml WHERE ml.media_id=m.id) like_count,
       EXISTS(SELECT 1 FROM media_likes own WHERE own.media_id=m.id AND own.actor_key=?) viewer_liked
     FROM media m
-    WHERE m.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL
+    WHERE m.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL ${albumFilter} ${moderationFilter}
     ORDER BY COALESCE(m.captured_at,m.uploaded_at) ASC,m.uploaded_at ASC`)
-    .bind(actorKey, eventId)
+    .bind(...bindings)
     .all<LikeableMediaRow>();
   return result.results;
 }

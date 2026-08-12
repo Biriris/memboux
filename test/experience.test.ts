@@ -23,12 +23,17 @@ beforeAll(async () => {
       uploaded_at INTEGER NOT NULL,captured_at INTEGER,content_hash TEXT,reported_at INTEGER,
       size_bytes INTEGER NOT NULL DEFAULT 0,title TEXT,deleted_at INTEGER,purge_at INTEGER,
       upload_consent_at INTEGER,upload_policy_version TEXT,origin TEXT NOT NULL DEFAULT 'guest',
-      uploaded_by_user_id TEXT
+      uploaded_by_user_id TEXT,album_id TEXT,guest_session_id TEXT,
+      moderation_status TEXT NOT NULL DEFAULT 'approved'
     )`),
     env.DB.prepare(`CREATE TABLE event_experience_settings (
       event_id TEXT PRIMARY KEY,rsvp_enabled INTEGER NOT NULL DEFAULT 1,
       guestbook_enabled INTEGER NOT NULL DEFAULT 1,comments_enabled INTEGER NOT NULL DEFAULT 1,
       slideshow_enabled INTEGER NOT NULL DEFAULT 1,guestbook_moderation INTEGER NOT NULL DEFAULT 1,
+      media_moderation_enabled INTEGER NOT NULL DEFAULT 0,guest_downloads_enabled INTEGER NOT NULL DEFAULT 1,
+      slideshow_album_id TEXT,slideshow_only_approved INTEGER NOT NULL DEFAULT 1,
+      slideshow_interval_seconds INTEGER NOT NULL DEFAULT 6,guestbook_video_enabled INTEGER NOT NULL DEFAULT 0,
+      guestbook_private INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE event_rsvps (
@@ -40,7 +45,8 @@ beforeAll(async () => {
     )`),
     env.DB.prepare(`CREATE TABLE event_guestbook_entries (
       id TEXT PRIMARY KEY,event_id TEXT NOT NULL,author_name TEXT NOT NULL,message TEXT NOT NULL,
-      status TEXT NOT NULL,created_at INTEGER NOT NULL,moderated_at INTEGER
+      status TEXT NOT NULL,created_at INTEGER NOT NULL,moderated_at INTEGER,media_id TEXT,
+      visibility TEXT NOT NULL DEFAULT 'public'
     )`),
     env.DB.prepare(`CREATE TABLE media_comments (
       id TEXT PRIMARY KEY,event_id TEXT NOT NULL,media_id TEXT NOT NULL,author_name TEXT NOT NULL,
@@ -48,6 +54,23 @@ beforeAll(async () => {
     )`),
     env.DB.prepare(`CREATE TABLE request_rate_limits (
       rate_key TEXT PRIMARY KEY,window_started_at INTEGER NOT NULL,request_count INTEGER NOT NULL,expires_at INTEGER NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE event_guest_sessions (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,visitor_hash TEXT NOT NULL,display_name TEXT NOT NULL,
+      first_seen_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,upload_count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(event_id,visitor_hash)
+    )`),
+    env.DB.prepare(`CREATE TABLE event_activity_events (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,activity_type TEXT NOT NULL,visitor_hash TEXT,
+      album_id TEXT,media_id TEXT,occurred_at INTEGER NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE event_albums (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,slug TEXT NOT NULL,name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',privacy TEXT NOT NULL DEFAULT 'public',pin_hash TEXT,
+      share_token_hash TEXT,cover_media_id TEXT,allow_uploads INTEGER NOT NULL DEFAULT 1,
+      allow_downloads INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,deleted_at INTEGER,
+      UNIQUE(event_id,slug)
     )`),
   ]);
   await env.DB.prepare(`INSERT INTO events

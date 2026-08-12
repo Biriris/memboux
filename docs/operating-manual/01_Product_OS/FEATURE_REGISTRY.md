@@ -24,3 +24,23 @@ commerce catalog/order drafts and provider-neutral fulfillment logic.
 
 Candidate prices and limits remain validation inputs, not implemented product
 facts.
+
+## Event media hub
+
+Migration [`0069_event_media_hub.sql`](../../../migrations/0069_event_media_hub.sql)
+establishes the implemented event media hub:
+
+- owners can create public, PIN-protected, or private-link albums with separate
+  upload and download policies;
+- guests can navigate the album collection and upload into an eligible album;
+- uploads retain guest-session attribution and an explicit moderation state;
+- owners can configure moderation, guest downloads, guestbook privacy,
+  slideshow source album, and slideshow interval;
+- the Media Center links albums, aggregate analytics, slideshow, QR Studio, and
+  a streaming ZIP export;
+- analytics stores aggregate activity and pseudonymous visitor hashes, not raw
+  IP addresses, contact details, private media payloads, or user agents.
+
+The ZIP is a bounded-memory HTTP stream, not a Queue/Workflow background archive,
+and is not retained in R2. Video-guestbook columns are schema groundwork only;
+the capture workflow is not implemented and must not be marketed as available.

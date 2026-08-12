@@ -2,7 +2,7 @@
 import { esc } from "../utils";
 
 export type GuestbookPreview = { author_name: string; message: string; created_at: number };
-export type GuestParticipationSettings = { rsvp_enabled: number; guestbook_enabled: number; comments_enabled?: number };
+export type GuestParticipationSettings = { rsvp_enabled: number; guestbook_enabled: number; comments_enabled?: number; guestbook_video_enabled?: number; guestbook_private?: number };
 
 type GuestExperienceCopy = {
   firstMessage: string;

@@ -39,7 +39,8 @@ beforeAll(async () => {
       reported_at INTEGER, size_bytes INTEGER NOT NULL DEFAULT 0, title TEXT,
       deleted_at INTEGER, purge_at INTEGER, upload_consent_at INTEGER,
       upload_policy_version TEXT, origin TEXT NOT NULL DEFAULT 'guest',
-      uploaded_by_user_id TEXT
+      uploaded_by_user_id TEXT, album_id TEXT, guest_session_id TEXT,
+      moderation_status TEXT NOT NULL DEFAULT 'approved'
     )`),
     env.DB.prepare(`CREATE TABLE official_album_items (
       event_id TEXT NOT NULL, media_id TEXT NOT NULL, added_by TEXT NOT NULL,
@@ -81,11 +82,30 @@ beforeAll(async () => {
       total_parts INTEGER,client_fingerprint TEXT,uploaded_by TEXT,uploaded_by_user_id TEXT,
       origin TEXT,reservation_owner_id TEXT,upload_consent_at INTEGER,upload_policy_version TEXT,
       captured_at INTEGER,status TEXT,created_at INTEGER,updated_at INTEGER,expires_at INTEGER,
-      completed_at INTEGER,notified_at INTEGER
+      completed_at INTEGER,notified_at INTEGER,album_id TEXT,guest_session_id TEXT,
+      moderation_status TEXT NOT NULL DEFAULT 'approved'
     )`),
     env.DB.prepare(`CREATE TABLE multipart_upload_parts (
       session_id TEXT,part_number INTEGER,etag TEXT,size_bytes INTEGER,client_hash TEXT,
       created_at INTEGER,PRIMARY KEY(session_id,part_number)
+    )`),
+    env.DB.prepare(`CREATE TABLE event_albums (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,slug TEXT NOT NULL,name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',privacy TEXT NOT NULL DEFAULT 'public',
+      pin_hash TEXT,share_token_hash TEXT,allow_uploads INTEGER NOT NULL DEFAULT 1,
+      allow_downloads INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,
+      cover_media_id TEXT,created_by TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,
+      deleted_at INTEGER,
+      UNIQUE(event_id,slug)
+    )`),
+    env.DB.prepare(`CREATE TABLE event_guest_sessions (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,visitor_hash TEXT NOT NULL,display_name TEXT NOT NULL,
+      first_seen_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,upload_count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(event_id,visitor_hash)
+    )`),
+    env.DB.prepare(`CREATE TABLE event_activity_events (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,activity_type TEXT NOT NULL,visitor_hash TEXT,
+      album_id TEXT,media_id TEXT,occurred_at INTEGER NOT NULL
     )`),
   ]);
 
@@ -163,6 +183,26 @@ beforeAll(async () => {
 });
 
 describe("gallery, upload, and media routes", () => {
+  it("exposes public event albums without leaking them into the main gallery", async () => {
+    const albumId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await env.DB.prepare(`INSERT INTO event_albums
+      (id,event_id,slug,name,description,privacy,allow_uploads,allow_downloads,sort_order,created_by,created_at,updated_at)
+      VALUES (?,?,?,?,?,'public',1,1,0,?,?,?)`)
+      .bind(albumId, publicEventId, "photo-booth", "Photo booth", "Party portraits", "gallery-owner", now, now).run();
+    await env.DB.prepare(`INSERT INTO media
+      (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes,album_id)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .bind("album-photo-media", publicEventId, "test/album-photo.jpg", "image", "image/jpeg", "Guest", now + 10, 12, albumId).run();
+
+    const main = await SELF.fetch(`https://memboux.com/gallery/${publicCode}?lang=en`);
+    expect(await main.text()).toContain("Photo booth");
+    const album = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/albums/photo-booth?lang=en`, { redirect: "follow" });
+    const html = await album.text();
+    expect(album.status).toBe(200);
+    expect(html).toContain("Party portraits");
+    expect(html).toContain("album-photo-media");
+  });
+
   it("exposes the trial upload usage needed for the guest quota notice", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/upload/${trialCode}/capacity`);
     expect(response.status).toBe(200);

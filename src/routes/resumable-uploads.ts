@@ -9,6 +9,7 @@ import {
 } from "../config";
 import type { Bindings, EventRow } from "../domain";
 import { eventMediaCapacity, eventMediaUsage, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { anonymousVisitor, findEventAlbum, hasAlbumAccess, recordEventActivity } from "../event-media-hub";
 import { hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
@@ -53,6 +54,9 @@ type UploadSession = {
   expires_at: number;
   completed_at: number | null;
   notified_at: number | null;
+  album_id: string | null;
+  guest_session_id: string | null;
+  moderation_status: "pending" | "approved";
 };
 
 type SessionPart = {
@@ -69,6 +73,9 @@ type UploadContext = {
   uploadedBy: string;
   consentAt: number | null;
   policyVersion: string | null;
+  albumId: string | null;
+  guestSessionId: string | null;
+  moderationStatus: "pending" | "approved";
 };
 
 function jsonError(message: string, status: 400 | 401 | 403 | 404 | 409 | 410 | 413 | 415 | 422 | 429 | 500) {
@@ -135,6 +142,9 @@ async function authorizeUpload(
       uploadedBy: uploader.name.slice(0, 60),
       consentAt: null,
       policyVersion: null,
+      albumId: null,
+      guestSessionId: null,
+      moderationStatus: "approved",
     };
   }
   if (!(await hasGalleryAccess(c.req.raw, event)))
@@ -142,6 +152,18 @@ async function authorizeUpload(
   if (input.consent !== "accepted")
     return jsonError("Upload confirmation is required.", 400);
   const uploadedBy = input.name.trim().slice(0, 60) || "Anonymous";
+  const referer = c.req.raw.headers.get("Referer");
+  let albumSlug = c.req.raw.headers.get("Upload-Album") ?? "";
+  if (!albumSlug && referer) {
+    try { albumSlug = new URL(referer).searchParams.get("album") ?? ""; } catch { albumSlug = ""; }
+  }
+  const album = albumSlug ? await findEventAlbum(c.env.DB, event.id, albumSlug.slice(0, 64)) : null;
+  if (albumSlug && !album) return jsonError("Album not found.", 404);
+  if (album && (!album.allow_uploads || !(await hasAlbumAccess(c.req.raw, c.env.BETTER_AUTH_SECRET, album))))
+    return jsonError("Uploads are not allowed in this album.", 403);
+  const guest = await anonymousVisitor(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, event.id, uploadedBy);
+  const settings = await c.env.DB.prepare("SELECT media_moderation_enabled FROM event_experience_settings WHERE event_id=?")
+    .bind(event.id).first<{ media_moderation_enabled: number }>().catch(() => null);
   return {
     event,
     origin: "guest",
@@ -149,6 +171,9 @@ async function authorizeUpload(
     uploadedBy,
     consentAt: Date.now(),
     policyVersion: GUEST_UPLOAD_POLICY_VERSION,
+    albumId: album?.id ?? null,
+    guestSessionId: guest.guestSessionId,
+    moderationStatus: settings?.media_moderation_enabled ? "pending" : "approved",
   };
 }
 
@@ -330,8 +355,8 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
         `INSERT INTO media
          (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,
           content_hash,canonical_hash,size_bytes,title,upload_consent_at,upload_policy_version,
-          origin,uploaded_by_user_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?)`,
+          origin,uploaded_by_user_id,album_id,guest_session_id,moderation_status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?)`,
       ).bind(
         mediaId,
         context.event.id,
@@ -348,14 +373,17 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
         context.policyVersion,
         origin,
         context.uploader?.id ?? null,
+        context.albumId,
+        context.guestSessionId,
+        context.moderationStatus,
       ),
       c.env.DB.prepare(
         `INSERT INTO multipart_upload_sessions
          (id,event_id,upload_id,object_key,media_id,file_name,content_type,media_type,size_bytes,
           part_size,total_parts,client_fingerprint,uploaded_by,uploaded_by_user_id,origin,
-          reservation_owner_id,upload_consent_at,upload_policy_version,captured_at,status,
+          reservation_owner_id,upload_consent_at,upload_policy_version,captured_at,album_id,guest_session_id,moderation_status,status,
           created_at,updated_at,expires_at,completed_at,notified_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'completed',?,?,?,?,NULL)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'completed',?,?,?,?,NULL)`,
       ).bind(
         id,
         context.event.id,
@@ -376,6 +404,9 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
         context.consentAt,
         context.policyVersion,
         capturedAt,
+        context.albumId,
+        context.guestSessionId,
+        context.moderationStatus,
         now,
         now,
         now + MULTIPART_UPLOAD_TTL_MS,
@@ -387,7 +418,12 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
         "INSERT INTO official_album_items (event_id,media_id,added_by,position,created_at) VALUES (?,?,?,?,?)",
       ).bind(context.event.id, mediaId, context.uploader.id, 0, now));
     }
+    if (context.guestSessionId) {
+      statements.push(c.env.DB.prepare("UPDATE event_guest_sessions SET upload_count=upload_count+1,last_seen_at=? WHERE id=?")
+        .bind(now, context.guestSessionId));
+    }
     await c.env.DB.batch(statements);
+    c.executionCtx.waitUntil(recordEventActivity(c.env.DB, { eventId: context.event.id, type: "upload_completed", albumId: context.albumId, mediaId }));
     persistedAt = Date.now();
   } catch (error) {
     await c.env.MEDIA.delete(mediaObjectKeys(objectKey));
@@ -563,9 +599,9 @@ resumableUploadRoutes.post("/api/upload/:code/multipart", async (c) => {
       `INSERT INTO multipart_upload_sessions
        (id,event_id,upload_id,object_key,media_id,file_name,content_type,media_type,size_bytes,
         part_size,total_parts,client_fingerprint,uploaded_by,uploaded_by_user_id,origin,
-        reservation_owner_id,upload_consent_at,upload_policy_version,captured_at,status,
+        reservation_owner_id,upload_consent_at,upload_policy_version,captured_at,album_id,guest_session_id,moderation_status,status,
         created_at,updated_at,expires_at,completed_at,notified_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'uploading',?,?,?,NULL,NULL)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'uploading',?,?,?,NULL,NULL)`,
     ).bind(
       id,
       context.event.id,
@@ -586,6 +622,9 @@ resumableUploadRoutes.post("/api/upload/:code/multipart", async (c) => {
       context.consentAt,
       context.policyVersion,
       capturedAt,
+      context.albumId,
+      context.guestSessionId,
+      context.moderationStatus,
       now,
       now,
       now + MULTIPART_UPLOAD_TTL_MS,
@@ -836,8 +875,8 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
         `INSERT INTO media
          (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,captured_at,
           content_hash,canonical_hash,size_bytes,title,upload_consent_at,upload_policy_version,
-          origin,uploaded_by_user_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?)`,
+          origin,uploaded_by_user_id,album_id,guest_session_id,moderation_status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?)`,
       ).bind(
         session.media_id,
         session.event_id,
@@ -854,6 +893,9 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
         session.upload_policy_version,
         session.origin,
         session.uploaded_by_user_id,
+        session.album_id,
+        session.guest_session_id,
+        session.moderation_status,
       ),
     ];
     if (session.origin === "official" && session.uploaded_by_user_id) {
@@ -861,10 +903,15 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
         "INSERT INTO official_album_items (event_id,media_id,added_by,position,created_at) VALUES (?,?,?,?,?)",
       ).bind(session.event_id, session.media_id, session.uploaded_by_user_id, 0, now));
     }
+    if (session.guest_session_id) {
+      statements.push(c.env.DB.prepare("UPDATE event_guest_sessions SET upload_count=upload_count+1,last_seen_at=? WHERE id=?")
+        .bind(now, session.guest_session_id));
+    }
     statements.push(c.env.DB.prepare(
       "UPDATE multipart_upload_sessions SET status='completed',completed_at=?,updated_at=? WHERE id=?",
     ).bind(now, now, session.id));
     await c.env.DB.batch(statements);
+    c.executionCtx.waitUntil(recordEventActivity(c.env.DB, { eventId: session.event_id, type: "upload_completed", albumId: session.album_id, mediaId: session.media_id }));
   } catch (error) {
     if (isTrialMediaLimitConstraint(error)) {
       await abortSession(c.env, session);

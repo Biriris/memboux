@@ -6,6 +6,7 @@ import { getEventRole, roleCan } from "../access";
 import { UPLOAD_ACCEPT } from "../config";
 import type { Bindings } from "../domain";
 import { resolveEventCover } from "../event-cover";
+import { anonymousVisitor, findEventAlbum, hasAlbumAccess, listEventAlbums, recordEventActivity } from "../event-media-hub";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
 import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
@@ -219,12 +220,21 @@ galleryRoutes.get("/gallery/:code", async (c) => {
   if (!event) return c.text("Η εκδήλωση δεν βρέθηκε.", 404);
 
   const locale = normalizeLocale(c.req.query("lang") ?? event.default_locale);
-  const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}`;
+  const albumSlug = String(c.req.query("album") ?? "").slice(0, 64);
+  const selectedAlbum = albumSlug ? await findEventAlbum(c.env.DB, event.id, albumSlug) : null;
+  if (albumSlug && !selectedAlbum) return c.text("Album not found", 404);
+  if (selectedAlbum && !(await hasAlbumAccess(c.req.raw, c.env.BETTER_AUTH_SECRET, selectedAlbum)))
+    return c.redirect(`/gallery/${event.code}/albums/${selectedAlbum.slug}?lang=${locale}`);
+  const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}${selectedAlbum ? `/albums/${selectedAlbum.slug}` : ""}`;
+  const qrGuestUrl = `${guestUrl}${guestUrl.includes("?") ? "&" : "?"}source=qr`;
   const g = galleryGuestCopy[locale];
 
   if (Date.now() > event.expires_at) return c.text(g.expired, 410);
   const eventAccess = await getEventAccess(c.env.DB, event.id);
-  const originalDownloads = eventAccessAllows(eventAccess, "original_downloads");
+  const downloadSettings = await c.env.DB.prepare("SELECT guest_downloads_enabled FROM event_experience_settings WHERE event_id=?")
+    .bind(event.id).first<{ guest_downloads_enabled: number }>().catch(() => null);
+  const originalDownloads = eventAccessAllows(eventAccess, "original_downloads")
+    && (selectedAlbum?.allow_downloads ?? 1) === 1 && (downloadSettings?.guest_downloads_enabled ?? 1) === 1;
   if (!eventAccessAllows(eventAccess, "guest_access"))
     return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">${brandMark("/", true)}<p class="mt-7 text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Memboux preview</p><h1 class="mt-2 text-4xl">${esc(g.previewTitle)}</h1><p class="mt-3 leading-6 text-[#6f657c]">${esc(g.previewText)}</p></section></main>`, { locale }), 403);
   if (!(await hasGalleryAccess(c.req.raw, event))) {
@@ -243,23 +253,32 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
   const qrOptions = { type: "svg" as const, width: 220, margin: 1, errorCorrectionLevel: "M" as const };
-  const [allMedia, officialResult, guestQrRaw, cover, guestbookResult, experienceSettings] = await Promise.all([
-    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
+  const [allMedia, officialResult, guestQrRaw, cover, guestbookResult, experienceSettings, publicAlbums] = await Promise.all([
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { albumId: selectedAlbum ? selectedAlbum.id : null, publicOnly: true }),
     c.env.DB.prepare(
       `SELECT COUNT(*) total FROM official_album_items o JOIN media m ON m.id=o.media_id
       WHERE o.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL`,
     ).bind(event.id).first<{ total: number }>(),
-    QRCode.toString(guestUrl, qrOptions),
+    QRCode.toString(qrGuestUrl, qrOptions),
     resolveEventCover(c.env.DB, event.id),
-    c.env.DB.prepare("SELECT author_name,message,created_at FROM event_guestbook_entries WHERE event_id=? AND status!='hidden' ORDER BY created_at DESC LIMIT 6")
-      .bind(event.id)
+    c.env.DB.prepare(`SELECT author_name,message,created_at FROM event_guestbook_entries
+      WHERE event_id=? AND status!='hidden' AND visibility='public'
+        AND NOT EXISTS (SELECT 1 FROM event_experience_settings s WHERE s.event_id=? AND s.guestbook_private=1)
+      ORDER BY created_at DESC LIMIT 6`)
+      .bind(event.id, event.id)
       .all<GuestbookPreview>()
       .catch(() => ({ results: [] as GuestbookPreview[] })),
     c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled FROM event_experience_settings WHERE event_id=?")
       .bind(event.id)
       .first<GuestParticipationSettings>()
       .catch(() => null),
+    listEventAlbums(c.env.DB, event.id, false),
   ]);
+  const visitor = await anonymousVisitor(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, event.id);
+  c.executionCtx.waitUntil(recordEventActivity(c.env.DB, { eventId: event.id, type: selectedAlbum ? "album_view" : "gallery_view", visitorHash: visitor.visitorHash, albumId: selectedAlbum?.id }));
+  if (c.req.query("source") === "qr") c.executionCtx.waitUntil(recordEventActivity(c.env.DB, {
+    eventId: event.id, type: "qr_open", visitorHash: visitor.visitorHash, albumId: selectedAlbum?.id,
+  }));
   const items = allMedia.filter((item) => item.origin !== "official");
   const photoItems = items;
   const officialCount = officialResult?.total ?? 0;
@@ -269,6 +288,11 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     guestbook_enabled: experienceSettings?.guestbook_enabled ?? 1,
     comments_enabled: experienceSettings?.comments_enabled ?? 1,
   };
+  const uploadAllowed = (selectedAlbum?.allow_uploads ?? 1) === 1;
+  const albumNavigation = publicAlbums.length ? `<nav aria-label="Event albums" class="mt-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+    <a href="/gallery/${event.code}?lang=${locale}" class="shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${selectedAlbum ? "bg-white text-[#443653]" : "border-[#7c3aed] bg-[#f2ecff] text-[#6d28d9]"}">${locale === "el" ? "Όλες οι στιγμές" : "All moments"}</a>
+    ${publicAlbums.map((album) => `<a href="/gallery/${event.code}/albums/${encodeURIComponent(album.slug)}?lang=${locale}" class="shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${selectedAlbum?.id === album.id ? "border-[#7c3aed] bg-[#f2ecff] text-[#6d28d9]" : "bg-white text-[#443653]"}">${album.privacy === "protected" ? "🔒 " : ""}${esc(album.name)} <span class="text-xs opacity-60">${album.media_count ?? 0}</span></a>`).join("")}
+  </nav>` : "";
   const selectionScript = originalDownloads ? bulkSelectionScript({
     selectButtonId: "select-media",
     cardSelector: ".selectable-media",
@@ -294,25 +318,26 @@ galleryRoutes.get("/gallery/:code", async (c) => {
         <section class="guest-event-hero relative mt-4 overflow-hidden rounded-[2rem] bg-[#2b174d] px-6 py-9 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
           ${cover ? `<img src="/gallery/${encodeURIComponent(event.code)}/cover?v=${cover.updated_at}" alt="" class="absolute inset-0 h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-r from-[#24143b]/95 via-[#2b174d]/80 to-[#2b174d]/45"></div>` : ""}
           <div class="relative">
-            <p class="text-xs font-bold uppercase tracking-[.22em] text-[#ddcff5]">${esc(g.privateAlbum)}</p>
-            <h1 class="mt-3 max-w-4xl text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">${esc(event.eventName)}</h1>
+            <p class="text-xs font-bold uppercase tracking-[.22em] text-[#ddcff5]">${esc(selectedAlbum ? "Event album" : g.privateAlbum)}</p>
+            <h1 class="mt-3 max-w-4xl text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">${esc(selectedAlbum?.name ?? event.eventName)}</h1>
             <p class="mt-4 text-sm font-semibold text-[#ddcff5] sm:text-base">${esc(formatEventDates(event, locale))}</p>
             ${event.location ? `<p class="mt-2 text-sm text-white/75">${esc(event.location)}</p>` : ""}
-            <p class="mt-4 max-w-2xl text-sm leading-7 text-white/80 sm:text-base">${esc(g.promise)}</p>
-            <div class="mt-7 flex flex-col gap-3 sm:flex-row"><a href="#guest-upload" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-[#2b174d] shadow-lg"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5"/></svg>${esc(g.add)}</a><a href="#guest-moments" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm">${esc(g.explore)}</a></div>
+            <p class="mt-4 max-w-2xl text-sm leading-7 text-white/80 sm:text-base">${esc(selectedAlbum?.description || g.promise)}</p>
+            <div class="mt-7 flex flex-col gap-3 sm:flex-row">${uploadAllowed ? `<a href="#guest-upload" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-[#2b174d] shadow-lg"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5"/></svg>${esc(g.add)}</a>` : ""}<a href="#guest-moments" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm">${esc(g.explore)}</a></div>
           </div>
         </section>
-        <div class="mt-6">
+        ${albumNavigation}
+        ${uploadAllowed ? `<div class="mt-6">
           <section id="guest-upload" class="gallery-upload-card scroll-mt-6 rounded-[2rem] border border-[#e9e3f2] bg-white p-5 shadow-sm sm:p-8">
             <div class="flex items-start gap-4"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f2ecff] text-[#7c3aed]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5"/></svg></span><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.uploads)}</p><h2 class="mt-1 text-3xl">${esc(g.addTitle)}</h2><p class="mt-2 text-sm leading-6 text-[#756b82]">${esc(g.noAccount)}</p></div></div>
             <form data-multi-upload action="/api/upload/${event.code}" method="post" enctype="multipart/form-data" class="gallery-upload mt-6 space-y-3 text-left"><input type="hidden" name="locale" value="${locale}"><input name="name" maxlength="60" aria-label="${esc(g.name)}" placeholder="${esc(g.name)}" autocomplete="name" class="w-full rounded-xl border px-4 py-3"><input name="file" required multiple type="file" accept="${UPLOAD_ACCEPT}" aria-label="${esc(g.addPhotos)}" class="w-full rounded-xl border p-3"><p class="text-xs text-[#6f657c]">${esc(uploadLimitsCopy(locale))}</p><section id="guest-upload-confirmation" aria-labelledby="guest-upload-confirmation-title" class="rounded-2xl border border-[#eae4f3] bg-[#f7f3ff] p-4 text-sm text-[#675a72]"><div class="flex items-center gap-2"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 shrink-0 text-[#6d28d9]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><strong id="guest-upload-confirmation-title" class="font-semibold text-[#49395a]">${esc(g.privacy)}</strong></div><p class="mt-3 leading-6">${esc(g.privacyText)}</p><label class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl bg-white/75 p-3"><input name="upload_confirmation" value="accepted" required type="checkbox" class="mt-1 h-4 w-4 shrink-0"><span>${esc(g.confirmation)}</span></label></section><button class="w-full rounded-xl bg-[#7c3aed] py-3.5 font-bold text-white shadow-lg shadow-indigo-950/10">${esc(g.upload)}</button></form>
           </section>
-        </div>
+        </div>` : ""}
         <section id="guest-moments" class="guest-gallery mt-6 scroll-mt-6 rounded-[2rem] border border-[#e9e3f2] bg-white p-5 shadow-sm sm:p-8"><div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.guestMoments)}</p><h2 class="mt-1 text-3xl">${esc(g.galleryTitle)}</h2>${galleryFilterControls(photoItems, "guest-gallery", locale)}</div><div class="flex flex-wrap gap-2"><button id="select-media" class="rounded-xl border px-4 py-2 text-sm font-semibold">${esc(g.select)}</button><button id="download-selected" class="hidden rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-semibold text-white">${esc(g.downloadSelected)}</button></div></div>${photoItems.length ? `<div data-gallery-grid="guest-gallery" class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">${cards(photoItems, { selectable: true, deferredSelection: true, lightbox: true, reportCode: event.code, locale, likes: true, deferAfter: 12 })}</div>${galleryProgressiveControls(photoItems.length, "guest-gallery", locale)}` : `<div class="rounded-3xl border border-dashed border-[#cfdbd6] bg-[#faf8ff] px-6 py-16 text-center"><p class="text-2xl">${esc(g.firstMoment)}</p><a href="#guest-upload" class="mt-4 inline-flex rounded-xl bg-[#2b174d] px-5 py-3 text-sm font-semibold text-white">${esc(g.addPhotos)}</a></div>`}</section>
         ${renderGuestParticipation(event.code, guestbookResult.results, locale, participationSettings)}
         ${officialCount ? `<section class="official-album-teaser mt-6 overflow-hidden rounded-[2rem] border border-[#e9e3f2] bg-white shadow-sm"><a href="/gallery/${event.code}/official?lang=${locale}" class="group grid min-h-[18rem] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,.9fr)]"><div class="flex flex-col justify-center p-6 sm:p-9 lg:p-12"><p class="text-xs font-bold uppercase tracking-[.2em] text-[#7c3aed]">${esc(g.officialCollection)}</p><h2 class="mt-3 text-4xl text-[#2b174d]">${esc(g.officialAlbum)}</h2><p class="mt-3 max-w-xl text-sm leading-7 text-[#756b82]">${esc(g.officialTeaser)}</p><span class="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-[#2b174d] px-5 py-3 text-sm font-semibold text-white">${esc(g.viewCurated(officialCount))}<span aria-hidden="true" class="transition group-hover:translate-x-1">→</span></span></div><div class="relative min-h-64 overflow-hidden bg-gradient-to-br from-[#2a4139] via-[#6d28d9] to-[#b5d0c5]"><div class="absolute inset-0 opacity-50" style="background:radial-gradient(circle at 72% 28%,rgba(200,221,213,.55),transparent 24%),radial-gradient(circle at 30% 76%,rgba(117,168,149,.35),transparent 28%)"></div><div class="absolute inset-0 flex items-center justify-center"><span class="flex h-36 w-36 items-center justify-center rounded-full border border-white/15 bg-white/5 backdrop-blur-sm"><img src="/brand/memboux-icon.png" alt="" class="h-24 w-24 opacity-40 brightness-0 invert transition duration-500 group-hover:scale-110"></span></div><div class="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"></div><span class="absolute bottom-5 left-5 rounded-full border border-white/20 bg-black/25 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">Memboux Studio</span></div></a></section>` : ""}
         <section id="guest-share" class="guest-share-card mt-6 rounded-[2rem] border border-[#e9e3f2] bg-[#f6f2fc] p-5 sm:p-7"><div class="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_12rem]"><div><div class="flex items-center justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">${esc(g.shareKicker)}</p><h2 class="mt-1 text-2xl">${esc(g.inviteMore)}</h2></div><span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#746a80]">${esc(g.noApp)}</span></div><p class="mt-4 text-sm leading-6 text-[#756b82]">${esc(g.scan)}</p>${shareIconButtons(guestUrl, event.eventName, locale, false)}<button id="copy-guest-link" type="button" data-copy-label="${esc(g.copyLink)}" data-copied-label="${esc(g.copiedLink)}" class="mt-4 rounded-xl border border-[#d3e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#443653]">${esc(g.copyLink)}</button></div><div class="mx-auto w-full max-w-[180px] overflow-hidden rounded-[1.4rem] border border-[#d9e3df] bg-white p-3 shadow-sm" role="img" aria-label="${esc(g.qrLabel)}">${guestQrSvg}</div></div></section>
-      </main>${galleryFilterScript(photoItems, "guest-gallery")}${galleryProgressiveScript("guest-gallery")}${lightboxMarkup(locale, true, originalDownloads)}${experienceSettings?.comments_enabled === 0 ? "" : mediaCommentsOverlay(event.code, locale)}${selectionScript}${mediaLikesScript(event.code, locale)}<script>(()=>{const button=document.getElementById('copy-guest-link');button?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(${JSON.stringify(guestUrl)});button.textContent=button.dataset.copiedLabel;setTimeout(()=>button.textContent=button.dataset.copyLabel,1800)}catch{}})})()<\/script>`,
+      </main>${galleryFilterScript(photoItems, "guest-gallery")}${galleryProgressiveScript("guest-gallery")}${lightboxMarkup(locale, true, originalDownloads)}${experienceSettings?.comments_enabled === 0 ? "" : mediaCommentsOverlay(event.code, locale)}${selectionScript}${mediaLikesScript(event.code, locale)}<script>(()=>{const upload=document.querySelector('form[data-multi-upload]');if(upload)upload.dataset.uploadAlbum=${JSON.stringify(selectedAlbum?.slug ?? "")};const button=document.getElementById('copy-guest-link');button?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(${JSON.stringify(guestUrl)});button.textContent=button.dataset.copiedLabel;setTimeout(()=>button.textContent=button.dataset.copyLabel,1800)}catch{}})})()<\/script>`,
       { locale },
     ),
   );
@@ -363,6 +388,9 @@ galleryRoutes.post("/api/gallery/:code/media/:mediaId/like", async (c) => {
       maxAge: MEDIA_LIKE_COOKIE_MAX_AGE,
     });
   }
+  if (result.liked) c.executionCtx.waitUntil(recordEventActivity(c.env.DB, {
+    eventId: event.id, type: "reaction_created", visitorHash: actorKey, mediaId: c.req.param("mediaId"),
+  }));
   c.header("Cache-Control", "private, no-store");
   return c.json(result);
 });

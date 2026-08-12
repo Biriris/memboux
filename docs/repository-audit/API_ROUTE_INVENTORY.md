@@ -411,6 +411,25 @@ Source: [`src/routes/webhooks.ts`](../../src/routes/webhooks.ts). This route is 
 POST  /api/webhooks/resend
 ```
 
+## Event media hub — `src/routes/event-albums.ts` (9)
+
+Source: [`src/routes/event-albums.ts`](../../src/routes/event-albums.ts).
+Dashboard routes require the event `manage_media` capability; album creation and
+configuration are owner-only. Protected-album PIN attempts use the shared D1
+rate limiter. Export additionally requires active original-export entitlement.
+
+```text
+GET   /gallery/:code/albums/:slug
+POST  /gallery/:code/albums/:slug/unlock
+GET   /dashboard/:code/albums
+POST  /api/account/events/:code/albums
+POST  /api/account/events/:code/albums/:albumId
+POST  /api/account/events/:code/media/bulk-organize
+GET   /dashboard/:code/analytics
+GET   /api/account/events/:code/exports/download
+GET   /api/account/events/:code/albums/:albumId/qr
+```
+
 ## Non-HTTP runtime handlers
 
 These are Worker entry points rather than routes:

@@ -120,6 +120,23 @@ Final trigger inventory:
 
 The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql); earlier trigger versions in `0051` and `0056` are replaced.
 
+## Event media hub additions
+
+Migration [`0069_event_media_hub.sql`](../../migrations/0069_event_media_hub.sql)
+adds `event_albums`, `event_guest_sessions`, `event_activity_events`, and
+`event_export_jobs`. It extends `media` and `multipart_upload_sessions` with
+album, guest-session, and moderation fields; extends
+`event_experience_settings` with media/privacy/slideshow controls; and extends
+`event_guestbook_entries` with linked-media and visibility fields. Existing media
+remains approved in the main gallery through the new-column defaults.
+
+- `event_guest_sessions.visitor_hash` is pseudonymous; the raw visitor cookie is
+  not persisted in this table.
+- `event_activity_events` stores a constrained activity type, optional hashes
+  and resource IDs, and a timestamp. It has no free-form metadata payload.
+- `event_export_jobs` records export audit metadata only; current ZIP bytes are
+  streamed and are not stored by this table.
+
 ## Migration and deployment unknowns
 
 - No repository file records the last migration applied to remote D1.

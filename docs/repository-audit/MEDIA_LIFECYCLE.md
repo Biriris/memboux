@@ -84,6 +84,22 @@ No repository-defined R2 lifecycle rule independently expires orphan objects.
 
 ## Backup/export lifecycle
 
+### Albums, moderation, and event exports
+
+[`src/event-media-hub.ts`](../../src/event-media-hub.ts) resolves event albums,
+PIN-derived access cookies, pseudonymous guest sessions, and aggregate activity.
+[`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) carries
+the album, guest-session ID, and initial moderation state through fast and
+multipart paths. Public gallery queries return only approved media and isolate
+the main gallery (`album_id IS NULL`) from each album.
+
+[`src/routes/event-albums.ts`](../../src/routes/event-albums.ts) provides album
+policies and a streaming stored-method ZIP implemented in
+[`src/zip-stream.ts`](../../src/zip-stream.ts). ZIP entry names remove traversal
+segments. The response reads one R2 object at a time instead of buffering the
+complete archive. ZIP64 and individual objects of 4 GiB or larger are not
+supported. Interrupted archive downloads are not resumable background jobs.
+
 Google Drive and Dropbox backup creation snapshots active ordinary `media` rows into `event_backup_items`. Workflow steps read each R2 `object_key`, upload it to the provider, and update item/backup progress. Wedding library, menus, covers, and support attachments are not included in that snapshot. See [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
 
 Original export is denied when enforced event access disables originals. The exact retention of completed provider backups is provider-side and **Unknown**.
