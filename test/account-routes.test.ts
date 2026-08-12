@@ -120,6 +120,7 @@ describe("account route boundaries", () => {
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_profiles"),
       env.DB.prepare("DROP TABLE IF EXISTS event_vertical_profiles"),
       env.DB.prepare("DROP TABLE IF EXISTS event_experience_settings"),
+      env.DB.prepare("DROP TABLE IF EXISTS event_covers"),
       env.DB.prepare("DROP TABLE IF EXISTS media"),
       env.DB.prepare("DROP TABLE IF EXISTS events"),
       env.DB.prepare(`CREATE TABLE request_rate_limits (
@@ -265,6 +266,14 @@ describe("account route boundaries", () => {
         size_bytes INTEGER NOT NULL DEFAULT 0,uploaded_by TEXT NOT NULL DEFAULT 'Guest',
         uploaded_at INTEGER NOT NULL DEFAULT 0,captured_at INTEGER,origin TEXT NOT NULL DEFAULT 'guest',
         reported_at INTEGER,deleted_at INTEGER,purge_at INTEGER
+      )`),
+      env.DB.prepare(`CREATE TABLE event_covers (
+        event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+        source_media_id TEXT REFERENCES media(id) ON DELETE SET NULL,
+        object_key TEXT NOT NULL UNIQUE,
+        content_type TEXT NOT NULL,
+        updated_by TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+        updated_at INTEGER NOT NULL
       )`),
       env.DB.prepare(`CREATE TABLE media_likes (
         media_id TEXT NOT NULL,actor_key TEXT NOT NULL,created_at INTEGER NOT NULL,

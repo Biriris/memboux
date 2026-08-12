@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
 import { UPLOAD_ACCEPT } from "../config";
 import type { Bindings } from "../domain";
+import { resolveEventCover } from "../event-cover";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
 import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
@@ -198,9 +199,7 @@ galleryRoutes.get("/gallery/:code/cover", async (c) => {
   const memberCanView = Boolean(user && roleCan(await getEventRole(c.env.DB, event.id, user.id), "view"));
   if (!guestAccessAllowed && !memberCanView) return c.text("This event is not available to guests.", 403);
   if (!memberCanView && !(await hasGalleryAccess(c.req.raw, event))) return c.text("Gallery access required", 401);
-  const cover = await c.env.DB.prepare("SELECT object_key,content_type FROM event_covers WHERE event_id=?")
-    .bind(event.id)
-    .first<{ object_key: string; content_type: string }>();
+  const cover = await resolveEventCover(c.env.DB, event.id);
   if (!cover) return c.text("Cover not found", 404);
   const object = await c.env.MEDIA.get(cover.object_key);
   if (!object) return c.text("Cover not found", 404);
@@ -210,6 +209,7 @@ galleryRoutes.get("/gallery/:code/cover", async (c) => {
       "Cache-Control": "private, max-age=3600",
       "Content-Security-Policy": "default-src 'none'; sandbox",
       "X-Content-Type-Options": "nosniff",
+      "X-Memboux-Cover-Source": cover.automatic ? "automatic" : "owner",
     },
   });
 });
@@ -250,9 +250,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
       WHERE o.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL`,
     ).bind(event.id).first<{ total: number }>(),
     QRCode.toString(guestUrl, qrOptions),
-    c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?")
-      .bind(event.id)
-      .first<{ updated_at: number }>(),
+    resolveEventCover(c.env.DB, event.id),
     c.env.DB.prepare("SELECT author_name,message,created_at FROM event_guestbook_entries WHERE event_id=? AND status!='hidden' ORDER BY created_at DESC LIMIT 6")
       .bind(event.id)
       .all<GuestbookPreview>()

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
+import { resolveEventCover } from "../event-cover";
 import { eventAccessAllows, getEventAccess } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { getEvent } from "../repositories";
@@ -795,8 +796,7 @@ weddingPlanningRoutes.get("/event/:code/invite/:token/cover", async (c) => {
       .bind(event.id, await sha256(c.req.param("token"))).first<{ id: string }>(),
     guestEventIsPublished(c.env.DB, event),
     getEventAccess(c.env.DB, event.id),
-    c.env.DB.prepare("SELECT object_key,content_type FROM event_covers WHERE event_id=?")
-      .bind(event.id).first<{ object_key: string; content_type: string }>().catch(() => null),
+    resolveEventCover(c.env.DB, event.id).catch(() => null),
   ]);
   if (!guest || !published || !eventAccessAllows(access, "guest_access") || !cover) return c.text("Not found", 404);
   const object = await c.env.MEDIA.get(cover.object_key);
@@ -806,6 +806,7 @@ weddingPlanningRoutes.get("/event/:code/invite/:token/cover", async (c) => {
     "Cache-Control": "private, max-age=3600",
     "Content-Security-Policy": "default-src 'none'; sandbox",
     "X-Content-Type-Options": "nosniff",
+    "X-Memboux-Cover-Source": cover.automatic ? "automatic" : "owner",
   } });
 });
 
@@ -819,7 +820,7 @@ weddingPlanningRoutes.get("/event/:code/invite/:token", async (c) => {
     getEventAccess(c.env.DB, event.id),
     c.env.DB.prepare("SELECT id,first_name,last_name,email,plus_one_limit,rsvp_status,party_size,dietary_notes FROM event_wedding_guests WHERE event_id=? AND invitation_token_hash=?")
       .bind(event.id, await sha256(c.req.param("token"))).first<Pick<WeddingGuest, "id" | "first_name" | "last_name" | "email" | "plus_one_limit" | "rsvp_status" | "party_size" | "dietary_notes">>(),
-    c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?").bind(event.id).first<{ updated_at: number }>().catch(() => null),
+    resolveEventCover(c.env.DB, event.id).catch(() => null),
   ]);
   if (!guest || !published || !eventAccessAllows(access, "guest_access")) return c.text("Invitation not available", 404);
   const el = locale === "el";

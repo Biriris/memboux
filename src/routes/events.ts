@@ -6,6 +6,7 @@ import { sendEmail } from "../auth";
 import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventInvitationRow, EventMemberRow } from "../domain";
 import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEventRole, normalizePendingManagedEventRole, removeEventPersonAccess } from "../event-people";
+import { resolveEventCover } from "../event-cover";
 import { eventTypeLabel, isEventType, normalizeEventType } from "../event-types";
 import { changeEventType } from "../event-type-transitions";
 import { eventMediaUsage, getEventAccess } from "../event-access";
@@ -74,9 +75,7 @@ async function eventDashboard(
     canManageEvent
       ? c.env.DB.prepare("SELECT rr.id,rr.media_id,rr.requester_email,rr.reason,rr.created_at FROM media_removal_requests rr WHERE rr.event_id=? AND rr.status='pending' ORDER BY rr.created_at DESC").bind(event.id).all<{ id: string; media_id: string; requester_email: string; reason: string; created_at: number }>()
       : Promise.resolve({ results: [] as { id: string; media_id: string; requester_email: string; reason: string; created_at: number }[] }),
-    c.env.DB.prepare("SELECT source_media_id,updated_at FROM event_covers WHERE event_id=?")
-      .bind(event.id)
-      .first<{ source_media_id: string | null; updated_at: number }>(),
+    resolveEventCover(c.env.DB, event.id),
     getEventAccess(c.env.DB, event.id),
     eventMediaUsage(c.env.DB, event.id),
     event.event_type === "wedding"
@@ -119,7 +118,7 @@ async function eventDashboard(
     guestQrSvg: responsiveQr(guestQrSvg),
     officialQrSvg: responsiveQr(officialQrSvg),
     weddingQrSvg: weddingQrSvg ? responsiveQr(weddingQrSvg) : null,
-    coverSourceMediaId: cover?.source_media_id ?? null,
+    coverSourceMediaId: cover?.automatic ? null : cover?.source_media_id ?? null,
     coverUpdatedAt: cover?.updated_at ?? null,
     activeSection,
     eventAccess,
@@ -214,9 +213,7 @@ eventRoutes.get("/event-cover/:code", async (c) => {
   if (!event) return c.text("Event not found", 404);
   const membership = await getEventRole(c.env.DB, event.id, user.id);
   if (!membership && !(await canManageOfficialAlbum(c.env.DB, event.id, user.id))) return c.text("Forbidden", 403);
-  const cover = await c.env.DB.prepare("SELECT object_key,content_type FROM event_covers WHERE event_id=?")
-    .bind(event.id)
-    .first<{ object_key: string; content_type: string }>();
+  const cover = await resolveEventCover(c.env.DB, event.id);
   if (!cover) return c.text("Cover not found", 404);
   const object = await c.env.MEDIA.get(cover.object_key);
   if (!object) return c.text("Cover not found", 404);
@@ -226,6 +223,7 @@ eventRoutes.get("/event-cover/:code", async (c) => {
       "Cache-Control": "private, max-age=3600",
       "Content-Security-Policy": "default-src 'none'; sandbox",
       "X-Content-Type-Options": "nosniff",
+      "X-Memboux-Cover-Source": cover.automatic ? "automatic" : "owner",
     },
   });
 });

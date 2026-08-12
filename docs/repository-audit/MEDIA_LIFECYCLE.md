@@ -67,7 +67,7 @@ Wedding, account-trash, and studio serving routes reuse the same helper. Video o
 ## Curation and secondary objects
 
 - `official_album_items` references ordinary media and is curated by accepted professionals through studio routes.
-- Covers copy an authorized ordinary-media object to a dedicated R2 key and upsert `event_covers`; previous keys are asynchronously deleted.
+- [`resolveEventCover`](../../src/event-cover.ts) gives an owner-selected `event_covers` row precedence and otherwise resolves the oldest active, unreported ordinary image as a temporary automatic cover. The automatic fallback reads the existing media object and does not create another R2 copy or database row. An explicit owner selection still copies the authorized source to a dedicated R2 key and upserts `event_covers`; previous selected-cover keys are asynchronously deleted. Dashboard cards, event workspace/gallery heroes, generic event heroes, wedding pages, and personalized invitation covers use the same resolution rule.
 - Wedding media is a separate table/library, with portrait slot assignments. Deleting wedding media removes its portrait references through foreign-key behavior and schedules R2 deletion.
 - Wedding menus are a single replaceable object per event.
 - Support email attachments are validated, stored in R2, and recorded in `support_attachments`; access routes enforce visitor/user/admin conversation access.

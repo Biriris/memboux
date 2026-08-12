@@ -632,7 +632,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     c.env.DB.prepare(
       `SELECT e.*,em.role,
         SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count,
-        ec.object_key cover_object_key,ec.updated_at cover_updated_at
+        COALESCE(ec.object_key,(SELECT fm.object_key FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_object_key,
+        COALESCE(ec.updated_at,(SELECT fm.uploaded_at FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_updated_at
       FROM event_members em JOIN events e ON e.id=em.event_id
       LEFT JOIN media md ON md.event_id=e.id AND md.deleted_at IS NULL AND md.reported_at IS NULL
       LEFT JOIN event_covers ec ON ec.event_id=e.id
@@ -644,7 +645,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
       ? c.env.DB.prepare(
           `SELECT e.*,'professional' role,a.status assignment_status,
             SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count,
-            ec.object_key cover_object_key,ec.updated_at cover_updated_at
+            COALESCE(ec.object_key,(SELECT fm.object_key FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_object_key,
+            COALESCE(ec.updated_at,(SELECT fm.uploaded_at FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_updated_at
           FROM event_professional_assignments a
           JOIN events e ON e.id=a.event_id
           LEFT JOIN media md ON md.event_id=e.id AND md.deleted_at IS NULL AND md.reported_at IS NULL

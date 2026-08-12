@@ -6,6 +6,7 @@ import { supportedLocales } from "../src/i18n";
 import { esc } from "../src/utils";
 import { eventVerticalLandingPage } from "../src/views/event-vertical-landing";
 import { demoThemes, eventVerticalDemoFrame, eventVerticalDemoPage, normalizeDemoTheme } from "../src/views/event-vertical-demo";
+import { eventVerticalPreviewPage } from "../src/views/event-vertical-preview";
 
 describe("event vertical landing framework", () => {
   it("covers every specialized non-wedding event exactly once", () => {
@@ -60,6 +61,26 @@ describe("event vertical landing framework", () => {
       expect(frame).toContain("The event through everyone’s eyes.");
     }
     expect(normalizeDemoTheme("invalid")).toBe("signature");
+  });
+
+  it("renders a resolved event cover as the generic event hero", () => {
+    const vertical = eventVerticalFor("birthday")!;
+    const html = eventVerticalPreviewPage("en", {
+      id: "event-cover-test", code: "COVER1", eventName: "Birthday", couple: "Birthday",
+      admin_token_hash: "", created_at: 1, expires_at: Date.now() + 86_400_000,
+      status: "active", notes: "", updated_at: 1, default_locale: "en",
+      event_start_date: "2026-08-20", event_end_date: "2026-08-20", event_type: "birthday",
+      location: "Athens", gallery_pin_hash: null, deleted_at: null, purge_at: null,
+    }, vertical, {
+      event_id: "event-cover-test", headline: "Birthday", host_name: "Alex",
+      introduction: "", story: "", schedule_notes: "", guest_notes: "", contact_email: "",
+      custom_fields_json: "{}", theme_key: "signature", wizard_step: 4,
+      wizard_completed_at: 1, publish_status: "published", updated_at: 1,
+    }, false, { coverUpdatedAt: 123 });
+
+    expect(html).toContain("data-event-hero-cover");
+    expect(html).toContain('/gallery/COVER1/cover?v=123');
+    expect(html).toContain('fetchpriority="high"');
   });
 
   it("offers safe event-specific guest simulations instead of a disabled static demo", () => {

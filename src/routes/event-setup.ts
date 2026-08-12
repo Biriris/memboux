@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
+import { resolveEventCover } from "../event-cover";
 import { eventVerticalFor, verticalText, type EventVertical } from "../event-verticals";
 import { normalizeLocale, type Locale } from "../i18n";
 import { getEvent } from "../repositories";
@@ -166,14 +167,17 @@ eventSetupRoutes.get("/event/:code", async (c) => {
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const guestItems = (await getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey))
-    .filter((item) => item.origin !== "official");
+  const [galleryItems, cover] = await Promise.all([
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
+    resolveEventCover(c.env.DB, event.id),
+  ]);
+  const guestItems = galleryItems.filter((item) => item.origin !== "official");
   return c.html(eventVerticalPreviewPage(
     normalizeLocale(c.req.query("lang") ?? event.default_locale),
     event,
     vertical,
     renderedProfile,
     manager && preview,
-    { guestExperienceOpen: eventAccessAllows(access, "guest_access"), guestItems },
+    { guestExperienceOpen: eventAccessAllows(access, "guest_access"), guestItems, coverUpdatedAt: cover?.updated_at ?? null },
   ));
 });

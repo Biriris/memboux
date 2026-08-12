@@ -131,6 +131,7 @@ beforeAll(async () => {
     insertMedia.bind("public-legacy-video", publicEventId, "test/public-legacy.mp4", "video", "video/mp4", "Guest", now, "public-legacy-video-hash", 12),
     insertMedia.bind("pinned-stream-media", pinnedEventId, "test/pinned-stream.jpg", "image", "image/jpeg", "Guest", now, "pinned-stream-hash", 12),
     insertMedia.bind("trial-stream-media", trialEventId, "test/trial-stream.jpg", "image", "image/jpeg", "Guest", now, "trial-stream-hash", 12),
+    insertMedia.bind("trial-second-media", trialEventId, "test/trial-second.jpg", "image", "image/jpeg", "Guest", now + 1, "trial-second-hash", 12),
     insertMedia.bind("expired-stream-media", "gallery-expired-event", "test/expired-stream.jpg", "image", "image/jpeg", "Guest", now, "expired-stream-hash", 12),
     insertMedia.bind("preview-stream-media", previewEventId, "test/preview-stream.jpg", "image", "image/jpeg", "Guest", now, "preview-stream-hash", 12),
     env.DB.prepare(`INSERT INTO media (
@@ -153,6 +154,7 @@ beforeAll(async () => {
     env.MEDIA.put("test/public-legacy.mp4", new TextEncoder().encode("legacy-video"), { httpMetadata: { contentType: "video/mp4" } }),
     env.MEDIA.put("test/pinned-stream.jpg", new TextEncoder().encode("pinned-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/trial-stream.jpg", new TextEncoder().encode("trial-image"), { httpMetadata: { contentType: "image/jpeg" } }),
+    env.MEDIA.put("test/trial-second.jpg", new TextEncoder().encode("trial-second-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/expired-stream.jpg", new TextEncoder().encode("expired-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/preview-stream.jpg", new TextEncoder().encode("preview-image"), { httpMetadata: { contentType: "image/jpeg" } }),
     env.MEDIA.put("test/official-stream.jpg", new TextEncoder().encode("official-image"), { httpMetadata: { contentType: "image/jpeg" } }),
@@ -164,7 +166,7 @@ describe("gallery, upload, and media routes", () => {
   it("exposes the trial upload usage needed for the guest quota notice", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/upload/${trialCode}/capacity`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ trial: true, used: 1, limit: 20, remaining: 19 });
+    expect(await response.json()).toEqual({ trial: true, used: 2, limit: 20, remaining: 18 });
 
     const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
     const html = await gallery.text();
@@ -290,7 +292,18 @@ describe("gallery, upload, and media routes", () => {
     const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/cover`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(response.headers.get("x-memboux-cover-source")).toBe("owner");
     expect(new TextDecoder().decode(await response.arrayBuffer())).toBe("selected-cover");
+  });
+
+  it("uses the first active photo until the owner selects a cover", async () => {
+    const response = await SELF.fetch(`https://memboux.com/gallery/${trialCode}/cover`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-memboux-cover-source")).toBe("automatic");
+    expect(new TextDecoder().decode(await response.arrayBuffer())).toBe("trial-image");
+
+    const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
+    expect(await gallery.text()).toContain(`/gallery/${trialCode}/cover?v=${now}`);
   });
 
   it("toggles one persistent, pseudonymous like per visitor", async () => {

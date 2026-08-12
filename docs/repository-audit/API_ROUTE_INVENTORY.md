@@ -166,7 +166,7 @@ POST  /admin/users/:id/payments
 
 ## Event workspace — `src/routes/events.ts` (20)
 
-Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed through the commerce route below. `/manage` is a compatibility alias for the overview; the old trial page and direct start action are compatibility redirects to the unified package panel. The privacy mutation accepts only `website`, `guest_gallery`, or `official_album`, hashes the submitted PIN, and updates that surface independently. The invitation route accepts `owner`, `editor`, `viewer`, or the separate `professional` access kind; an `owner` invitation grants full co-owner membership only after email-bound acceptance.
+Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access and resolves an owner-selected cover before the oldest active event image fallback in [`src/event-cover.ts`](../../src/event-cover.ts). Trial start is owner-managed through the commerce route below. `/manage` is a compatibility alias for the overview; the old trial page and direct start action are compatibility redirects to the unified package panel. The privacy mutation accepts only `website`, `guest_gallery`, or `official_album`, hashes the submitted PIN, and updates that surface independently. The invitation route accepts `owner`, `editor`, `viewer`, or the separate `professional` access kind; an `owner` invitation grants full co-owner membership only after email-bound acceptance.
 
 ```text
 GET   /dashboard/:code

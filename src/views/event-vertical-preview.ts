@@ -159,7 +159,7 @@ export function eventVerticalPreviewPage(
   vertical: EventVertical,
   profile: EventVerticalProfile,
   ownerPreview: boolean,
-  options: { demo?: boolean; guestExperienceOpen?: boolean; guestItems?: readonly MediaCardRow[] } = {},
+  options: { demo?: boolean; guestExperienceOpen?: boolean; guestItems?: readonly MediaCardRow[]; coverUpdatedAt?: number | null } = {},
 ) {
   const ui = eventUiCopy[locale];
   const headline = profile.headline.trim() || event.eventName;
@@ -212,11 +212,14 @@ export function eventVerticalPreviewPage(
   const custom = parseCustomFields(profile.custom_fields_json);
   const details = wizardFieldsFor(vertical.type).filter((field) => custom[field.key]?.trim()).map((field) =>
     `<div><dt class="text-xs font-bold uppercase tracking-[.16em]" style="color:${theme.accent}">${esc(field.label[locale])}</dt><dd class="mt-2 whitespace-pre-line leading-7 opacity-75">${esc(custom[field.key])}</dd></div>`).join("");
+  const heroVisual = options.coverUpdatedAt
+    ? `<aside data-event-hero-cover class="relative min-h-[24rem] overflow-hidden rounded-[2.5rem] shadow-[0_30px_90px_rgba(20,35,30,.18)]"><img src="/gallery/${encodeURIComponent(event.code)}/cover?v=${options.coverUpdatedAt}" alt="" loading="eager" fetchpriority="high" class="absolute inset-0 h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div><div class="absolute inset-x-0 bottom-0 p-7 text-white sm:p-9"><span class="text-4xl">${esc(vertical.symbol)}</span><p class="mt-5 text-xs font-bold uppercase tracking-[.2em] text-white/75">${esc(verticalText(vertical.previewLabel, locale))}</p><h2 class="mt-2 text-3xl font-medium">${esc(profile.host_name || event.eventName)}</h2></div></aside>`
+    : `<aside class="rounded-[2.5rem] p-9 shadow-[0_30px_90px_rgba(20,35,30,.12)]" style="background:${theme.card}"><span class="text-5xl">${esc(vertical.symbol)}</span><p class="mt-14 text-xs font-bold uppercase tracking-[.2em]" style="color:${theme.accent}">${esc(verticalText(vertical.previewLabel, locale))}</p><h2 class="mt-3 text-3xl font-medium">${esc(profile.host_name || event.eventName)}</h2><p class="mt-4 leading-7 opacity-65">${esc(verticalText(vertical.features[0], locale))} · ${esc(verticalText(vertical.features[1], locale))} · ${esc(verticalText(vertical.features[2], locale))}</p></aside>`;
   const body = `${draft}<main data-event-preview="${esc(vertical.type)}" data-event-theme="${profile.theme_key}" class="${ownerPreview ? "pt-10" : ""} min-h-screen" style="background:${theme.bg};color:${theme.ink}">
     <header class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-6 sm:px-6">${brandMark("#", true)}<div class="flex min-w-0 items-center gap-2">${languagePicker}<span class="hidden text-2xl min-[340px]:inline">${esc(vertical.symbol)}</span></div></header>
     <section class="mx-auto grid min-h-[70vh] max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.12fr_.88fr]">
       <div><p class="text-xs font-bold uppercase tracking-[.23em]" style="color:${theme.accent}">${esc(verticalText(vertical.eyebrow, locale))}</p><h1 class="mt-5 max-w-4xl text-5xl font-medium leading-[1.02] tracking-[-.05em] sm:text-7xl">${esc(headline)}</h1><p class="mt-6 max-w-2xl text-lg leading-8 opacity-70">${esc(intro)}</p><div class="mt-9 flex flex-wrap gap-3 text-sm font-semibold"><span class="rounded-full border border-current/15 px-4 py-2">${esc(dates || ui.dateTba)}</span><span class="rounded-full border border-current/15 px-4 py-2">${esc(event.location || ui.locationTba)}</span></div></div>
-      <aside class="rounded-[2.5rem] p-9 shadow-[0_30px_90px_rgba(20,35,30,.12)]" style="background:${theme.card}"><span class="text-5xl">${esc(vertical.symbol)}</span><p class="mt-14 text-xs font-bold uppercase tracking-[.2em]" style="color:${theme.accent}">${esc(verticalText(vertical.previewLabel, locale))}</p><h2 class="mt-3 text-3xl font-medium">${esc(profile.host_name || event.eventName)}</h2><p class="mt-4 leading-7 opacity-65">${esc(verticalText(vertical.features[0], locale))} · ${esc(verticalText(vertical.features[1], locale))} · ${esc(verticalText(vertical.features[2], locale))}</p></aside>
+      ${heroVisual}
     </section>
     <section class="mx-auto grid max-w-7xl gap-5 px-4 pb-20 sm:px-6 lg:grid-cols-3">
       ${section(ui.story, profile.story, ui.storyFallback)}

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
+import { resolveEventCover } from "../event-cover";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import {
@@ -308,7 +309,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
   const guestUrl = `${new URL(c.req.url).origin}/wedding/${encodeURIComponent(event.code)}`;
   const [featureRows, cover, allMedia, officialMedia, guestQrRaw, guestbook, experienceSettings, curator, menu, menuCourses, portraitMap, preWeddingMedia] = await Promise.all([
     c.env.DB.prepare("SELECT feature_key FROM event_wedding_features WHERE event_id=? AND enabled=1").bind(event.id).all<{ feature_key: string }>(),
-    c.env.DB.prepare("SELECT updated_at FROM event_covers WHERE event_id=?").bind(event.id).first<{ updated_at: number }>(),
+    resolveEventCover(c.env.DB, event.id),
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     getOfficialMediaWithLikes(c.env.DB, event.id, likeActorKey),
     QRCode.toString(guestUrl, { type: "svg", width: 220, margin: 1, errorCorrectionLevel: "M" }),
