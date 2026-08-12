@@ -167,8 +167,8 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
   return page(
     title,
     `<main data-page="home" data-locale="${locale}" class="overflow-hidden bg-[#fff9f6] text-[#2b1b4b]">
-      <header class="relative z-30 border-b border-[#eadffc]/80 bg-[#fff9f6]/90 backdrop-blur-xl">
-        <nav aria-label="${el ? "Κύρια πλοήγηση" : "Main navigation"}" class="mx-auto flex h-20 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
+      <header class="home-header relative z-30 border-b border-[#eadffc]/80 bg-[#fff9f6]/90 backdrop-blur-xl">
+        <nav aria-label="${el ? "Κύρια πλοήγηση" : "Main navigation"}" class="home-nav mx-auto flex h-20 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
           ${brandMark(`/${locale}`, true)}
           <div class="hidden items-center gap-7 text-sm text-[#596d65] lg:flex">
             <a href="#event-types" class="hover:text-[#2b174d]">Events</a>
@@ -177,29 +177,29 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
             <a href="#pricing" class="hover:text-[#2b174d]">${el ? "Πακέτα" : "Pricing"}</a>
           </div>
           <div class="flex shrink-0 items-center gap-2">
-            <details class="group relative lg:hidden"><summary aria-label="Menu" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-[#e2dcef] bg-white text-lg text-[#443653] shadow-sm [&::-webkit-details-marker]:hidden">☰</summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-60 rounded-2xl border border-[#e7e0f0] bg-white p-2 text-sm shadow-[0_20px_55px_rgba(24,60,51,.16)]"><a href="#event-types" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Events</a><a href="#demo" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Demo</a><a href="#features" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${copy.navFeatures}</a><a href="#pricing" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${el ? "Πακέτα" : "Pricing"}</a><a href="#faq" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">FAQ</a><a href="/${locale}/login" class="mt-1 block rounded-xl bg-[#f0edff] px-3 py-3 font-bold text-[#4d2fbd] sm:hidden">${copy.login}</a></div></details>
+            <details class="home-mobile-menu group relative lg:hidden"><summary aria-label="Menu" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-[#e2dcef] bg-white text-lg text-[#443653] shadow-sm [&::-webkit-details-marker]:hidden">☰</summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-60 rounded-2xl border border-[#e7e0f0] bg-white p-2 text-sm shadow-[0_20px_55px_rgba(24,60,51,.16)]"><a href="#event-types" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Events</a><a href="#demo" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Demo</a><a href="#features" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${copy.navFeatures}</a><a href="#pricing" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${el ? "Πακέτα" : "Pricing"}</a><a href="#faq" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">FAQ</a><a href="/${locale}/login" class="mt-1 block rounded-xl bg-[#f0edff] px-3 py-3 font-bold text-[#4d2fbd] sm:hidden">${copy.login}</a><a href="/${locale}/register" class="mt-1 block rounded-xl bg-[#7152f3] px-3 py-3 font-bold text-white sm:hidden">${copy.register}</a></div></details>
             <details class="group relative"><summary aria-label="${copy.language}" title="${copy.language}" class="flex h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-[#e2dcef] bg-white px-3 text-xs font-semibold text-[#443653] shadow-sm transition hover:border-[#b8cbc3] hover:bg-[#fafcfb] [&::-webkit-details-marker]:hidden">${icons.globe}<span class="hidden sm:inline">${localeNames[locale]}</span><span class="sm:hidden">${locale.toUpperCase()}</span><span aria-hidden="true" class="text-[10px] transition group-open:rotate-180">⌄</span></summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-48 rounded-2xl border border-[#e7e0f0] bg-white p-2 shadow-[0_20px_55px_rgba(24,60,51,.16)]"><p class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#788b84]">${copy.language}</p>${languageLinks}</div></details>
             <a href="/${locale}/login" class="hidden rounded-full px-4 py-2.5 text-sm font-semibold text-[#2b174d] hover:bg-white sm:inline-flex">${copy.login}</a>
-            <a href="/${locale}/register" class="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(124,58,237,.22)] hover:-translate-y-0.5 sm:px-5">${copy.register}<span class="hidden sm:inline">${icons.arrow}</span></a>
+            <a href="/${locale}/register" class="home-header-register inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(124,58,237,.22)] hover:-translate-y-0.5 sm:px-5">${copy.register}<span class="hidden sm:inline">${icons.arrow}</span></a>
           </div>
         </nav>
       </header>
 
-      <section class="relative">
+      <section class="home-hero relative">
         <div class="absolute left-1/2 top-0 h-[36rem] w-[55rem] -translate-x-1/2 rounded-full bg-[#e3f0eb] opacity-70 blur-3xl"></div>
-        <div class="relative mx-auto grid max-w-7xl items-center gap-14 px-5 pb-20 pt-16 sm:px-8 sm:pb-28 sm:pt-24 lg:grid-cols-[.88fr_1.12fr] lg:gap-20 lg:pb-32 lg:pt-28">
-          <div>
+        <div class="home-hero-grid relative mx-auto grid max-w-7xl items-center gap-14 px-5 pb-20 pt-16 sm:px-8 sm:pb-28 sm:pt-24 lg:grid-cols-[.88fr_1.12fr] lg:gap-20 lg:pb-32 lg:pt-28">
+          <div class="home-hero-copy">
             <p class="text-xs font-semibold uppercase tracking-[.22em] text-[#f43f8f]">${copy.eyebrow}</p>
             <h1 class="mt-5 max-w-3xl text-[2.8rem] font-medium leading-[1.04] tracking-[-.045em] text-[#2b1b4b] sm:text-6xl lg:text-[4.6rem]">${copy.heroTitle}</h1>
             <p class="mt-7 max-w-2xl text-lg leading-8 text-[#6f6680] sm:text-xl">${copy.heroText}</p>
-            <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+            <div class="home-hero-actions mt-9 flex flex-col gap-3 sm:flex-row">
               <a href="/${locale}/register" class="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-semibold text-white shadow-[0_14px_35px_rgba(124,58,237,.28)] hover:-translate-y-0.5">${copy.heroPrimary}${icons.arrow}</a>
               <a href="/${locale}/login" class="inline-flex items-center justify-center rounded-2xl border border-[#d9c8f7] bg-white/80 px-6 py-4 font-semibold text-[#2b1b4b] hover:border-[#b99aec] hover:bg-white">${copy.heroSecondary}</a>
             </div>
-            <ul class="mt-8 flex flex-col gap-3 text-xs text-[#756b82] sm:flex-row sm:flex-wrap sm:gap-x-5">${trustItems}</ul>
+            <ul class="home-trust-list mt-8 flex flex-col gap-3 text-xs text-[#756b82] sm:flex-row sm:flex-wrap sm:gap-x-5">${trustItems}</ul>
           </div>
 
-          <div class="relative mx-auto w-full max-w-2xl">
+          <div class="home-hero-preview relative mx-auto w-full max-w-2xl">
             <div class="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-[#ddcff5]/70 via-white/20 to-[#d9e8e2]/60 blur-2xl"></div>
             <div class="relative overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-[#2b1b4b] via-[#6d28d9] to-[#f43f8f] p-3 shadow-[0_35px_100px_rgba(91,33,182,.28)] sm:rounded-[2.5rem] sm:p-5">
               <div class="rounded-[1.35rem] bg-[#faf8ff] p-4 sm:rounded-[1.75rem] sm:p-6">
@@ -222,7 +222,7 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
       <section class="border-y border-[#e9e3f2] bg-white/70">
         <div class="mx-auto flex max-w-7xl flex-col items-center gap-6 px-5 py-8 sm:px-8 lg:flex-row lg:justify-between">
           <p class="text-center text-sm font-medium text-[#536e65] lg:text-left">${copy.eventKinds}</p>
-          <div class="flex flex-wrap justify-center gap-2">${chips}</div>
+          <div class="home-event-chips flex flex-wrap justify-center gap-2">${chips}</div>
         </div>
       </section>
 
