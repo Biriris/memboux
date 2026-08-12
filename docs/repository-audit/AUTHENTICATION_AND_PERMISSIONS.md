@@ -44,6 +44,11 @@ Routes still perform authorization individually; there is no single event-route 
 
 Professional access is separate: `professional_profiles` and `event_professional_assignments` authorize the studio. Accepted professionals can upload official media and curate `official_album_items`; implementation is in [`src/studio.ts`](../../src/studio.ts) and [`src/routes/studio.ts`](../../src/routes/studio.ts).
 
+Event presentation branding is owner-only. The dashboard page and mutation in
+[`src/routes/event-albums.ts`](../../src/routes/event-albums.ts) require the
+resolved event role to equal `owner`; editors and assigned professionals cannot
+change the event identity.
+
 ## Gallery and guest authorization
 
 Public sharing access combines event lifecycle state and three independent optional PIN surfaces:

@@ -42,8 +42,13 @@ establishes the implemented event media hub:
   IP addresses, contact details, private media payloads, or user agents.
 
 The ZIP is a bounded-memory HTTP stream, not a Queue/Workflow background archive,
-and is not retained in R2. Video-guestbook columns are schema groundwork only;
-the capture workflow is not implemented and must not be marketed as available.
+and is not retained in R2. Migration
+[`0071_media_operations_phase_two.sql`](../../../migrations/0071_media_operations_phase_two.sql)
+completes the event-scoped video guestbook upload/link workflow, adds live
+image/video slideshow controls, presentation branding, 30-day operational
+analytics, and aggregate partner insights in the existing Studio workspace.
+Event branding is owner-only and applies to the guest gallery and slideshow;
+custom domains and organization-wide white-label defaults are not implemented.
 
 ## QR Template Studio
 

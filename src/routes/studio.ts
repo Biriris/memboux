@@ -9,6 +9,7 @@ import {
   getEventAccess,
   isTrialMediaLimitConstraint,
 } from "../event-access";
+import { eventAnalyticsSummary } from "../event-media-hub";
 import { normalizeLocale, type Locale } from "../i18n";
 import { restoreDeletedMedia } from "../media-trash";
 import { isCanonicalDuplicateConstraint, mediaCanonicalHash } from "../media-fingerprint";
@@ -168,17 +169,19 @@ studioRoutes.get("/studio/events/:code", async (c) => {
   )
     .bind(event.id)
     .all<MediaRow>();
+  const insights = await eventAnalyticsSummary(c.env.DB, event.id);
+  const partnerInsights = `<section class="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><article class="rounded-2xl border bg-white p-4"><p class="text-xs font-bold uppercase text-[#7c3aed]">Guest media</p><p class="mt-2 text-3xl">${guest.results.length}</p></article><article class="rounded-2xl border bg-white p-4"><p class="text-xs font-bold uppercase text-[#7c3aed]">Official picks</p><p class="mt-2 text-3xl">${official.results.length}</p></article><article class="rounded-2xl border bg-white p-4"><p class="text-xs font-bold uppercase text-[#7c3aed]">Contributors</p><p class="mt-2 text-3xl">${insights.contributors}</p></article><article class="rounded-2xl border bg-white p-4"><p class="text-xs font-bold uppercase text-[#7c3aed]">Gallery views</p><p class="mt-2 text-3xl">${insights.byType.gallery_view?.total ?? 0}</p></article></section>`;
   const tile = (m: MediaRow, check = false) =>
     `<article class="relative overflow-hidden rounded-2xl border bg-white"><label class="block aspect-square cursor-pointer">${check ? `<input type="checkbox" name="ids" value="${esc(m.id)}" class="absolute left-3 top-3 z-10 h-5 w-5">` : ""}${m.media_type === "image" ? `<img src="/studio/media/${m.id}" alt="" loading="lazy" class="h-full w-full object-cover">` : `<video src="/studio/media/${m.id}" muted preload="metadata" class="h-full w-full object-cover"></video>`}</label></article>`;
-  return c.html(
+  const rendered =
     photoUploadMarkup(
       page(
         `${event.eventName} – Studio`,
       `<header class="border-b bg-[#2b174d] text-white"><div class="mx-auto flex max-w-7xl items-center justify-between p-5">${brandMark(studioDashboardHref(locale), true, true)}${accountMenuDark(locale, user)}</div></header><main class="mx-auto max-w-7xl p-5 md:p-10"><a href="/studio?lang=${locale}" class="text-sm text-[#7c3aed]">← Studio</a><h1 class="mt-3 text-4xl">${esc(event.eventName)}</h1><p class="mt-2 text-[#6f657c]">${esc(formatEventDates(event, locale))}</p><section class="mt-7 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Upload official υλικού" : "Upload official media"}</h2><form action="/studio/events/${event.code}/upload" method="post" enctype="multipart/form-data" class="mt-4 flex flex-col gap-3 sm:flex-row"><input type="hidden" name="locale" value="${locale}"><input name="file" type="file" multiple required accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" class="min-w-0 flex-1 rounded-xl border p-3"><button class="rounded-xl bg-[#7c3aed] px-5 py-3 text-white">Upload</button></form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">Official album (${official.results.length})</h2><form action="/studio/events/${event.code}/official/remove" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${official.results.map((m) => tile(m, true)).join("") || "<p>No official selections yet.</p>"}</div>${official.results.length ? `<div class="mt-4 flex flex-wrap gap-2"><button class="rounded-xl border px-4 py-2">${locale === "el" ? "Αφαίρεση από album" : "Remove from album"}</button><button formaction="/studio/events/${event.code}/media/trash" class="rounded-xl border border-red-200 px-4 py-2 text-red-700">${locale === "el" ? "Στον κάδο (μόνο δικά μου uploads)" : "Move my uploads to trash"}</button></div>` : ""}</form></section><section class="mt-6 rounded-3xl bg-white p-6 shadow"><h2 class="text-2xl">${locale === "el" ? "Επιλογή από guest gallery" : "Curate from guest gallery"}</h2><form action="/studio/events/${event.code}/official/add" method="post"><input type="hidden" name="locale" value="${locale}"><div class="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">${guest.results.map((m) => tile(m, true)).join("") || "<p>No guest media.</p>"}</div>${guest.results.length ? `<button class="mt-4 rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${locale === "el" ? "Προσθήκη επιλεγμένων" : "Add selected"}</button>` : ""}</form></section></main>${logoutScript(locale)}`,
       ),
       locale,
-    ),
-  );
+    );
+  return c.html(rendered.replace('<section class="mt-7 rounded-3xl', `${partnerInsights}<section class="mt-7 rounded-3xl`));
 });
 
 studioRoutes.post(

@@ -93,6 +93,22 @@ the album, guest-session ID, and initial moderation state through fast and
 multipart paths. Public gallery queries return only approved media and isolate
 the main gallery (`album_id IS NULL`) from each album.
 
+When video guestbook is enabled, the browser uploads through the existing guest
+fast-upload path and then links that event-scoped, active video to
+`event_guestbook_entries.media_id`. The server verifies the event, media type,
+guest session, moderation/report and deletion state. A failed linking request
+can leave the video as an ordinary gallery item; retrying reuses duplicate
+handling. There is no server-side recording or transcoding.
+
+The slideshow feed can include approved images and videos from the main gallery
+or a selected album. Playback settings control uploader labels, shuffle,
+transition and photo duration; videos advance on `ended`. The client polls for
+new media rather than maintaining a persistent connection.
+
+Event branding references an existing active event image as its logo and does
+not copy the R2 object. Custom domains and organization-wide brand inheritance
+are not implemented.
+
 [`src/routes/event-albums.ts`](../../src/routes/event-albums.ts) provides album
 policies and a streaming stored-method ZIP implemented in
 [`src/zip-stream.ts`](../../src/zip-stream.ts). ZIP entry names remove traversal

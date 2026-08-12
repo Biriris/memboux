@@ -33,7 +33,9 @@ beforeAll(async () => {
       media_moderation_enabled INTEGER NOT NULL DEFAULT 0,guest_downloads_enabled INTEGER NOT NULL DEFAULT 1,
       slideshow_album_id TEXT,slideshow_only_approved INTEGER NOT NULL DEFAULT 1,
       slideshow_interval_seconds INTEGER NOT NULL DEFAULT 6,guestbook_video_enabled INTEGER NOT NULL DEFAULT 0,
-      guestbook_private INTEGER NOT NULL DEFAULT 0,
+      guestbook_private INTEGER NOT NULL DEFAULT 0,slideshow_include_videos INTEGER NOT NULL DEFAULT 1,
+      slideshow_show_names INTEGER NOT NULL DEFAULT 1,slideshow_shuffle INTEGER NOT NULL DEFAULT 0,
+      slideshow_transition TEXT NOT NULL DEFAULT 'fade',
       updated_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE event_rsvps (
@@ -129,14 +131,14 @@ describe("event engagement experience", () => {
     expect(await comments.json()).toMatchObject({ comments: [{ author_name: "Nina", message: "Love this!" }] });
     const feed = await SELF.fetch(`https://memboux.com/api/gallery/${code}/slideshow-feed`);
     const feedJson = await feed.json<{ event: { name: string }; items: Array<{ id: string; media_type: string; uploaded_by: string }> }>();
-    expect(feedJson).toMatchObject({ event: { name: "Live event" }, items: [{ id: "experience-media", media_type: "image", uploaded_by: "Guest" }] });
-    expect(feedJson.items).toHaveLength(1);
-    expect(feedJson.items.some((item) => item.media_type === "video")).toBe(false);
+    expect(feedJson.event).toEqual({ name: "Live event" });
+    expect(feedJson.items).toEqual(expect.arrayContaining([{ id: "experience-media", media_type: "image", uploaded_by: "Guest", captured_at: null, uploaded_at: expect.any(Number), url: "/media/experience-media" }]));
+    expect(feedJson.items).toHaveLength(2);
+    expect(feedJson.items.some((item) => item.media_type === "video")).toBe(true);
     const slideshow = await SELF.fetch(`https://memboux.com/gallery/${code}/slideshow?lang=en`);
     const html = await slideshow.text();
-    expect(html).toContain('id="slide-uploader"');
-    expect(html).toContain("Uploaded by");
-    expect(html).toContain("node.onload=()=>requestAnimationFrame(()=>node.classList.remove('opacity-0'));root.querySelectorAll('img')");
-    expect(html).not.toContain("classList.remove('opacity-0'))root.querySelectorAll");
+    expect(html).toContain('id="slide-caption"');
+    expect(html).toContain('id="slide-fullscreen"');
+    expect(html).toContain("item.media_type==='video'");
   });
 });

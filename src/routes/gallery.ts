@@ -8,6 +8,7 @@ import type { Bindings } from "../domain";
 import { resolveEventCover } from "../event-cover";
 import { anonymousVisitor, findEventAlbum, hasAlbumAccess, listEventAlbums, recordEventActivity } from "../event-media-hub";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventBrandIdentity, eventBrandingStyle, getEventBranding } from "../event-branding";
 import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
@@ -253,7 +254,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
   const qrOptions = { type: "svg" as const, width: 220, margin: 1, errorCorrectionLevel: "M" as const };
-  const [allMedia, officialResult, guestQrRaw, cover, guestbookResult, experienceSettings, publicAlbums] = await Promise.all([
+  const [allMedia, officialResult, guestQrRaw, cover, guestbookResult, experienceSettings, publicAlbums, branding] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { albumId: selectedAlbum ? selectedAlbum.id : null, publicOnly: true }),
     c.env.DB.prepare(
       `SELECT COUNT(*) total FROM official_album_items o JOIN media m ON m.id=o.media_id
@@ -261,18 +262,20 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     ).bind(event.id).first<{ total: number }>(),
     QRCode.toString(qrGuestUrl, qrOptions),
     resolveEventCover(c.env.DB, event.id),
-    c.env.DB.prepare(`SELECT author_name,message,created_at FROM event_guestbook_entries
+    c.env.DB.prepare(`SELECT g.author_name,g.message,g.created_at,g.media_id FROM event_guestbook_entries g
       WHERE event_id=? AND status!='hidden' AND visibility='public'
         AND NOT EXISTS (SELECT 1 FROM event_experience_settings s WHERE s.event_id=? AND s.guestbook_private=1)
+        AND (g.media_id IS NULL OR EXISTS (SELECT 1 FROM media m WHERE m.id=g.media_id AND m.deleted_at IS NULL AND m.reported_at IS NULL AND m.moderation_status='approved'))
       ORDER BY created_at DESC LIMIT 6`)
       .bind(event.id, event.id)
       .all<GuestbookPreview>()
       .catch(() => ({ results: [] as GuestbookPreview[] })),
-    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled FROM event_experience_settings WHERE event_id=?")
+    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled,guestbook_video_enabled,guestbook_private FROM event_experience_settings WHERE event_id=?")
       .bind(event.id)
       .first<GuestParticipationSettings>()
       .catch(() => null),
     listEventAlbums(c.env.DB, event.id, false),
+    getEventBranding(c.env.DB, event.id),
   ]);
   const visitor = await anonymousVisitor(c.env.DB, c.req.raw, c.env.BETTER_AUTH_SECRET, event.id);
   c.executionCtx.waitUntil(recordEventActivity(c.env.DB, { eventId: event.id, type: selectedAlbum ? "album_view" : "gallery_view", visitorHash: visitor.visitorHash, albumId: selectedAlbum?.id }));
@@ -287,6 +290,8 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     rsvp_enabled: 0,
     guestbook_enabled: experienceSettings?.guestbook_enabled ?? 1,
     comments_enabled: experienceSettings?.comments_enabled ?? 1,
+    guestbook_video_enabled: experienceSettings?.guestbook_video_enabled ?? 0,
+    guestbook_private: experienceSettings?.guestbook_private ?? 0,
   };
   const uploadAllowed = (selectedAlbum?.allow_uploads ?? 1) === 1;
   const albumNavigation = publicAlbums.length ? `<nav aria-label="Event albums" class="mt-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
@@ -313,9 +318,9 @@ galleryRoutes.get("/gallery/:code", async (c) => {
   return c.html(
     page(
       `${event.eventName} – ${g.galleryTitle}`,
-      `<main class="guest-album-page mx-auto max-w-7xl p-4 sm:p-6 lg:p-10">
-        <header class="guest-album-topbar flex items-center justify-between px-1 py-2">${brandMark("/", true)}${galleryLanguagePicker(event.code, locale)}</header>
-        <section class="guest-event-hero relative mt-4 overflow-hidden rounded-[2rem] bg-[#2b174d] px-6 py-9 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
+      `${eventBrandingStyle(branding)}<main class="event-brand-soft guest-album-page mx-auto max-w-7xl p-4 sm:p-6 lg:p-10">
+        <header class="guest-album-topbar flex items-center justify-between px-1 py-2">${eventBrandIdentity(branding, event.eventName)}${galleryLanguagePicker(event.code, locale)}</header>
+        <section class="event-brand-surface guest-event-hero relative mt-4 overflow-hidden rounded-[2rem] bg-[#2b174d] px-6 py-9 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
           ${cover ? `<img src="/gallery/${encodeURIComponent(event.code)}/cover?v=${cover.updated_at}" alt="" class="absolute inset-0 h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-r from-[#24143b]/95 via-[#2b174d]/80 to-[#2b174d]/45"></div>` : ""}
           <div class="relative">
             <p class="text-xs font-bold uppercase tracking-[.22em] text-[#ddcff5]">${esc(selectedAlbum ? "Event album" : g.privateAlbum)}</p>

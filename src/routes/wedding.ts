@@ -313,9 +313,12 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     getOfficialMediaWithLikes(c.env.DB, event.id, likeActorKey),
     QRCode.toString(guestUrl, { type: "svg", width: 220, margin: 1, errorCorrectionLevel: "M" }),
-    c.env.DB.prepare("SELECT author_name,message,created_at FROM event_guestbook_entries WHERE event_id=? AND status='approved' ORDER BY created_at DESC LIMIT 6")
+    c.env.DB.prepare(`SELECT g.author_name,g.message,g.created_at,g.media_id FROM event_guestbook_entries g
+      WHERE g.event_id=? AND g.status='approved'
+        AND (g.media_id IS NULL OR EXISTS (SELECT 1 FROM media m WHERE m.id=g.media_id AND m.deleted_at IS NULL AND m.reported_at IS NULL AND m.moderation_status='approved'))
+      ORDER BY g.created_at DESC LIMIT 6`)
       .bind(event.id).all<GuestbookPreview>().catch(() => ({ results: [] as GuestbookPreview[] })),
-    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled FROM event_experience_settings WHERE event_id=?")
+    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled,guestbook_video_enabled,guestbook_private FROM event_experience_settings WHERE event_id=?")
       .bind(event.id).first<WeddingExperienceSettings>().catch(() => null),
     c.env.DB.prepare(`SELECT p.business_name FROM event_professional_assignments a
       JOIN professional_profiles p ON p.user_id=a.professional_user_id
