@@ -28,7 +28,7 @@ The exact product rule for when a generic vertical page should be considered “
 
 ## Trial transition
 
-An owner starts a trial with `POST /api/account/events/:code/access/start-trial` in [`src/routes/events.ts`](../../src/routes/events.ts). [`startEventTrial`](../../src/event-access.ts) transitions only `preview` rows to `trial`, sets a 14-day end timestamp, enables guest access and guest uploads, keeps original downloads disabled, and leaves the lifetime media limit at 20.
+An owner now selects an event package and starts the trial in the same event-overview flow with `POST /api/account/events/:code/checkout/start-trial` in [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The legacy trial and checkout pages redirect to that unified panel, and the legacy direct-start mutation no longer changes access. [`startEventTrial`](../../src/event-access.ts) transitions only `preview` rows to `trial`, sets a 7-day end timestamp for new trials, enables guest access and guest uploads, keeps original downloads disabled, and leaves the lifetime media limit at 20. Existing trials retain their persisted end timestamp.
 
 The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql) means deleting a file does not return a trial slot. D1 triggers enforce limits for ordinary media, wedding media, restores after expiry, and active multipart reservations. [`event-access.test.ts`](../../test/event-access.test.ts) and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts) cover this behavior.
 
@@ -42,6 +42,8 @@ The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_s
 - `events.expires_at` is legacy/general event access metadata and is still read by media delivery; its precise relationship to paid `event_access.expires_at` is not centralized and is therefore **ambiguous**.
 
 During `trial`, guests can access/upload, owners can manage the event, and original exports remain disabled. `unlocked` or `observe` mode allows all lifecycle capabilities. See [`eventAccessAllows`](../../src/event-access.ts).
+
+An owner can change the event type through `POST /api/account/events/:code/event-type`. [`changeEventType`](../../src/event-type-transitions.ts) records the transition, snapshots an active generic vertical profile, keeps Wedding-specific rows dormant instead of deleting them, and restores the latest saved generic profile when returning to that type. Shared event media, membership, access and commerce rows remain event-scoped and are not replaced. Migration [`0067_event_type_transitions.sql`](../../migrations/0067_event_type_transitions.sql) adds the audit/restore history.
 
 For weddings, lifecycle access and publication are separate gates: trial/unlock makes guest capabilities eligible, while `event_wedding_profiles.publish_status` controls whether the wedding site and personalized invitations are publicly available.
 

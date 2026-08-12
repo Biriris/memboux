@@ -33,6 +33,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `event_members` | Composite event/user membership with `owner`, `editor`, or `viewer` role. | [`0003`](../../migrations/0003_accounts_and_event_members.sql) |
 | `event_invitations` | Hashed invitation token, email, event role (including co-owner), inviter, kind, expiry, accepted/declined timestamps. | [`0005`](../../migrations/0005_event_invitations.sql), [`0021`](../../migrations/0021_explicit_album_invitations.sql), [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql), [`0066`](../../migrations/0066_event_co_owner_invitations.sql) |
 | `event_access` | `preview`/`trial`/`unlocked`/`expired`, observe/enforced mode, feature flags, trial dates, media limit, lifetime consumed-upload counter. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0044`](../../migrations/0044_enforce_new_event_trials.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql) |
+| `event_type_transitions` | Auditable event-type changes and generic vertical-profile snapshots used for reversible restoration. | [`0067`](../../migrations/0067_event_type_transitions.sql) |
 | `event_covers` | Event cover R2 key, source media, updater, content type, timestamp. | [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql) |
 | `event_experience_settings` | RSVP, guestbook, comments, slideshow, and moderation flags. | [`0027`](../../migrations/0027_event_engagement.sql) |
 | `event_rsvps` | Guest response, guest count, dietary notes, message, contact, timestamps, and optional wedding guest-directory link. | [`0027`](../../migrations/0027_event_engagement.sql), extended by [`0061`](../../migrations/0061_wedding_guest_planning.sql) |
@@ -125,4 +126,3 @@ The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../.
 - Rollback/down migrations do not exist.
 - Backup/restore and disaster-recovery configuration for D1 is not committed.
 - Migration `0060` rebuilds `cloud_oauth_states` and retains legacy event columns; the intended removal date for legacy columns is **Unknown**.
-- Remote application status for migration `0064` is **Unknown** until deployment-time migration checks are run.

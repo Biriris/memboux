@@ -86,6 +86,7 @@ describe("event route boundaries", () => {
   it.each([
     `/api/account/events/${code}/privacy`,
     `/api/account/events/${code}/details`,
+    `/api/account/events/${code}/event-type`,
     `/api/account/events/${code}/invite`,
     `/api/account/events/${code}/members/remove`,
     `/api/account/events/${code}/members/role`,

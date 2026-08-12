@@ -32,7 +32,7 @@ describe("event vertical landing framework", () => {
     const html = eventVerticalLandingPage("el", birthday!);
     expect(html).toContain('<link rel="canonical" href="https://memboux.com/el/events/birthday">');
     expect(html).toContain("create%3Dbirthday");
-    expect(html).toContain("14 ημέρες");
+    expect(html).toContain("7 ημέρες");
     expect(html).toContain('hreflang="x-default"');
     expect(html).toContain("/el/events/birthday/preview");
   });

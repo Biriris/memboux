@@ -1,6 +1,6 @@
 import type { EventAccessRow } from "./domain";
 
-export const EVENT_TRIAL_DAYS = 14;
+export const EVENT_TRIAL_DAYS = 7;
 export const EVENT_TRIAL_MEDIA_LIMIT = 20;
 
 export function isTrialMediaLimitConstraint(error: unknown) {

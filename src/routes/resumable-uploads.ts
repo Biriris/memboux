@@ -8,7 +8,7 @@ import {
   MULTIPART_UPLOAD_TTL_MS,
 } from "../config";
 import type { Bindings, EventRow } from "../domain";
-import { eventMediaCapacity, isTrialMediaLimitConstraint } from "../event-access";
+import { eventMediaCapacity, eventMediaUsage, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
 import { hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
@@ -223,6 +223,23 @@ function decodedUploadHeader(request: Request, name: string, maxLength: number) 
     return "";
   }
 }
+
+resumableUploadRoutes.get("/api/upload/:code/capacity", async (c) => {
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return jsonError("Event not found.", 404);
+  const access = await getEventAccess(c.env.DB, event.id);
+  if (access.access_state !== "trial" || access.enforcement_state !== "enforced")
+    return c.json({ trial: false });
+  if (!(await hasGalleryAccess(c.req.raw, event))) return jsonError("Gallery access required.", 401);
+  const usage = await eventMediaUsage(c.env.DB, event.id);
+  const used = Math.max(0, usage.total);
+  return c.json({
+    trial: true,
+    used,
+    limit: access.media_limit,
+    remaining: Math.max(0, access.media_limit - used),
+  });
+});
 
 resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   const startedAt = Date.now();

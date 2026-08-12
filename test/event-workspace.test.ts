@@ -36,6 +36,24 @@ const baseInput = {
   officialQrSvg: '<svg data-test="official-qr"></svg>',
   coverSourceMediaId: null,
   coverUpdatedAt: null,
+  commerceProducts: [{
+    product_key: "event_pass",
+    scope: "event" as const,
+    billing_model: "one_time" as const,
+    name_en: "Event Pass", name_el: "Event Pass", name_fr: "Event Pass", name_de: "Event Pass", name_es: "Event Pass", name_it: "Event Pass",
+    description_en: "Keep every memory together.", description_el: "Όλες οι αναμνήσεις μαζί.", description_fr: "Tous les souvenirs.", description_de: "Alle Erinnerungen.", description_es: "Todos los recuerdos.", description_it: "Tutti i ricordi.",
+    amount_minor: 3900,
+    currency: "EUR",
+    media_limit: 1_000,
+    event_duration_days: 365,
+    guest_access_enabled: 1 as const,
+    original_downloads_enabled: 1 as const,
+    active: 1 as const,
+    checkout_enabled: 0 as const,
+    sort_order: 1,
+  }],
+  selectedProductKey: "event_pass",
+  commerceLaunchReady: false,
 };
 
 describe("event workspace", () => {
@@ -72,11 +90,11 @@ describe("event workspace", () => {
     expect(html).toContain('data-field="name"');
     expect(html).toContain('data-field="dates"');
     expect(html).toContain('data-field="location"');
-    expect(html).toContain('data-event-type-locked');
-    expect(html).not.toContain('data-event-type-form');
-    expect(html).not.toContain('name="eventType"');
+    expect(html).toContain('data-event-type-form');
+    expect(html).toContain('name="eventType"');
+    expect(html).toContain(`/api/account/events/${event.code}/event-type`);
     expect(html).toContain("Trip &amp; vacation");
-    expect(html).toContain("cannot be changed");
+    expect(html).toContain("Shared media and access stay intact");
     expect(html).toContain('id="template"');
     expect(html).toContain('data-event-template="trip"');
     expect(html).toContain("Build the complete event page");
@@ -209,8 +227,8 @@ describe("event workspace", () => {
     expect(html).toContain('id="gallery"');
     expect(html).toContain("Download selected");
     expect(html).toContain("Trip &amp; vacation");
-    expect(html).toContain('data-event-type-locked');
     expect(html).not.toContain('data-event-type-form');
+    expect(html).not.toContain('name="eventType"');
     expect(html).not.toContain('id="settings"');
     expect(html).not.toContain('id="people"');
     expect(html).not.toContain('id="danger"');
@@ -273,7 +291,7 @@ describe("event workspace", () => {
     expect(html).toContain('id="owner-delete-selected"');
   });
 
-  it("routes private previews through an explicit trial review instead of starting the clock immediately", () => {
+  it("combines package selection and trial activation in the event overview", () => {
     const html = renderEventWorkspace({
       ...baseInput,
       membership: "owner",
@@ -293,8 +311,10 @@ describe("event workspace", () => {
         updated_at: 1,
       },
     });
-    expect(html).toContain(`/dashboard/${event.code}/trial?lang=en`);
-    expect(html).toContain("complete private preview with no timer");
+    expect(html).toContain('id="package-access-title"');
+    expect(html).toContain(`/api/account/events/${event.code}/checkout/start-trial`);
+    expect(html).toContain("Choose package & start free 7-day trial");
+    expect(html).toContain("No card is requested and there is no automatic charge");
     expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
   });
 
@@ -328,7 +348,7 @@ describe("event workspace", () => {
     expect(html).toContain(`/dashboard/${event.code}/wedding/menu/print?lang=en`);
     expect(html).toContain("lg:grid-cols-3");
     expect(html).toContain("flex h-full min-w-0 flex-col");
-    expect(html).not.toContain('name="eventType"');
+    expect(html).toContain('name="eventType"');
   });
 
   it("manages members, professionals and pending invitations from People and roles", () => {

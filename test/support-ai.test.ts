@@ -10,19 +10,19 @@ describe("grounded support answers", () => {
     expect(answer?.escalate).toBe(false);
     expect(answer?.body).toContain("Νέο event");
     expect(answer?.body).toContain("δεν απαιτούν πληρωμή ή κάρτα");
-    expect(answer?.body).toContain("14 ημέρες");
+    expect(answer?.body).toContain("7 ημέρες");
     expect(answer?.body).toContain("20");
     expect(answer?.body).not.toMatch(/\bπλήρωσε\b|\bπληρώστε\b|απαιτείται συνδρομή/i);
   });
 
   it("keeps trial and payment facts consistent in all supported languages", () => {
     const cases = [
-      ["How does the free trial and payment work?", "14 days", "20"],
-      ["Comment fonctionne l’essai et le paiement ?", "14 jours", "20"],
-      ["Wie funktionieren Test und Zahlung?", "14 Tage", "20"],
-      ["¿Cómo funcionan la prueba y el pago?", "14 días", "20"],
-      ["Come funzionano la prova e il pagamento?", "14 giorni", "20"],
-      ["Πώς λειτουργεί το trial και η πληρωμή;", "14 ημέρες", "20"],
+      ["How does the free trial and payment work?", "7 days", "20"],
+      ["Comment fonctionne l’essai et le paiement ?", "7 jours", "20"],
+      ["Wie funktionieren Test und Zahlung?", "7 Tage", "20"],
+      ["¿Cómo funcionan la prueba y el pago?", "7 días", "20"],
+      ["Come funzionano la prova e il pagamento?", "7 giorni", "20"],
+      ["Πώς λειτουργεί το trial και η πληρωμή;", "7 ημέρες", "20"],
     ] as const;
 
     for (const [question, duration, limit] of cases) {

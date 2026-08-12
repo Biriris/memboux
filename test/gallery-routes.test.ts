@@ -161,6 +161,17 @@ beforeAll(async () => {
 });
 
 describe("gallery, upload, and media routes", () => {
+  it("exposes the trial upload usage needed for the guest quota notice", async () => {
+    const response = await SELF.fetch(`https://memboux.com/api/upload/${trialCode}/capacity`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ trial: true, used: 1, limit: 20, remaining: 19 });
+
+    const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
+    const html = await gallery.text();
+    expect(html).toContain("This event’s free trial has reached 20 photos and videos.");
+    expect(html).toContain("form.dataset.trialUploadRemaining");
+  });
+
   it("keeps trial previews usable while hiding and enforcing original downloads", async () => {
     const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
     const html = await gallery.text();

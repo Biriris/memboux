@@ -13,7 +13,7 @@ import {
   type CommerceProduct,
 } from "../commerce";
 import type { Bindings } from "../domain";
-import { eventMediaUsage, getEventAccess } from "../event-access";
+import { EVENT_TRIAL_MEDIA_LIMIT, eventMediaUsage, getEventAccess, startEventTrial } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
@@ -49,9 +49,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "One-time event unlock", subscription: "Subscription", files: "photos & videos",
     days: "days of access", originals: "Original-quality downloads", guestUploads: "Guest uploads",
     select: "Select package", selected: "Selected", save: "Save package for launch",
-    current: "Current access", preview: "Private preview", trial: "14-day trial", unlocked: "Unlocked", expired: "Trial expired",
+    current: "Current access", preview: "Private preview", trial: "7-day trial", unlocked: "Unlocked", expired: "Trial expired",
     trialIncludes: "The trial proves the full guest experience, with limits that protect the paid value.",
-    trialFiles: "20 lifetime upload slots (deletions do not return slots)", trialDays: "14 days after activation", noOriginals: "No original downloads",
+    trialFiles: "20 lifetime upload slots (deletions do not return slots)", trialDays: "7 days after activation", noOriginals: "No original downloads",
     unlockTitle: "What payment will unlock", unlockText: "More contributions, longer access and every original file ready to keep.",
     noCart: "No cart: this package belongs only to this event.", disabled: "Payments are not active yet",
     noCard: "No card details are requested", legalText: "The future Stripe Checkout will open only after company, tax, invoicing, refund and sales terms are ready.",
@@ -66,9 +66,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Εφάπαξ ξεκλείδωμα event", subscription: "Συνδρομή", files: "φωτογραφίες & βίντεο",
     days: "ημέρες πρόσβασης", originals: "Λήψεις αρχείων σε αρχική ποιότητα", guestUploads: "Uploads καλεσμένων",
     select: "Επιλογή πακέτου", selected: "Επιλεγμένο", save: "Αποθήκευση πακέτου για το launch",
-    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Trial 14 ημερών", unlocked: "Ξεκλειδωμένο", expired: "Το trial έληξε",
+    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Trial 7 ημερών", unlocked: "Ξεκλειδωμένο", expired: "Το trial έληξε",
     trialIncludes: "Το trial αποδεικνύει ολόκληρη την εμπειρία καλεσμένων, με όρια που διατηρούν την αξία του πακέτου.",
-    trialFiles: "20 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "14 ημέρες από την ενεργοποίηση", noOriginals: "Χωρίς λήψεις πρωτοτύπων",
+    trialFiles: "20 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "7 ημέρες από την ενεργοποίηση", noOriginals: "Χωρίς λήψεις πρωτοτύπων",
     unlockTitle: "Τι θα ξεκλειδώνει η πληρωμή", unlockText: "Περισσότερες συνεισφορές, μεγαλύτερη πρόσβαση και όλα τα πρωτότυπα έτοιμα να τα κρατήσεις.",
     noCart: "Χωρίς καλάθι: το πακέτο ανήκει μόνο σε αυτό το event.", disabled: "Οι πληρωμές δεν είναι ακόμη ενεργές",
     noCard: "Δεν ζητούνται στοιχεία κάρτας", legalText: "Το μελλοντικό Stripe Checkout θα ανοίξει μόνο αφού είναι έτοιμα εταιρεία, φορολογία, τιμολόγηση, επιστροφές και όροι πώλησης.",
@@ -83,9 +83,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Déblocage unique", subscription: "Abonnement", files: "photos et vidéos", days: "jours d’accès",
     originals: "Téléchargements en qualité originale", guestUploads: "Ajouts des invités", select: "Choisir",
     selected: "Sélectionné", save: "Enregistrer pour le lancement", current: "Accès actuel", preview: "Aperçu privé",
-    trial: "Essai de 14 jours", unlocked: "Débloqué", expired: "Essai expiré",
+    trial: "Essai de 7 jours", unlocked: "Débloqué", expired: "Essai expiré",
     trialIncludes: "L’essai montre toute l’expérience invité avec des limites qui préservent la valeur payante.",
-    trialFiles: "20 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "14 jours après activation", noOriginals: "Pas de téléchargement des originaux",
+    trialFiles: "20 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "7 jours après activation", noOriginals: "Pas de téléchargement des originaux",
     unlockTitle: "Ce que le paiement débloquera", unlockText: "Plus de contributions, un accès prolongé et tous les originaux à conserver.",
     noCart: "Pas de panier : ce forfait appartient uniquement à cet événement.", disabled: "Paiements pas encore actifs",
     noCard: "Aucune carte demandée", legalText: "Stripe Checkout ne sera activé qu’après les étapes légales, fiscales, de facturation et de remboursement.",
@@ -100,9 +100,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Einmalige Event-Freischaltung", subscription: "Abonnement", files: "Fotos & Videos", days: "Tage Zugriff",
     originals: "Downloads in Originalqualität", guestUploads: "Uploads von Gästen", select: "Paket wählen",
     selected: "Ausgewählt", save: "Paket für den Start speichern", current: "Aktueller Zugriff", preview: "Private Vorschau",
-    trial: "14-Tage-Test", unlocked: "Freigeschaltet", expired: "Test abgelaufen",
+    trial: "7-Tage-Test", unlocked: "Freigeschaltet", expired: "Test abgelaufen",
     trialIncludes: "Der Test zeigt das vollständige Gästeerlebnis mit Grenzen, die den Bezahlwert schützen.",
-    trialFiles: "20 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "14 Tage ab Aktivierung", noOriginals: "Keine Original-Downloads",
+    trialFiles: "20 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "7 Tage ab Aktivierung", noOriginals: "Keine Original-Downloads",
     unlockTitle: "Was die Zahlung freischaltet", unlockText: "Mehr Beiträge, längerer Zugriff und alle Originale zum Aufbewahren.",
     noCart: "Kein Warenkorb: Dieses Paket gehört nur zu diesem Event.", disabled: "Zahlungen sind noch nicht aktiv",
     noCard: "Keine Kartendaten erforderlich", legalText: "Stripe Checkout startet erst nach Unternehmens-, Steuer-, Rechnungs-, Rückerstattungs- und Verkaufsbedingungen.",
@@ -117,9 +117,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Desbloqueo único", subscription: "Suscripción", files: "fotos y vídeos", days: "días de acceso",
     originals: "Descargas en calidad original", guestUploads: "Subidas de invitados", select: "Elegir paquete",
     selected: "Seleccionado", save: "Guardar para el lanzamiento", current: "Acceso actual", preview: "Vista previa privada",
-    trial: "Prueba de 14 días", unlocked: "Desbloqueado", expired: "Prueba vencida",
+    trial: "Prueba de 7 días", unlocked: "Desbloqueado", expired: "Prueba vencida",
     trialIncludes: "La prueba muestra toda la experiencia con límites que protegen el valor de pago.",
-    trialFiles: "20 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "14 días desde la activación", noOriginals: "Sin descargas originales",
+    trialFiles: "20 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "7 días desde la activación", noOriginals: "Sin descargas originales",
     unlockTitle: "Qué desbloqueará el pago", unlockText: "Más aportaciones, acceso prolongado y todos los originales para conservar.",
     noCart: "Sin carrito: este paquete pertenece solo a este evento.", disabled: "Los pagos aún no están activos",
     noCard: "No se solicitan datos de tarjeta", legalText: "Stripe Checkout se abrirá solo tras completar empresa, impuestos, facturación, reembolsos y términos.",
@@ -134,9 +134,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Sblocco evento una tantum", subscription: "Abbonamento", files: "foto e video", days: "giorni di accesso",
     originals: "Download in qualità originale", guestUploads: "Caricamenti degli invitati", select: "Scegli pacchetto",
     selected: "Selezionato", save: "Salva per il lancio", current: "Accesso attuale", preview: "Anteprima privata",
-    trial: "Prova di 14 giorni", unlocked: "Sbloccato", expired: "Prova scaduta",
+    trial: "Prova di 7 giorni", unlocked: "Sbloccato", expired: "Prova scaduta",
     trialIncludes: "La prova mostra l’esperienza completa con limiti che proteggono il valore a pagamento.",
-    trialFiles: "20 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "14 giorni dall’attivazione", noOriginals: "Nessun download originale",
+    trialFiles: "20 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "7 giorni dall’attivazione", noOriginals: "Nessun download originale",
     unlockTitle: "Cosa sbloccherà il pagamento", unlockText: "Più contributi, accesso più lungo e tutti gli originali da conservare.",
     noCart: "Nessun carrello: questo pacchetto appartiene solo a questo evento.", disabled: "I pagamenti non sono ancora attivi",
     noCard: "Nessun dato carta richiesto", legalText: "Stripe Checkout partirà solo dopo azienda, fisco, fatturazione, rimborsi e condizioni di vendita.",
@@ -180,6 +180,10 @@ export function commercePlanSelectionAssets(locale: Locale) {
 }
 
 commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
+  if (c.req.method === "GET") {
+    const locale = normalizeLocale(c.req.query("lang") ?? "en");
+    return c.redirect(`/dashboard/${encodeURIComponent(c.req.param("code"))}?lang=${locale}#package-access-title`, 302);
+  }
   const context = await ownedEvent(c);
   if ("response" in context) return context.response;
   const { locale, user, event, role } = context;
@@ -211,10 +215,14 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
   const activatedNotice = c.req.query("activated") === "1"
     ? `<p role="status" class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold leading-6 text-emerald-900">${esc(beta.activated)}</p>`
     : "";
-  const checkoutAction = complimentaryAvailable
-    ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
-    : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
-  const checkoutButton = complimentaryAvailable ? beta.activate : t.save;
+  const checkoutAction = access.access_state === "preview"
+    ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/start-trial`
+    : complimentaryAvailable && access.access_state === "expired"
+      ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
+      : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
+  const checkoutButton = access.access_state === "preview"
+    ? (locale === "el" ? "Επιλογή πακέτου & έναρξη δωρεάν trial 7 ημερών" : "Choose package & start free 7-day trial")
+    : complimentaryAvailable && access.access_state === "expired" ? beta.activate : t.save;
   const checkoutStateCard = complimentaryAvailable
     ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
     : `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section>`;
@@ -234,7 +242,37 @@ commerceRoutes.post("/api/account/events/:code/checkout/draft", async (c) => {
   ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
   await saveDraftEventOrder(c.env.DB, { userId: user.id, eventId: event.id, product, locale });
-  return c.redirect(`/dashboard/${event.code}/checkout?lang=${locale}&saved=1`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}&packageSaved=1#package-access-title`, 303);
+});
+
+commerceRoutes.post("/api/account/events/:code/checkout/start-trial", async (c) => {
+  const context = await ownedEvent(c);
+  if ("response" in context) return context.response;
+  const { user, event, role } = context;
+  if (role !== "owner") return c.text("Only an event owner can start the trial.", 403);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? context.locale));
+  const product = await c.env.DB.prepare(
+    "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
+  ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
+  if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
+  const access = await getEventAccess(c.env.DB, event.id);
+  if (access.access_state !== "preview")
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}#package-access-title`, 303);
+  const usage = await eventMediaUsage(c.env.DB, event.id);
+  if (usage.total > EVENT_TRIAL_MEDIA_LIMIT)
+    return c.text(locale === "el"
+      ? `Το trial υποστηρίζει έως ${EVENT_TRIAL_MEDIA_LIMIT} συνολικά αρχεία.`
+      : `The trial supports up to ${EVENT_TRIAL_MEDIA_LIMIT} lifetime media uploads.`, 409);
+  await saveDraftEventOrder(c.env.DB, { userId: user.id, eventId: event.id, product, locale });
+  await startEventTrial(c.env.DB, event.id);
+  console.log(JSON.stringify({
+    event: "event_trial_started",
+    eventId: event.id,
+    userId: user.id,
+    productKey: product.product_key,
+  }));
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}&trialStarted=1#package-access-title`, 303);
 });
 
 commerceRoutes.post("/api/account/events/:code/checkout/activate-beta", async (c) => {
@@ -272,5 +310,5 @@ commerceRoutes.post("/api/account/events/:code/checkout/activate-beta", async (c
     mediaLimit: activation.mediaLimit,
     expiresAt: activation.expiresAt,
   }));
-  return c.redirect(`/dashboard/${event.code}/checkout?lang=${locale}&activated=1`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}&activated=1#package-access-title`, 303);
 });

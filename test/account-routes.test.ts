@@ -101,6 +101,9 @@ describe("account route boundaries", () => {
       env.DB.prepare("DROP TABLE IF EXISTS account_entitlements"),
       env.DB.prepare("DROP TABLE IF EXISTS account_storage_usage"),
       env.DB.prepare("DROP TABLE IF EXISTS account_event_usage"),
+      env.DB.prepare("DROP TABLE IF EXISTS commerce_order_items"),
+      env.DB.prepare("DROP TABLE IF EXISTS commerce_orders"),
+      env.DB.prepare("DROP TABLE IF EXISTS commerce_products"),
       env.DB.prepare("DROP TABLE IF EXISTS event_members"),
       env.DB.prepare("DROP TABLE IF EXISTS event_access"),
       env.DB.prepare("DROP TABLE IF EXISTS event_wedding_seat_assignments"),
@@ -234,6 +237,28 @@ describe("account route boundaries", () => {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )`),
+      env.DB.prepare(`CREATE TABLE commerce_products (
+        product_key TEXT PRIMARY KEY,scope TEXT NOT NULL,billing_model TEXT NOT NULL,
+        name_en TEXT NOT NULL,name_el TEXT NOT NULL,name_fr TEXT NOT NULL DEFAULT '',name_de TEXT NOT NULL DEFAULT '',name_es TEXT NOT NULL DEFAULT '',name_it TEXT NOT NULL DEFAULT '',
+        description_en TEXT NOT NULL,description_el TEXT NOT NULL,description_fr TEXT NOT NULL DEFAULT '',description_de TEXT NOT NULL DEFAULT '',description_es TEXT NOT NULL DEFAULT '',description_it TEXT NOT NULL DEFAULT '',
+        amount_minor INTEGER NOT NULL,currency TEXT NOT NULL,media_limit INTEGER,event_duration_days INTEGER,
+        guest_access_enabled INTEGER NOT NULL,original_downloads_enabled INTEGER NOT NULL,
+        active INTEGER NOT NULL,checkout_enabled INTEGER NOT NULL,sort_order INTEGER NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
+      )`),
+      env.DB.prepare(`CREATE TABLE commerce_orders (
+        id TEXT PRIMARY KEY,user_id TEXT NOT NULL,event_id TEXT,status TEXT NOT NULL,currency TEXT NOT NULL,
+        subtotal_minor INTEGER NOT NULL,tax_minor INTEGER NOT NULL,total_minor INTEGER NOT NULL,billing_provider TEXT NOT NULL,
+        provider_checkout_id TEXT,provider_payment_id TEXT,paid_at INTEGER,expires_at INTEGER,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
+      )`),
+      env.DB.prepare(`CREATE TABLE commerce_order_items (
+        id TEXT PRIMARY KEY,order_id TEXT NOT NULL,product_key TEXT NOT NULL,product_name TEXT NOT NULL,billing_model TEXT NOT NULL,
+        unit_amount_minor INTEGER NOT NULL,quantity INTEGER NOT NULL,line_total_minor INTEGER NOT NULL,currency TEXT NOT NULL,
+        entitlement_snapshot TEXT NOT NULL,created_at INTEGER NOT NULL
+      )`),
+      env.DB.prepare(`INSERT INTO commerce_products (
+        product_key,scope,billing_model,name_en,name_el,description_en,description_el,amount_minor,currency,
+        media_limit,event_duration_days,guest_access_enabled,original_downloads_enabled,active,checkout_enabled,sort_order,created_at,updated_at
+      ) VALUES ('event_pass','event','one_time','Event Pass','Event Pass','Event access','Πρόσβαση event',1900,'EUR',500,365,1,1,1,0,10,1,1)`),
       env.DB.prepare(`CREATE TABLE media (
         id TEXT PRIMARY KEY,event_id TEXT NOT NULL,object_key TEXT NOT NULL,
         media_type TEXT NOT NULL DEFAULT 'image',content_type TEXT NOT NULL DEFAULT 'image/jpeg',
@@ -505,7 +530,7 @@ describe("account route boundaries", () => {
     const finishedHtml = await finishedPreview.text();
     expect(finishedHtml).toContain('data-event-theme="editorial"');
     expect(finishedHtml).toContain("Bring a hat and comfortable shoes.");
-    expect(finishedHtml).toContain(`/dashboard/${createBody.code}/trial?lang=en`);
+    expect(finishedHtml).toContain(`/dashboard/${createBody.code}?lang=en#package-access-title`);
     expect(finishedHtml).toContain(`/dashboard/${createBody.code}?lang=en`);
 
     const user = await env.DB.prepare('SELECT id FROM "user" WHERE email=?')
@@ -973,35 +998,15 @@ describe("account route boundaries", () => {
     ]);
     const trialReview = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/trial?lang=en`, {
       headers: { Cookie: cookieHeader },
+      redirect: "manual",
     });
-    expect(trialReview.status).toBe(200);
-    const trialReviewHtml = await trialReview.text();
-    expect(trialReviewHtml).toContain("Your private preview has no timer");
-    expect(trialReviewHtml).toContain('name="confirmation" value="activate" required');
-    expect(trialReviewHtml).toContain("The clock cannot be paused or restarted.");
-    expect(trialReviewHtml).toContain("This event has 21 media files");
-    expect(trialReviewHtml).toContain("disabled");
-    for (const [locale, title] of [
-      ["el", "Άνοιξε το event στους καλεσμένους"],
-      ["fr", "Ouvrez l’événement à vos invités"],
-      ["de", "Öffne das Event für deine Gäste"],
-      ["es", "Abre el evento a tus invitados"],
-      ["it", "Apri l’evento ai tuoi invitati"],
-    ] as const) {
-      const localizedTrial = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/trial?lang=${locale}`, {
-        headers: { Cookie: cookieHeader },
-      });
-      expect(localizedTrial.status).toBe(200);
-      const localizedHtml = await localizedTrial.text();
-      expect(localizedHtml).toContain(title);
-      expect(localizedHtml).not.toContain("Open the event to your guests");
-      expect(localizedHtml).toContain('name="confirmation" value="activate" required');
-    }
+    expect(trialReview.status).toBe(302);
+    expect(trialReview.headers.get("location")).toBe(`/dashboard/${weddingBody.code}?lang=en#package-access-title`);
 
-    const overCapacityTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/access/start-trial`, {
+    const overCapacityTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
       method: "POST",
       headers: wizardHeaders,
-      body: new URLSearchParams({ locale: "en", confirmation: "activate" }),
+      body: new URLSearchParams({ locale: "en", productKey: "event_pass" }),
       redirect: "manual",
     });
     expect(overCapacityTrial.status).toBe(409);
@@ -1010,28 +1015,25 @@ describe("account route boundaries", () => {
     await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(weddingEvent!.id).run();
     await env.DB.prepare("DELETE FROM event_wedding_media WHERE event_id=?").bind(weddingEvent!.id).run();
 
-    const dateWarningReview = await SELF.fetch(`https://memboux.com/dashboard/${weddingBody.code}/trial?lang=en`, {
-      headers: { Cookie: cookieHeader },
-    });
-    expect(await dateWarningReview.text()).toContain("Check the dates");
-
-    const unconfirmedTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/access/start-trial`, {
+    const invalidProductTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
       method: "POST",
       headers: wizardHeaders,
-      body: new URLSearchParams({ locale: "en" }),
+      body: new URLSearchParams({ locale: "en", productKey: "missing" }),
       redirect: "manual",
     });
-    expect(unconfirmedTrial.status).toBe(400);
+    expect(invalidProductTrial.status).toBe(400);
     expect(await env.DB.prepare("SELECT access_state FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
       .toEqual({ access_state: "preview" });
 
-    const confirmedTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/access/start-trial`, {
+    const confirmedTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
       method: "POST",
       headers: wizardHeaders,
-      body: new URLSearchParams({ locale: "en", confirmation: "activate" }),
+      body: new URLSearchParams({ locale: "en", productKey: "event_pass" }),
       redirect: "manual",
     });
     expect(confirmedTrial.status).toBe(303);
+    expect(await env.DB.prepare("SELECT status,total_minor FROM commerce_orders WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toEqual({ status: "draft", total_minor: 1900 });
     expect(await env.DB.prepare("SELECT access_state,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
       .toEqual({ access_state: "trial", guest_access_enabled: 1, guest_uploads_enabled: 1, original_downloads_enabled: 0 });
 

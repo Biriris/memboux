@@ -22,7 +22,7 @@ const access = (overrides: Partial<EventAccessRow> = {}): EventAccessRow => ({
 
 describe("event access lifecycle", () => {
   it("uses the intended trial shape", () => {
-    expect(EVENT_TRIAL_DAYS).toBe(14);
+    expect(EVENT_TRIAL_DAYS).toBe(7);
     expect(EVENT_TRIAL_MEDIA_LIMIT).toBe(20);
   });
 

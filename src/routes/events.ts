@@ -7,20 +7,20 @@ import { TRASH_RETENTION_MS } from "../config";
 import type { Bindings, EventInvitationRow, EventMemberRow } from "../domain";
 import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEventRole, normalizePendingManagedEventRole, removeEventPersonAccess } from "../event-people";
 import { eventTypeLabel, isEventType, normalizeEventType } from "../event-types";
-import { EVENT_TRIAL_DAYS, EVENT_TRIAL_MEDIA_LIMIT, eventMediaUsage, getEventAccess, startEventTrial } from "../event-access";
+import { changeEventType } from "../event-type-transitions";
+import { eventMediaUsage, getEventAccess } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { createInvitationToken, createOrReplaceInvitation, hashInvitationToken, normalizeInviteRole } from "../invitations";
 import { existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
 import { PlaceInputError, resolveEventPlaceInput } from "../places";
 import { canInviteToEvent } from "../quotas";
+import { commerceLaunchReady, eventProducts, getCommerceLaunchSettings, type CommerceOrder } from "../commerce";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { canManageOfficialAlbum } from "../studio";
-import { trialCopy } from "../trial-copy";
 import { esc, formatEventDates, sha256, validEventDate } from "../utils";
 import { renderEventWorkspace } from "../views/event-workspace";
 import type { EventWorkspaceSection } from "../views/event-workspace-shell";
-import { eventHeader, logoutScript, page } from "../views/shared";
 
 export const eventRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -51,7 +51,7 @@ async function eventDashboard(
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState] = await Promise.all([
+  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     canManageEvent
       ? c.env.DB.prepare(`SELECT * FROM (
@@ -83,6 +83,14 @@ async function eventDashboard(
       ? c.env.DB.prepare("SELECT wizard_completed_at,publish_status,estimated_total_minor,currency FROM event_wedding_profiles WHERE event_id=?")
         .bind(event.id).first<{ wizard_completed_at: number | null; publish_status: "draft" | "published"; estimated_total_minor: number; currency: string }>()
       : Promise.resolve(null),
+    canManageEvent ? eventProducts(c.env.DB) : Promise.resolve([]),
+    canManageEvent
+      ? c.env.DB.prepare(`SELECT o.*,i.product_key FROM commerce_orders o
+          LEFT JOIN commerce_order_items i ON i.order_id=o.id
+          WHERE o.user_id=? AND o.event_id=? AND o.status='draft' LIMIT 1`)
+        .bind(user.id, event.id).first<CommerceOrder & { product_key: string | null }>()
+      : Promise.resolve(null),
+    canManageEvent ? getCommerceLaunchSettings(c.env.DB) : Promise.resolve(null),
   ]);
   const origin = new URL(c.req.url).origin;
   const guestUrl = `${origin}/gallery/${event.code}`;
@@ -117,6 +125,9 @@ async function eventDashboard(
     eventAccess,
     mediaUsageTotal: mediaUsage.total,
     weddingState,
+    commerceProducts,
+    selectedProductKey: draftOrder?.product_key ?? null,
+    commerceLaunchReady: commerceSettings ? commerceLaunchReady(commerceSettings) : false,
   }));
 }
 
@@ -137,55 +148,12 @@ eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Forbidden", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const copy = trialCopy[locale];
-  if (String(body.confirmation ?? "") !== "activate")
-    return c.text(copy.confirmationRequired, 400);
-  const access = await getEventAccess(c.env.DB, event.id);
-  if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
-  const usage = await eventMediaUsage(c.env.DB, event.id);
-  if (usage.total > EVENT_TRIAL_MEDIA_LIMIT)
-    return c.text(copy.capacityError(EVENT_TRIAL_MEDIA_LIMIT), 409);
-  await startEventTrial(c.env.DB, event.id);
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}#package-access-title`, 303);
 });
 
 eventRoutes.get("/dashboard/:code/trial", async (c) => {
   const locale = normalizeLocale(c.req.query("lang") ?? "en");
-  const copy = trialCopy[locale];
-  const user = await currentUser(c);
-  if (!user) return c.redirect(`/${locale}/login`);
-  const event = await getEvent(c.env.DB, c.req.param("code"));
-  if (!event) return c.text(copy.eventNotFound, 404);
-  if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event"))
-    return c.text("Forbidden", 403);
-  const [access, usage] = await Promise.all([
-    getEventAccess(c.env.DB, event.id),
-    eventMediaUsage(c.env.DB, event.id),
-  ]);
-  if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 302);
-
-  const now = Date.now();
-  const trialEndsAt = now + EVENT_TRIAL_DAYS * 86_400_000;
-  const dateFormat = new Intl.DateTimeFormat(locale, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const mediaUsed = usage.total;
-  const canActivate = mediaUsed <= EVENT_TRIAL_MEDIA_LIMIT;
-  const eventStartsAt = event.event_start_date
-    ? new Date(`${event.event_start_date}T12:00:00Z`).getTime()
-    : null;
-  const eventAfterTrial = eventStartsAt !== null && eventStartsAt > trialEndsAt;
-  const warning = !canActivate
-    ? `<div class="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"><strong>${esc(copy.actionRequired)}</strong><p class="mt-1">${esc(copy.capacityWarning(mediaUsed, EVENT_TRIAL_MEDIA_LIMIT, mediaUsed - EVENT_TRIAL_MEDIA_LIMIT))}</p></div>`
-    : eventAfterTrial
-      ? `<div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>${esc(copy.checkDates)}</strong><p class="mt-1">${esc(copy.dateWarning)}</p></div>`
-      : "";
-  const body = `${eventHeader(locale, user, "")}<main class="min-h-[calc(100vh-4rem)] bg-[#f8f5ff] p-4 sm:p-6"><div class="mx-auto max-w-5xl"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${esc(copy.back)}</a><div class="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"><section class="rounded-[2rem] border border-[#e7e0f0] bg-white p-6 shadow-sm sm:p-9"><p class="text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">Memboux trial</p><h1 class="mt-3 text-4xl tracking-[-.035em] text-[#2b174d] sm:text-5xl">${esc(copy.title)}</h1><p class="mt-4 max-w-3xl leading-7 text-[#6f657c]">${esc(copy.intro)}</p>${warning}<div class="mt-7 grid gap-3 sm:grid-cols-2"><div class="rounded-2xl bg-[#f6f2ff] p-5"><span class="text-xs font-bold uppercase tracking-[.14em] text-[#7c3aed]">${esc(copy.startsToday)}</span><strong class="mt-2 block text-xl text-[#2b174d]">${dateFormat.format(now)} → ${dateFormat.format(trialEndsAt)}</strong><p class="mt-2 text-sm text-[#6f657c]">${esc(copy.noRestart)}</p></div><div class="rounded-2xl bg-[#f6f2ff] p-5"><span class="text-xs font-bold uppercase tracking-[.14em] text-[#7c3aed]">${esc(copy.mediaUsage)}</span><strong class="mt-2 block text-xl text-[#2b174d]">${mediaUsed} / ${EVENT_TRIAL_MEDIA_LIMIT}</strong><p class="mt-2 text-sm text-[#6f657c]">${esc(copy.mediaCountTogether)}</p></div></div><form action="/api/account/events/${encodeURIComponent(event.code)}/access/start-trial" method="post" class="mt-7"><input type="hidden" name="locale" value="${locale}"><label class="flex items-start gap-3 rounded-2xl border border-[#ddd2ee] bg-[#faf8ff] p-4 text-sm leading-6 text-[#493b57]"><input type="checkbox" name="confirmation" value="activate" required class="mt-1 h-4 w-4 shrink-0 accent-[#7c3aed]"><span>${esc(copy.confirmation(EVENT_TRIAL_DAYS, EVENT_TRIAL_MEDIA_LIMIT))}</span></label><button ${canActivate ? "" : "disabled"} class="mt-4 w-full rounded-xl bg-[#2b174d] px-6 py-4 font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-40">${esc(copy.activate)}</button></form></section><aside class="h-fit rounded-[1.7rem] bg-[#2b174d] p-6 text-white lg:sticky lg:top-6"><span class="text-3xl">✦</span><h2 class="mt-4 text-2xl">${esc(copy.unlocks)}</h2><ul class="mt-5 space-y-3 text-sm leading-6 text-white/75"><li>✓ ${esc(copy.guestLink)}</li><li>✓ ${esc(copy.uploads)}</li><li>✓ ${esc(copy.liveGallery)}</li><li>✓ ${esc(copy.ownerExperience)}</li><li class="text-amber-200">— ${esc(copy.noOriginals)}</li></ul><a href="/dashboard/${encodeURIComponent(event.code)}/checkout?lang=${locale}" class="mt-6 block rounded-xl bg-white/10 px-4 py-3 text-center text-sm font-semibold text-white">${esc(copy.futurePlans)}</a></aside></div></div></main>${logoutScript(locale)}`;
-  return c.html(page(copy.pageTitle, body, { locale }));
+  return c.redirect(`/dashboard/${encodeURIComponent(c.req.param("code"))}?lang=${locale}#package-access-title`, 302);
 });
 
 eventRoutes.get("/dashboard/:code/edit", async (c) => {
@@ -196,6 +164,47 @@ eventRoutes.get("/dashboard/:code/edit", async (c) => {
   if (!user) return c.redirect(`/${locale}/login`);
   if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Only the event owner can edit this event", 403);
   return c.redirect(`/dashboard/${event.code}?lang=${locale}#settings`, 302);
+});
+
+eventRoutes.post("/api/account/events/:code/event-type", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  if ((await getEventRole(c.env.DB, event.id, user.id)) !== "owner")
+    return c.text("Only an event owner can change the event type.", 403);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? event.default_locale));
+  const nextType = body.eventType;
+  if (!isEventType(nextType))
+    return c.text(locale === "el" ? "Μη έγκυρος τύπος event." : "Invalid event type.", 400);
+  const currentType = normalizeEventType(event.event_type);
+  if (nextType === currentType)
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}#overview`, 303);
+  if (String(body.confirmation ?? "") !== "change")
+    return c.text(locale === "el" ? "Απαιτείται επιβεβαίωση της αλλαγής." : "Confirm the event type change.", 400);
+
+  const result = await changeEventType(c.env.DB, {
+    eventId: event.id,
+    eventName: event.eventName,
+    from: currentType,
+    to: nextType,
+    changedByUserId: user.id,
+  });
+  if (!result.changed)
+    return c.text(locale === "el" ? "Ο τύπος event άλλαξε ήδη. Ανανέωσε τη σελίδα." : "The event type already changed. Refresh the page.", 409);
+  console.log(JSON.stringify({
+    event: "event_type_changed",
+    eventId: event.id,
+    userId: user.id,
+    fromEventType: currentType,
+    toEventType: nextType,
+    restoredPreviousSetup: result.restored,
+  }));
+  const setupPath = nextType === "wedding"
+    ? `/dashboard/${event.code}/wedding/setup`
+    : `/dashboard/${event.code}/setup`;
+  return c.redirect(`${setupPath}?lang=${locale}&typeChanged=1`, 303);
 });
 
 eventRoutes.get("/event-cover/:code", async (c) => {

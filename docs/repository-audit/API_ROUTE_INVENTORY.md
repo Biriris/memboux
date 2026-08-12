@@ -164,9 +164,9 @@ POST  /admin/users/:id/subscription
 POST  /admin/users/:id/payments
 ```
 
-## Event workspace — `src/routes/events.ts` (19)
+## Event workspace — `src/routes/events.ts` (20)
 
-Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed. `/manage` is a compatibility alias for the overview, not a navigation step. The privacy mutation accepts only `website`, `guest_gallery`, or `official_album`, hashes the submitted PIN, and updates that surface independently. The invitation route accepts `owner`, `editor`, `viewer`, or the separate `professional` access kind; an `owner` invitation grants full co-owner membership only after email-bound acceptance.
+Source: [`src/routes/events.ts`](../../src/routes/events.ts). Dashboard pages require membership. Mutations check owner/event capability; cover delivery also checks authorized access. Trial start is owner-managed through the commerce route below. `/manage` is a compatibility alias for the overview; the old trial page and direct start action are compatibility redirects to the unified package panel. The privacy mutation accepts only `website`, `guest_gallery`, or `official_album`, hashes the submitted PIN, and updates that surface independently. The invitation route accepts `owner`, `editor`, `viewer`, or the separate `professional` access kind; an `owner` invitation grants full co-owner membership only after email-bound acceptance.
 
 ```text
 GET   /dashboard/:code
@@ -179,6 +179,7 @@ GET   /dashboard/:code/team
 GET   /dashboard/:code/manage
 POST  /api/account/events/:code/access/start-trial
 GET   /dashboard/:code/trial
+POST  /api/account/events/:code/event-type
 GET   /dashboard/:code/edit
 GET   /event-cover/:code
 POST  /api/account/events/:code/cover
@@ -227,6 +228,8 @@ POST  /api/account/events/:code/professional/revoke
 ## Gallery and direct upload — `src/routes/gallery.ts` (9)
 
 Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Guest-gallery, official-album, and media reads combine event lifecycle, their surface-specific PIN cookie, and authorized-member preview rules. The wedding guest gallery remains a distinct URL from the wedding website. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, and trial capacity.
+
+`GET /api/upload/:code/capacity` in [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) returns the active trial usage and remaining lifetime slots to an authorized gallery visitor so the guest uploader can show and enforce the 20-file trial state before transfer.
 
 ```text
 POST  /gallery/:code/unlock
@@ -368,13 +371,14 @@ POST  /api/account/events/:code/backups/dropbox
 GET   /api/backups/:id
 ```
 
-## Commerce — `src/routes/commerce.ts` (3)
+## Commerce — `src/routes/commerce.ts` (4)
 
-Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The page and draft action require an authenticated event manager. While payment launch is not ready, only the event owner can use the distinct complimentary beta activation action; it updates event access without recording the draft order as paid. No card-provider checkout route is registered.
+Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. Draft selection requires an authenticated event manager, while trial start and complimentary beta activation require an owner. Trial start saves the selected package as a draft order before opening the 7-day trial. While payment launch is not ready, complimentary activation updates event access without recording the draft order as paid. No card-provider checkout route is registered.
 
 ```text
 GET   /dashboard/:code/checkout
 POST  /api/account/events/:code/checkout/draft
+POST  /api/account/events/:code/checkout/start-trial
 POST  /api/account/events/:code/checkout/activate-beta
 ```
 
