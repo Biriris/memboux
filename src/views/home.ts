@@ -1,6 +1,8 @@
 ﻿import { localeNames, supportedLocales, type Locale } from "../i18n";
 import { brandMark, page } from "./shared";
 import { additionalHomeCopy } from "./home-copy";
+import { homeCommercialSections } from "./home-commercial";
+import type { CommerceProduct } from "../commerce";
 
 const icon = (path: string, className = "h-5 w-5") =>
   `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="${className}">${path}</svg>`;
@@ -20,7 +22,7 @@ const icons = {
   globe: icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>', "h-4 w-4"),
 };
 
-export function homePage(locale: Locale) {
+export function homePage(locale: Locale, products: CommerceProduct[]) {
   const el = locale === "el";
   const copy = {
     title: el ? "Memboux – Όλες οι στιγμές του event, σε ένα μέρος" : "Memboux – Every event moment, in one place",
@@ -140,6 +142,7 @@ export function homePage(locale: Locale) {
     },
   };
   const vision = visionCopy[locale];
+  const commercialSections = homeCommercialSections(locale, products);
 
   const featureIcon = (name: string) => icons[name as keyof typeof icons] ?? icons.gallery;
   const featureCards = copy.features
@@ -167,12 +170,14 @@ export function homePage(locale: Locale) {
       <header class="relative z-30 border-b border-[#eadffc]/80 bg-[#fff9f6]/90 backdrop-blur-xl">
         <nav aria-label="${el ? "Κύρια πλοήγηση" : "Main navigation"}" class="mx-auto flex h-20 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
           ${brandMark(`/${locale}`, true)}
-          <div class="hidden items-center gap-8 text-sm text-[#596d65] lg:flex">
+          <div class="hidden items-center gap-7 text-sm text-[#596d65] lg:flex">
+            <a href="#event-types" class="hover:text-[#2b174d]">Events</a>
+            <a href="#demo" class="hover:text-[#2b174d]">Demo</a>
             <a href="#features" class="hover:text-[#2b174d]">${copy.navFeatures}</a>
-            <a href="#how-it-works" class="hover:text-[#2b174d]">${copy.navHow}</a>
-            <a href="#privacy" class="hover:text-[#2b174d]">${copy.navPrivacy}</a>
+            <a href="#pricing" class="hover:text-[#2b174d]">${el ? "Πακέτα" : "Pricing"}</a>
           </div>
           <div class="flex shrink-0 items-center gap-2">
+            <details class="group relative lg:hidden"><summary aria-label="Menu" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-[#e2dcef] bg-white text-lg text-[#443653] shadow-sm [&::-webkit-details-marker]:hidden">☰</summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-60 rounded-2xl border border-[#e7e0f0] bg-white p-2 text-sm shadow-[0_20px_55px_rgba(24,60,51,.16)]"><a href="#event-types" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Events</a><a href="#demo" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">Demo</a><a href="#features" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${copy.navFeatures}</a><a href="#pricing" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">${el ? "Πακέτα" : "Pricing"}</a><a href="#faq" class="block rounded-xl px-3 py-3 font-semibold hover:bg-[#f8f7fc]">FAQ</a><a href="/${locale}/login" class="mt-1 block rounded-xl bg-[#f0edff] px-3 py-3 font-bold text-[#4d2fbd] sm:hidden">${copy.login}</a></div></details>
             <details class="group relative"><summary aria-label="${copy.language}" title="${copy.language}" class="flex h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-[#e2dcef] bg-white px-3 text-xs font-semibold text-[#443653] shadow-sm transition hover:border-[#b8cbc3] hover:bg-[#fafcfb] [&::-webkit-details-marker]:hidden">${icons.globe}<span class="hidden sm:inline">${localeNames[locale]}</span><span class="sm:hidden">${locale.toUpperCase()}</span><span aria-hidden="true" class="text-[10px] transition group-open:rotate-180">⌄</span></summary><div class="absolute right-0 top-[calc(100%+.65rem)] z-50 w-48 rounded-2xl border border-[#e7e0f0] bg-white p-2 shadow-[0_20px_55px_rgba(24,60,51,.16)]"><p class="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#788b84]">${copy.language}</p>${languageLinks}</div></details>
             <a href="/${locale}/login" class="hidden rounded-full px-4 py-2.5 text-sm font-semibold text-[#2b174d] hover:bg-white sm:inline-flex">${copy.login}</a>
             <a href="/${locale}/register" class="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(124,58,237,.22)] hover:-translate-y-0.5 sm:px-5">${copy.register}<span class="hidden sm:inline">${icons.arrow}</span></a>
@@ -220,6 +225,8 @@ export function homePage(locale: Locale) {
           <div class="flex flex-wrap justify-center gap-2">${chips}</div>
         </div>
       </section>
+
+      ${commercialSections}
 
       <section class="relative overflow-hidden bg-[#2b1b4b] text-white">
         <div class="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#7c3aed]/30 blur-3xl"></div>

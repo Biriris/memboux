@@ -582,7 +582,7 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
     if (error instanceof Error && error.message.includes("storage_quota_exceeded"))
       return c.text(uploadCopy.storageQuota, 413);
     if (isTrialMediaLimitConstraint(error))
-      return c.text(uploadCopy.trialLimit(20), 409);
+      return c.text(uploadCopy.trialLimit(capacity.access.media_limit), 409);
     throw error;
   }
 

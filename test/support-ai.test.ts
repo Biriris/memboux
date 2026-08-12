@@ -18,10 +18,10 @@ describe("grounded support answers", () => {
   it("keeps trial and payment facts consistent in all supported languages", () => {
     const cases = [
       ["How does the free trial and payment work?", "37 days", "50"],
-      ["Comment fonctionne l’essai et le paiement ?", "7 jours", "20"],
-      ["Wie funktionieren Test und Zahlung?", "7 Tage", "20"],
-      ["¿Cómo funcionan la prueba y el pago?", "7 días", "20"],
-      ["Come funzionano la prova e il pagamento?", "7 giorni", "20"],
+      ["Comment fonctionne l’essai et le paiement ?", "37 jours", "50"],
+      ["Wie funktionieren Test und Zahlung?", "37 Tage", "50"],
+      ["¿Cómo funcionan la prueba y el pago?", "37 días", "50"],
+      ["Come funzionano la prova e il pagamento?", "37 giorni", "50"],
       ["Πώς λειτουργεί το trial και η πληρωμή;", "37 ημέρες", "50"],
     ] as const;
 

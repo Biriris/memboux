@@ -186,6 +186,16 @@ button { letter-spacing: .025em; }
 .mbx-brand-wordmark { letter-spacing: -.035em; }
 .mbx-brand-tagline { letter-spacing: .18em; }
 
+.home-event-card,
+.home-plan-card {
+  transition: transform var(--duration-normal) ease, border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
+}
+.home-demo-stage {
+  background:
+    radial-gradient(circle at 90% 5%, rgba(255, 95, 126, .22), transparent 18rem),
+    rgba(255, 255, 255, .055);
+}
+
 @media (hover: hover) {
   .mbx-button:hover { transform: translateY(-1px); }
   .mbx-button--primary:hover {
@@ -193,12 +203,19 @@ button { letter-spacing: .025em; }
     box-shadow: 0 14px 30px rgba(113, 82, 243, .3);
   }
   .mbx-button--secondary:hover { border-color: var(--accent-soft); background: var(--surface-soft); }
+  .home-event-card:hover,
+  .home-plan-card:not(:nth-child(2)):hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-soft);
+    box-shadow: var(--shadow-xl);
+  }
 }
 
 @media (max-width: 639px) {
   .mbx-container,
   .mbx-header-inner { width: min(100% - 1.25rem, var(--content-width)); }
   .mbx-button { min-height: 3rem; }
+  .home-demo-stage iframe { height: 31rem; }
 }
 
 /* ============================================================

@@ -229,7 +229,7 @@ POST  /api/account/events/:code/professional/revoke
 
 Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Guest-gallery, official-album, and media reads combine event lifecycle, their surface-specific PIN cookie, and authorized-member preview rules. The wedding guest gallery remains a distinct URL from the wedding website. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, and trial capacity.
 
-`GET /api/upload/:code/capacity` in [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) returns the active trial usage and remaining lifetime slots to an authorized gallery visitor so the guest uploader can show and enforce the 20-file trial state before transfer.
+`GET /api/upload/:code/capacity` in [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) returns the active Memboux Free usage and remaining lifetime slots to an authorized gallery visitor so the guest uploader can show and enforce the event's persisted media limit before transfer. The current default established by migration [`0068_free_plan_and_event_packages.sql`](../../migrations/0068_free_plan_and_event_packages.sql) is 50 files.
 
 ```text
 POST  /gallery/:code/unlock
@@ -373,7 +373,7 @@ GET   /api/backups/:id
 
 ## Commerce — `src/routes/commerce.ts` (4)
 
-Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. Draft selection requires an authenticated event manager, while trial start and complimentary beta activation require an owner. Trial start saves the selected package as a draft order before opening the 7-day trial. While payment launch is not ready, complimentary activation updates event access without recording the draft order as paid. No card-provider checkout route is registered.
+Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. Draft selection requires an authenticated event manager, while Memboux Free activation and complimentary beta activation require an owner. Activation saves the selected package as a draft order before opening the current 37-day free-access period. While payment launch is not ready, complimentary activation updates event access without recording the draft order as paid. No card-provider checkout route is registered.
 
 ```text
 GET   /dashboard/:code/checkout

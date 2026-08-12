@@ -18,6 +18,7 @@ import { cookiePolicyPage, privacyPolicyPage, privacyRequestPage, termsPage } fr
 import { brandMark, page } from "../views/shared";
 import { cookieValue } from "../utils";
 import { checkEmailDnsHealth } from "../email-dns-health";
+import { eventProducts } from "../commerce";
 
 type AppEnvironment = { Bindings: Bindings };
 
@@ -163,7 +164,8 @@ const localizedHome: Handler<AppEnvironment> = async (c) => {
   setCookie(c, "memboux_locale", locale, { path: "/", maxAge: 31_536_000, sameSite: "Lax", secure: true });
   const user = await currentUser(c);
   if (user) return c.redirect(`/${locale}/account`);
-  return c.html(homePage(locale));
+  const products = await eventProducts(c.env.DB).catch(() => []);
+  return c.html(homePage(locale, products));
 };
 publicRoutes.get("/el", localizedHome);
 publicRoutes.get("/en", localizedHome);

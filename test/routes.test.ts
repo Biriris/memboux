@@ -308,8 +308,15 @@ describe("public Worker routes", () => {
     expect(html).toContain('id="how-it-works"');
     expect(html).toContain('id="features"');
     expect(html).toContain('id="privacy"');
+    expect(html).toContain('id="event-types"');
+    expect(html).toContain('id="demo"');
+    expect(html).toContain('id="pricing"');
+    expect(html).toContain('id="faq"');
     expect(html).toContain("No app required");
     expect(html).toContain("Memboux Studio");
+    expect(html).toContain("Memboux Free");
+    expect(html).toContain('/en/events/birthday/demo-frame?theme=vivid');
+    expect(html).toContain('memboux:marketing-action');
     expect(html).toContain("Your next big event starts here.");
     expect(html).toContain('/en/register');
     expect(html).toContain('/el');

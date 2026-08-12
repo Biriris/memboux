@@ -30,3 +30,13 @@ Public wedding pages dispatch the browser event `memboux:wedding-template-ready`
 ## Wedding menu editing
 
 Successful automatic updates to an existing structured menu item dispatch `memboux:wedding-menu-autosaved`. Its detail contains only the canonical `courseType`; titles, descriptions, event identifiers and other user-entered content are excluded. The event is not currently transmitted or persisted and remains an integration point for a future consent-aware analytics collector.
+
+## Public acquisition journeys
+
+Primary calls to action on the public homepage dispatch the browser event
+`memboux:marketing-action`. Its detail contains only a fixed `action` value
+defined by the rendered link, such as an event type, demo, package or
+professional-profile journey. It excludes visitor identifiers, URLs, form
+values and event content. The event is not currently transmitted or persisted;
+it is a privacy-minimized integration point for a future consent-aware
+analytics collector.

@@ -170,7 +170,7 @@ describe("gallery, upload, and media routes", () => {
 
     const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
     const html = await gallery.text();
-    expect(html).toContain("This event’s free trial has reached 20 photos and videos.");
+    expect(html).toContain("This event’s Memboux Free allowance has reached {limit} photos and videos.");
     expect(html).toContain("form.dataset.trialUploadRemaining");
   });
 
