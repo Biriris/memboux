@@ -4,18 +4,30 @@
   /* The current design system is light-only. Prevent mobile browsers from
      auto-darkening controls and mixing their dark palette with our tokens. */
   color-scheme: only light;
-  --canvas: #fbf9ff;
+  --canvas: #f8f7fc;
   --surface: #ffffff;
-  --surface-soft: #f2efff;
-  --line: #e4ddf5;
-  --accent-soft: #d8ceff;
-  --accent: #6c4cf1;
-  --accent-deep: #4c2cb3;
-  --accent-aqua: #20bfa9;
-  --accent-coral: #ff6b7a;
-  --ink: #251547;
-  --muted: #726985;
+  --surface-soft: #f0edff;
+  --surface-raised: #ffffff;
+  --line: #e5e0f0;
+  --line-strong: #d4cbe5;
+  --accent-soft: #ddd6ff;
+  --accent: #7152f3;
+  --accent-hover: #5f3ee6;
+  --accent-deep: #4d2fbd;
+  --accent-aqua: #17b8a6;
+  --accent-coral: #ff5f7e;
+  --accent-sun: #ffcf5c;
+  --ink: #20152f;
+  --ink-strong: #171021;
+  --muted: #70667d;
+  --muted-soft: #958b9f;
   --font-primary: "Manrope", sans-serif;
+
+  --radius-sm: .75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --content-width: 80rem;
 
   /* Enhanced shadow system */
   --shadow-sm: 0 1px 3px rgba(37, 21, 71, .06);
@@ -34,15 +46,17 @@ html { background: var(--canvas); }
 body {
   color: var(--ink);
   font-family: var(--font-primary);
-  font-weight: 300;
-  letter-spacing: .01em;
+  font-weight: 400;
+  letter-spacing: -.005em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3, .font-serif {
   font-family: var(--font-primary);
-  font-weight: 400;
-  letter-spacing: -.015em;
+  font-weight: 650;
+  letter-spacing: -.035em;
 }
-strong { font-weight: 500; }
+strong { font-weight: 650; }
 button, input, select, textarea { font: inherit; }
 input::file-selector-button { font: inherit; }
 .gallery-upload, .gallery-upload * { font-family: var(--font-primary); }
@@ -59,6 +73,133 @@ input::file-selector-button { font: inherit; }
   pointer-events: auto;
 }
 button { letter-spacing: .025em; }
+
+/* ============================================================
+   Memboux UI foundations
+   Reusable primitives for product and marketing screens. These
+   classes deliberately contain presentation only, never behavior.
+   ============================================================ */
+.mbx-container {
+  width: min(100% - 2rem, var(--content-width));
+  margin-inline: auto;
+}
+.mbx-section { padding-block: clamp(3.5rem, 8vw, 7rem); }
+.mbx-eyebrow {
+  color: var(--accent-deep);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .16em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.mbx-display {
+  max-width: 18ch;
+  color: var(--ink-strong);
+  font-size: clamp(2.55rem, 7vw, 5.5rem);
+  font-weight: 720;
+  letter-spacing: -.065em;
+  line-height: .98;
+  text-wrap: balance;
+}
+.mbx-title {
+  color: var(--ink-strong);
+  font-size: clamp(1.8rem, 4vw, 3.25rem);
+  font-weight: 680;
+  letter-spacing: -.045em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.mbx-lead {
+  max-width: 42rem;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.75;
+}
+.mbx-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, .92);
+  box-shadow: var(--shadow-md);
+}
+.mbx-button {
+  display: inline-flex;
+  min-height: 2.875rem;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: .72rem 1.2rem;
+  font-size: .9rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  transition: transform var(--duration-fast) ease, background-color var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.mbx-button--primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(113, 82, 243, .24);
+}
+.mbx-button--secondary {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, .86);
+  color: var(--ink);
+}
+.mbx-button--quiet { color: var(--ink); }
+.mbx-field {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  padding: .75rem 1rem;
+}
+.mbx-chip {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: .4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: .35rem .75rem;
+  font-size: .78rem;
+  font-weight: 650;
+}
+.mbx-app-header {
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  background:
+    radial-gradient(circle at 82% -100%, rgba(113, 82, 243, .65), transparent 45%),
+    rgba(32, 21, 47, .96);
+  color: #fff;
+  backdrop-filter: blur(20px) saturate(130%);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+}
+.mbx-header-inner {
+  width: min(100% - 2rem, var(--content-width));
+  margin-inline: auto;
+}
+.mbx-brand-wordmark { letter-spacing: -.035em; }
+.mbx-brand-tagline { letter-spacing: .18em; }
+
+@media (hover: hover) {
+  .mbx-button:hover { transform: translateY(-1px); }
+  .mbx-button--primary:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 14px 30px rgba(113, 82, 243, .3);
+  }
+  .mbx-button--secondary:hover { border-color: var(--accent-soft); background: var(--surface-soft); }
+}
+
+@media (max-width: 639px) {
+  .mbx-container,
+  .mbx-header-inner { width: min(100% - 1.25rem, var(--content-width)); }
+  .mbx-button { min-height: 3rem; }
+}
 
 /* ============================================================
    Memboux violet rebrand
