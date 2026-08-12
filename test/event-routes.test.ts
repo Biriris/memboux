@@ -73,6 +73,7 @@ describe("event route boundaries", () => {
     `/dashboard/${code}/manage`,
     `/dashboard/${code}/edit`,
     `/dashboard/${code}/professional`,
+    `/dashboard/${code}/qr-templates`,
     `/dashboard/${code}/media/11111111-1111-4111-8111-111111111111`,
   ])("redirects anonymous owner page %s to login", async (path) => {
     const response = await SELF.fetch(`https://memboux.com${path}?lang=en`, {
@@ -92,6 +93,7 @@ describe("event route boundaries", () => {
     `/api/account/events/${code}/members/role`,
     `/api/account/events/${code}/professional/assign`,
     `/api/account/events/${code}/professional/revoke`,
+    `/api/account/events/${code}/qr-template-activity`,
     `/api/account/events/${code}/media/11111111-1111-4111-8111-111111111111/rename`,
     `/api/account/events/${code}/media/11111111-1111-4111-8111-111111111111/trash`,
     `/api/account/events/${code}/media/bulk-trash`,

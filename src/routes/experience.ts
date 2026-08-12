@@ -11,6 +11,7 @@ import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { esc, formatEventDates, sha256 } from "../utils";
 import { eventHeader, page } from "../views/shared";
+import { renderQrTemplateStudio, type QrStudioDestination } from "../views/qr-template-studio";
 import { weddingThemeFor } from "../wedding-themes";
 
 type ExperienceSettings = {
@@ -370,7 +371,67 @@ experienceRoutes.post("/api/account/events/:code/comments/:id/hide", async (c) =
   return c.redirect(`/dashboard/${event.code}/engagement?lang=${locale}`, 303);
 });
 
+experienceRoutes.post("/api/account/events/:code/qr-template-activity", async (c) => {
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  const user = await currentUser(c);
+  if (!user || !roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Unauthorized", 401);
+  const payload: { action?: string; family?: string; format?: string } = await c.req.json().catch(() => ({}));
+  const actions = new Set(["opened", "download_svg", "download_png", "print"]);
+  if (!payload.action || !actions.has(payload.action)) return c.json({ error: "Invalid action" }, 400);
+  console.log(JSON.stringify({
+    event: "qr_template_studio_activity",
+    action: payload.action,
+    event_id: event.id,
+    user_id: user.id,
+    family: String(payload.family ?? "").slice(0, 32),
+    format: String(payload.format ?? "").slice(0, 16),
+  }));
+  return c.json({ ok: true });
+});
+
 experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
+  if (c.req.path.endsWith("/qr-templates")) {
+    const locale = normalizeLocale(c.req.query("lang") ?? "en");
+    const event = await getEvent(c.env.DB, c.req.param("code"));
+    if (!event) return c.text("Event not found", 404);
+    const user = await currentUser(c);
+    if (!user) return c.redirect(`/${locale}/login`);
+    if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Forbidden", 403);
+    const [weddingProfile, albums] = await Promise.all([
+      event.event_type === "wedding"
+        ? c.env.DB.prepare("SELECT template_key,accent_color FROM event_wedding_profiles WHERE event_id=?")
+          .bind(event.id).first<{ template_key: string; accent_color: string | null }>()
+        : null,
+      listEventAlbums(c.env.DB, event.id),
+    ]);
+    const weddingTheme = weddingProfile ? weddingThemeFor(weddingProfile.template_key) : null;
+    const palette = weddingTheme?.palette ?? (["#2b174d", "#c8b7e8", "#f8f5ff"] as const);
+    const origin = new URL(c.req.url).origin;
+    const destinations = [
+      { key: "guest_gallery", label: text(locale, "Gallery & uploads καλεσμένων", "Guest gallery & uploads"), url: `${origin}/gallery/${encodeURIComponent(event.code)}?source=qr` },
+      { key: "event_website", label: text(locale, "Website εκδήλωσης", "Event website"), url: `${origin}/${event.event_type === "wedding" ? "wedding" : "event"}/${encodeURIComponent(event.code)}?lang=${locale}` },
+      { key: "official_album", label: text(locale, "Επίσημο άλμπουμ", "Official album"), url: `${origin}/gallery/${encodeURIComponent(event.code)}/official?lang=${locale}` },
+      ...albums.map((album) => ({ key: `album_${album.id}`, label: album.name, url: `${origin}/gallery/${encodeURIComponent(event.code)}/albums/${encodeURIComponent(album.slug)}?source=qr` })),
+    ];
+    const studioDestinations: QrStudioDestination[] = await Promise.all(destinations.map(async (destination) => ({
+      ...destination,
+      qrSvg: await QRCode.toString(destination.url, { type: "svg", width: 700, margin: 1, errorCorrectionLevel: "H" }),
+    })));
+    const body = renderQrTemplateStudio({
+      locale,
+      eventCode: event.code,
+      eventName: event.eventName,
+      eventDate: formatEventDates(event, locale),
+      headerHtml: eventHeader(locale, { name: user.name ?? user.email, email: user.email }),
+      backUrl: `/dashboard/${encodeURIComponent(event.code)}?lang=${locale}`,
+      destinations: studioDestinations,
+      defaultBackground: palette[2],
+      defaultAccent: weddingProfile?.accent_color ?? weddingTheme?.defaultAccent ?? "#7c3aed",
+      defaultInk: palette[0],
+    });
+    return c.html(page(`${event.eventName} – QR Template Studio`, body, { locale }));
+  }
   const locale = normalizeLocale(c.req.query("lang") ?? "en");
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return c.text("Event not found", 404);

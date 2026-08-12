@@ -44,3 +44,17 @@ establishes the implemented event media hub:
 The ZIP is a bounded-memory HTTP stream, not a Queue/Workflow background archive,
 and is not retained in R2. Video-guestbook columns are schema groundwork only;
 the capture workflow is not implemented and must not be marketed as available.
+
+## QR Template Studio
+
+The authenticated event dashboard includes a native QR Template Studio at
+`GET /dashboard/:code/qr-templates`. It generates 216 editable combinations
+from 12 design families, six print/social formats and three copy presets. The
+editor automatically uses the event name, date and QR destination, and supports
+the guest gallery, event website, official album and event album destinations.
+
+Exports are available as vector SVG, high-resolution PNG and browser print/PDF.
+No Canva account, Canva API integration or generated-image service is required.
+Export actions are emitted as structured Worker logs through the authenticated
+`POST /api/account/events/:code/qr-template-activity` endpoint. Cross-device
+design draft persistence and Canva Autofill export are not implemented.
