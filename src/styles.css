@@ -745,6 +745,25 @@ input:disabled { cursor: not-allowed; }
 #event-search:not([open]) {
   display: none !important;
 }
+#open-event-search {
+  color: #2b174d;
+  background: rgb(255 255 255 / 92%);
+  border-color: #e2dcef;
+  box-shadow: 0 1px 2px rgb(43 23 77 / 6%);
+}
+#open-event-search:hover {
+  color: #5b3b7d;
+  background: #fff;
+  border-color: #cfc2df;
+}
+#open-event-search svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  stroke-width: 2.2;
+}
+.event-sort-toolbar label:nth-of-type(2) {
+  display: none;
+}
 .account-menu > summary::-webkit-details-marker { display: none; }
 .account-menu > summary::marker { content: ""; }
 .account-menu > summary { -webkit-tap-highlight-color: transparent; }

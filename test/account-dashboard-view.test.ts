@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   eventAlbumPreviewHref,
+  partitionDashboardEvents,
   professionalAssignmentHref,
   renderCreateEventTile,
   renderDashboardSection,
@@ -101,5 +102,25 @@ describe("collapsible account dashboard sections", () => {
     expect(html).toContain("Memboux Studio albums");
     expect(html).toContain("sm:ml-auto");
     expect(html).toContain("target.open=true");
+  });
+});
+
+describe("calendar event ordering", () => {
+  it("shows nearest upcoming events first and most recent past events first", () => {
+    const result = partitionDashboardEvents([
+      { event_start_date: "2026-09-20", event_end_date: "2026-09-20" },
+      { event_start_date: "2026-08-01", event_end_date: "2026-08-02" },
+      { event_start_date: "2026-08-20", event_end_date: "2026-08-20" },
+      { event_start_date: "2026-07-10", event_end_date: "2026-07-10" },
+    ], "2026-08-13");
+
+    expect(result.upcoming.map((event) => event.event_start_date)).toEqual(["2026-08-20", "2026-09-20"]);
+    expect(result.past.map((event) => event.event_start_date)).toEqual(["2026-08-01", "2026-07-10"]);
+  });
+
+  it("keeps undated events in upcoming planning", () => {
+    const result = partitionDashboardEvents([{ event_start_date: null, event_end_date: null }], "2026-08-13");
+    expect(result.upcoming).toHaveLength(1);
+    expect(result.past).toHaveLength(0);
   });
 });

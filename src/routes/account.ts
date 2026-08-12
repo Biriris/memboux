@@ -94,6 +94,19 @@ export function selectedEventCoverUrl(event: {
 
 export type AccountEventFilter = "all" | "owner" | "shared" | "professional" | "upcoming" | "past";
 
+type CalendarEvent = Pick<EventRow, "event_start_date" | "event_end_date">;
+
+export function partitionDashboardEvents<T extends CalendarEvent>(events: T[], today: string) {
+  const endDate = (event: T) => event.event_end_date || event.event_start_date || "9999-12-31";
+  const startDate = (event: T) => event.event_start_date || "9999-12-31";
+  return {
+    upcoming: events.filter((event) => endDate(event) >= today)
+      .sort((a, b) => startDate(a).localeCompare(startDate(b))),
+    past: events.filter((event) => endDate(event) < today)
+      .sort((a, b) => startDate(b).localeCompare(startDate(a))),
+  };
+}
+
 export function shouldShowProfessionalDashboardSection(
   hasActiveProfessionalProfile: boolean,
   filter: AccountEventFilter,
@@ -123,7 +136,7 @@ export function renderDashboardSection(
   content: string,
   empty: string,
 ) {
-  return `<details id="${esc(id)}" open class="group/dashboard-section mt-10 scroll-mt-24"><summary class="flex cursor-pointer list-none items-end justify-between gap-4 rounded-2xl px-1 py-2 outline-none transition hover:bg-white/55 focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><span><span class="block text-xs uppercase tracking-[.18em] text-[#7c3aed]">${esc(subtitle)}</span><span class="mt-1 block text-3xl text-[#2b174d]">${esc(title)}</span></span><span class="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#eae4f3] bg-white text-[#746a80] shadow-sm transition group-open/dashboard-section:rotate-180"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg></span></summary><div class="mt-3 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">${content || `<div class="rounded-2xl border border-dashed bg-white p-8 text-center text-sm text-[#6f657c] sm:col-span-2 xl:col-span-3">${empty}</div>`}</div></details>`;
+  return `<details id="${esc(id)}" open class="group/dashboard-section mt-10 scroll-mt-24"><summary class="flex cursor-pointer list-none items-end justify-between gap-4 rounded-xl px-1 py-2 outline-none transition hover:bg-white/55 focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><span><span class="block text-xs uppercase tracking-[.18em] text-[#7c3aed]">${esc(subtitle)}</span><span class="mt-1 block text-3xl text-[#2b174d]">${esc(title)}</span></span><span class="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#eae4f3] bg-white text-[#746a80] shadow-sm transition group-open/dashboard-section:rotate-180"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg></span></summary><div class="mt-4 space-y-5">${content || `<div class="rounded-2xl border border-dashed bg-white p-8 text-center text-sm text-[#6f657c]">${empty}</div>`}</div></details>`;
 }
 
 export function renderDashboardSubmenu(
@@ -149,7 +162,7 @@ export function renderDashboardSubmenu(
 }
 
 export function renderCreateEventTile(label: string, locale: Locale) {
-  return `<button type="button" data-open-new-event aria-label="${esc(label)}" class="group overflow-hidden rounded-[1.75rem] border-2 border-dashed border-[#c9d8d2] bg-white/55 text-left transition duration-300 hover:-translate-y-1 hover:border-[#6fa18f] hover:bg-white hover:shadow-xl"><span class="flex aspect-[16/10] items-center justify-center bg-gradient-to-br from-[#f8f5ff] to-[#e9f1ed]"><span data-new-event-plus class="flex h-16 w-16 items-center justify-center rounded-full border border-[#dce7e2] bg-white text-[#7c3aed] shadow-lg transition duration-300 group-hover:scale-110 group-hover:border-[#7c3aed] group-hover:bg-[#7c3aed] group-hover:text-white"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-7 w-7 transition group-hover:stroke-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></span><span class="block p-5"><strong class="block text-2xl font-medium text-[#2b174d]">${esc(label)}</strong><span class="mt-2 block text-sm leading-6 text-[#756b82]">${locale === "el" ? "Δημιούργησε ένα νέο ιδιωτικό album." : "Create a new private event album."}</span></span></button>`;
+  return `<button type="button" data-open-new-event aria-label="${esc(label)}" class="group flex w-full items-center gap-4 rounded-2xl border border-dashed border-[#c9d8d2] bg-white/65 p-4 text-left transition duration-300 hover:border-[#8b5cf6] hover:bg-white hover:shadow-md"><span data-new-event-plus class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#dce7e2] bg-white text-[#7c3aed] shadow-sm transition duration-300 group-hover:border-[#7c3aed] group-hover:bg-[#7c3aed] group-hover:text-white"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 transition group-hover:stroke-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="min-w-0"><strong class="block text-lg font-semibold text-[#2b174d]">${esc(label)}</strong><span class="mt-0.5 block text-sm text-[#756b82]">${locale === "el" ? "Δημιούργησε ένα νέο ιδιωτικό event." : "Create a new private event."}</span></span><svg aria-hidden="true" viewBox="0 0 24 24" class="ml-auto h-4 w-4 shrink-0 text-[#9b91a4]" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg></button>`;
 }
 
 export function renderNewEventTypeField(locale: Locale, selected?: unknown) {
@@ -671,20 +684,39 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
         ? (locale === "el" ? "Επίσημος φωτογράφος" : "Official photographer")
         : (locale === "el" ? "Αναμονή αποδοχής" : "Awaiting acceptance")
       : event.role === "owner" ? (locale === "el" ? "Ιδιοκτήτης" : "Owner") : event.role === "viewer" ? (locale === "el" ? "Θεατής" : "Viewer") : locale === "el" ? "Διαχειριστής" : "Manager";
-    const ownerActions = event.role === "owner" ? `<div class="absolute right-3 top-3 z-20"><details class="relative"><summary class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-white/20 bg-black/35 text-2xl text-white shadow-sm backdrop-blur-md hover:bg-black/50" aria-label="Event actions">⋯</summary><div class="absolute right-0 mt-2 w-44 rounded-2xl border bg-white p-2 text-[#2b174d] shadow-xl"><a href="/dashboard/${event.code}?lang=${locale}#settings" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f7f3ff]">${locale === "el" ? "Επεξεργασία" : "Edit"}</a><form action="/api/account/events/${event.code}/trash" method="post" onsubmit="return confirm('${locale === "el" ? "Μεταφορά του event στον κάδο;" : "Move this event to trash?"}')"><input type="hidden" name="locale" value="${locale}"><button class="w-full rounded-xl px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50">${locale === "el" ? "Διαγραφή" : "Delete"}</button></form></div></details></div>` : "";
-    const location = event.location ? `<p class="mt-2 flex items-center gap-1.5 truncate text-sm text-[#756b82]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="truncate">${esc(event.location)}</span></p>` : "";
-    return `<article class="group relative overflow-hidden rounded-[1.75rem] border border-[#e9e3f2] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"><div class="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-[#24483d] via-[#7c3aed] to-[#85ad9e]"><a href="${href}" aria-label="${locale === "el" ? "Άνοιγμα event" : "Open event"}: ${esc(event.eventName)}" class="absolute inset-0">${cover ? `<img src="${cover}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]">` : `<div class="absolute inset-0 flex items-center justify-center text-6xl text-white/40">✦</div>`}<div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10"></div><span class="absolute bottom-4 left-4 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md">${roleLabel}</span>${cover ? `<span class="absolute bottom-4 right-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-[#6d28d9]">Cover</span>` : ""}</a><a href="${previewHref}" target="_blank" rel="noopener" class="absolute left-1/2 top-1/2 z-10 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-white/35 bg-black/30 px-4 py-2.5 text-sm font-semibold text-white opacity-0 shadow-lg backdrop-blur-md transition hover:bg-black/45 focus-visible:opacity-100 group-hover:opacity-100"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>${locale === "el" ? "Preview album" : "Preview album"}</a></div><a href="${href}" class="block p-5"><h2 class="truncate text-2xl text-[#2b174d]">${esc(event.eventName)}</h2><p class="mt-2 text-sm font-semibold text-[#7c3aed]">${esc(formatEventDates(event, locale))}</p>${location}<div class="mt-4 flex items-center gap-4 border-t border-[#f3effa] pt-4 text-xs font-medium text-[#6f657c]"><span>${event.image_count} ${locale === "el" ? "εικόνες" : "images"}</span></div></a>${ownerActions}</article>`;
+    const ownerActions = event.role === "owner" ? `<details class="relative z-20 shrink-0"><summary class="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-[#e7e0f0] bg-white text-lg text-[#6f657c] hover:bg-[#f8f5ff]" aria-label="Event actions">⋯</summary><div class="absolute right-0 mt-2 w-44 rounded-2xl border bg-white p-2 text-[#2b174d] shadow-xl"><a href="/dashboard/${event.code}?lang=${locale}#settings" class="block rounded-xl px-3 py-2 text-sm hover:bg-[#f7f3ff]">${locale === "el" ? "Επεξεργασία" : "Edit"}</a><form action="/api/account/events/${event.code}/trash" method="post" onsubmit="return confirm('${locale === "el" ? "Μεταφορά του event στον κάδο;" : "Move this event to trash?"}')"><input type="hidden" name="locale" value="${locale}"><button class="w-full rounded-xl px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50">${locale === "el" ? "Διαγραφή" : "Delete"}</button></form></div></details>` : "";
+    const location = event.location ? `<span class="inline-flex min-w-0 items-center gap-1.5 truncate"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="truncate">${esc(event.location)}</span></span>` : "";
+    const date = event.event_start_date ? new Date(`${event.event_start_date}T12:00:00Z`) : null;
+    const day = date ? new Intl.DateTimeFormat(locale, { day: "2-digit", timeZone: "UTC" }).format(date) : "—";
+    const month = date ? new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(date).replace(".", "") : (locale === "el" ? "ΧΩΡΙΣ" : "TBD");
+    const year = date ? new Intl.DateTimeFormat(locale, { year: "numeric", timeZone: "UTC" }).format(date) : "";
+    const openLabel = `${locale === "el" ? "Άνοιγμα event" : "Open event"}: ${event.eventName}`;
+    return `<article data-dashboard-event class="group relative grid grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-visible rounded-2xl border border-[#e9e3f2] bg-white p-3 shadow-sm transition hover:border-[#d8cbea] hover:shadow-md sm:grid-cols-[7rem_minmax(0,1fr)_5rem_auto] sm:items-center sm:gap-5 sm:p-4">
+      <a href="${href}" aria-label="${esc(openLabel)}" class="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-[#5b4a78] via-[#8b5cf6] to-[#a7c5ba] sm:aspect-[4/3]">${cover ? `<img src="${cover}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl text-white/55">✦</span>`}<span class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></span></a>
+      <a href="${href}" class="flex min-w-0 flex-col justify-center"><span class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8b5cf6] sm:hidden">${esc(formatEventDates(event, locale))}</span><h2 class="mt-1 truncate text-xl font-semibold leading-tight text-[#2b174d] sm:text-2xl">${esc(event.eventName)}</h2><div class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756b82]"><span>${esc(roleLabel)}</span><span>${event.image_count} ${locale === "el" ? "εικόνες" : "images"}</span>${location}</div></a>
+      <a href="${href}" aria-label="${esc(formatEventDates(event, locale))}" class="hidden rounded-xl border border-[#ece6f3] bg-[#faf8ff] px-2 py-2 text-center sm:block"><strong class="block text-2xl leading-none text-[#2b174d]">${day}</strong><span class="mt-1 block text-[10px] font-bold uppercase tracking-[.12em] text-[#7c3aed]">${esc(month)}</span><span class="mt-0.5 block text-[10px] text-[#8a8093]">${year}</span></a>
+      <div class="col-span-2 flex items-center justify-end gap-2 border-t border-[#f1edf5] pt-3 sm:col-span-1 sm:border-0 sm:pt-0"><a href="${previewHref}" target="_blank" rel="noopener" aria-label="Preview album" title="Preview album" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7e0f0] text-[#6d28d9] transition hover:bg-[#f8f5ff]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></a>${ownerActions}<a href="${href}" aria-label="${esc(openLabel)}" class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b174d] text-white transition hover:bg-[#6d28d9]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg></a></div>
+    </article>`;
+  };
+  const renderCalendarGroups = (items: DashboardEvent[]) => {
+    const groups = partitionDashboardEvents(items, today);
+    const group = (kind: "upcoming" | "past", eventsInGroup: DashboardEvent[]) => {
+      if (!eventsInGroup.length) return "";
+      const upcoming = kind === "upcoming";
+      const title = upcoming
+        ? (locale === "el" ? "Επερχόμενα" : "Upcoming")
+        : (locale === "el" ? "Παρελθοντικά" : "Past events");
+      const subtitle = upcoming
+        ? (locale === "el" ? "Το επόμενο event εμφανίζεται πρώτο" : "Your next event appears first")
+        : (locale === "el" ? "Τα πιο πρόσφατα εμφανίζονται πρώτα" : "Most recent events appear first");
+      return `<section data-calendar-group="${kind}"><div class="mb-3 flex items-end justify-between gap-3"><div><h3 class="text-lg font-semibold text-[#2b174d]">${title}</h3><p class="mt-0.5 text-xs text-[#81768a]">${subtitle}</p></div><span class="rounded-lg ${upcoming ? "bg-[#f0eaff] text-[#6d28d9]" : "bg-[#eef1f0] text-[#66736e]"} px-2.5 py-1 text-xs font-bold">${eventsInGroup.length}</span></div><div class="space-y-3">${eventsInGroup.map(renderEventCard).join("")}</div></section>`;
+    };
+    return `${group("upcoming", groups.upcoming)}${group("past", groups.past)}`;
   };
   const createEventTile = renderCreateEventTile(m.createEvent, locale);
-  const ownedCards = createEventTile + events.results
-    .filter((event) => event.role === "owner")
-    .map(renderEventCard)
-    .join("");
-  const sharedCards = events.results
-    .filter((event) => event.role !== "owner")
-    .map(renderEventCard)
-    .join("");
-  const professionalCards = professionalEvents.results.map(renderEventCard).join("");
+  const ownedCards = `${createEventTile}${renderCalendarGroups(events.results.filter((event) => event.role === "owner"))}`;
+  const sharedCards = renderCalendarGroups(events.results.filter((event) => event.role !== "owner"));
+  const professionalCards = renderCalendarGroups(professionalEvents.results);
   const section = (
     id: string,
     title: string,
