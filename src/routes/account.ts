@@ -17,9 +17,15 @@ import { esc, formatDateTime, formatEventDates, randomCode, sha256, validEventDa
 import { lightboxMarkup } from "../views/media";
 import { locationPickerMarkup, locationPickerScript } from "../views/location-picker";
 import { accountHeader, accountMenu, brandMark, eventHeader, logoutScript, page } from "../views/shared";
+import { eventUiCopy } from "../event-ui-copy";
+import { normalizeWeddingTheme, weddingThemeFor } from "../wedding-themes";
 
 
 export const accountRoutes = new Hono<{ Bindings: Bindings }>();
+
+const selectedEventTemplate = (value: unknown) => ["signature", "vivid", "editorial", "minimal"].includes(String(value))
+  ? String(value) as "signature" | "vivid" | "editorial" | "minimal"
+  : null;
 
 accountRoutes.get("/api/account/locations/search", async (c) => {
   const user = await currentUser(c);
@@ -576,6 +582,9 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
   const m = t(locale);
   const requestedCreateType = isEventType(c.req.query("create")) ? c.req.query("create") : null;
+  const requestedTemplate = requestedCreateType === "wedding"
+    ? (c.req.query("template") ? normalizeWeddingTheme(c.req.query("template")) : null)
+    : (requestedCreateType ? selectedEventTemplate(c.req.query("template")) : null);
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   const now = Date.now();
@@ -780,7 +789,9 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     studio: showProfessionalSection,
   });
   const invitationSection = `${dashboardSubmenu}${invitationContent}`;
-  const newEventLocationEnhancement = `<template id="new-event-type-template">${renderNewEventTypeField(locale, requestedCreateType)}</template><template id="new-event-location-template">${locationPickerMarkup({ id: "new-event-location", locale })}</template><script>document.addEventListener('DOMContentLoaded',()=>{const input=document.querySelector('#new-event input[name="location"]'),locationTemplate=document.getElementById('new-event-location-template'),typeTemplate=document.getElementById('new-event-type-template');if(input&&typeTemplate)input.closest('label')?.before(typeTemplate.content.cloneNode(true));if(input&&locationTemplate)input.replaceWith(locationTemplate.content.cloneNode(true));const dialog=document.getElementById('new-event');if(${requestedCreateType ? "true" : "false"}&&dialog){dialog.showModal();dialog.querySelector('input[name="eventName"]')?.focus()}},{once:true})<\/script>${locationPickerScript(locale)}`;
+  const templateLabel = requestedTemplate ? (requestedCreateType === "wedding" ? weddingThemeFor(normalizeWeddingTheme(requestedTemplate)).name[locale] : eventUiCopy[locale][selectedEventTemplate(requestedTemplate) ?? "signature"]) : "";
+  const selectedTemplateMarkup = requestedTemplate ? `<input type="hidden" name="template" value="${esc(requestedTemplate)}"><div class="md:col-span-2 rounded-2xl border border-[#dcd0ee] bg-[#f8f4ff] p-4"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-[#7c3aed]">${locale === "el" ? "Επιλεγμένο template" : "Selected template"}</p><strong class="mt-1 block text-[#2b174d]">${esc(templateLabel)}</strong><p class="mt-1 text-xs text-[#756b82]">${locale === "el" ? "Θα είναι ήδη επιλεγμένο όταν ανοίξει το wizard." : "It will already be selected when the setup wizard opens."}</p></div>` : "";
+  const newEventLocationEnhancement = `<template id="new-event-type-template">${renderNewEventTypeField(locale, requestedCreateType)}</template><template id="new-event-selected-template">${selectedTemplateMarkup}</template><template id="new-event-location-template">${locationPickerMarkup({ id: "new-event-location", locale })}</template><script>document.addEventListener('DOMContentLoaded',()=>{const input=document.querySelector('#new-event input[name="location"]'),locationTemplate=document.getElementById('new-event-location-template'),typeTemplate=document.getElementById('new-event-type-template'),selectedTemplate=document.getElementById('new-event-selected-template');if(input&&typeTemplate)input.closest('label')?.before(typeTemplate.content.cloneNode(true));if(input&&selectedTemplate)input.closest('label')?.before(selectedTemplate.content.cloneNode(true));if(input&&locationTemplate)input.replaceWith(locationTemplate.content.cloneNode(true));const dialog=document.getElementById('new-event');if(${requestedCreateType ? "true" : "false"}&&dialog){dialog.showModal();dialog.querySelector('input[name="eventName"]')?.focus()}},{once:true})<\/script>${locationPickerScript(locale)}`;
   const eventSections = `${standardEventSections}${professionalSection}${newEventLocationEnhancement}`;
   const filterLabel =
     locale === "el"
@@ -832,6 +843,9 @@ accountRoutes.post("/api/account/events", async (c) => {
   if (!user) return c.text("Unauthorized", 401);
   const body = await c.req.parseBody(); const eventName = String(body.eventName ?? "").trim().slice(0, 100); const locale = normalizeLocale(String(body.locale ?? "el"));
   const eventType = body.eventType;
+  const selectedTemplate = eventType === "wedding"
+    ? (body.template ? normalizeWeddingTheme(body.template) : null)
+    : selectedEventTemplate(body.template);
   const eventStartDate = validEventDate(body.eventStartDate);
   const eventEndDate = body.eventEndDate ? validEventDate(body.eventEndDate) : eventStartDate;
   const wantsJson = c.req.header("Accept")?.includes("application/json") ?? false;
@@ -885,9 +899,10 @@ accountRoutes.post("/api/account/events", async (c) => {
           created_at,updated_at
         ) VALUES (?,'preview','enforced',20,0,0,0,?,?)`).bind(id,now,now)
       ]);
+        const templateQuery = selectedTemplate ? `&template=${encodeURIComponent(selectedTemplate)}` : "";
         const redirect = eventType === "wedding"
-          ? `/dashboard/${code}/wedding/setup?lang=${locale}`
-          : `/dashboard/${code}/setup?lang=${locale}`;
+          ? `/dashboard/${code}/wedding/setup?lang=${locale}${templateQuery}`
+          : `/dashboard/${code}/setup?lang=${locale}${templateQuery}`;
         return wantsJson ? c.json({ status: true, code, redirect }, 201) : c.redirect(redirect,303);
       } catch(error) {
         const message = error instanceof Error ? error.message : String(error);

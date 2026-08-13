@@ -18,7 +18,7 @@ describe("public wedding demo", () => {
     expect(html).toContain('data-wedding-demo-width="390px"');
     expect(html).toContain("/fr/wedding/preview?theme=cypress");
     expect(html).toContain('data-preview-language="it"');
-    expect(html).toContain("redirect=%2Fel%2Faccount%3Fcreate%3Dwedding");
+    expect(html).toContain("redirect=%2Fel%2Faccount%3Fcreate%3Dwedding%26template%3Dcypress");
     expect(html).toContain('content="noindex,nofollow,noarchive"');
     expect(html).not.toContain("data-support-open");
   });
@@ -29,6 +29,8 @@ describe("public wedding demo", () => {
     expect(html).toContain("/de/wedding/preview?theme=nocturne");
     expect(html).toContain("/it/wedding/preview?theme=nocturne");
     expect(html).toContain("/es/wedding/demo-frame?theme=nocturne");
+    expect(html).toContain("create%3Dwedding%26template%3Dnocturne");
+    expect(html).toContain("account?create=wedding&template=");
   });
 
   it("renders each theme through the actual wedding renderer", () => {

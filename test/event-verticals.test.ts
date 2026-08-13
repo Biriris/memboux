@@ -46,6 +46,8 @@ describe("event vertical landing framework", () => {
     expect(shell).toContain("/el/events/birthday/demo-frame?theme=signature");
     expect(shell).toContain("/fr/events/birthday/preview?theme=signature");
     expect(shell).toContain('data-preview-language="it"');
+    expect(shell).toContain("create%3Dbirthday%26template%3Dsignature");
+    expect(shell).toContain("account?create=birthday&template=");
     expect(shell).toContain('content="noindex,nofollow,noarchive"');
     expect(shell).not.toContain("data-support-open");
     for (const theme of demoThemes) {

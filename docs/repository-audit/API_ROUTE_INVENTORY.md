@@ -2,7 +2,7 @@
 
 ## Scope and counting
 
-[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **215 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
+[`src/index.ts`](../../src/index.ts) mounts every route collection at `/`. Static inspection of `new Hono` route registrations found **216 explicit registrations** across 21 files. This inventory includes JSON APIs, HTML pages, form actions, health checks, and media streams because they share one Worker surface.
 
 It excludes dependency-internal Better Auth subroutes: the repository registers `GET|POST /api/auth/*`, and [`better-auth`](../../package.json) decides the concrete subpaths at runtime. It also excludes implicit Workers Assets paths because those are files/configuration, not Hono registrations.
 
@@ -15,7 +15,7 @@ Path braces such as `:locale{el|en|fr|de|es|it}` and `:action{restore|delete}` a
 - Account/event/studio/gallery/support handlers perform their own session, membership, lifecycle, PIN, visitor-token, or assignment checks; access is summarized per module below, but the route source remains canonical.
 - `GET /admin` is registered in both `src/index.ts` and `src/routes/admin.ts`. The earlier `src/index.ts` handler redirects using the middleware-populated role, so the later route is effectively shadowed for matching requests under normal Hono first-match behavior.
 
-## Public, auth, and legal — `src/routes/public.ts` (29)
+## Public, auth, and legal — `src/routes/public.ts` (30)
 
 Source: [`src/routes/public.ts`](../../src/routes/public.ts). Health, marketing, auth UI, and legal pages are public. Privacy submission and selected auth actions are D1-rate-limited. Authenticated users are redirected away from login/register pages.
 
@@ -33,6 +33,7 @@ GET   /fr
 GET   /de
 GET   /es
 GET   /it
+GET   /:locale{el|en|fr|de|es|it}/templates
 GET   /:locale{el|en|fr|de|es|it}/wedding
 GET   /:locale{el|en|fr|de|es|it}/wedding/preview
 GET   /:locale{el|en|fr|de|es|it}/wedding/demo-frame

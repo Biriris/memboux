@@ -35,10 +35,10 @@ async function managedVerticalEvent(db: D1Database, code: string, userId: string
   return roleCan(role, "manage_event") ? { event, vertical } : null;
 }
 
-async function ensureProfile(db: D1Database, event: EventRow) {
+async function ensureProfile(db: D1Database, event: EventRow, preferredTheme: ThemeKey | null = null) {
   await db.prepare(`INSERT OR IGNORE INTO event_vertical_profiles
-    (event_id,headline,host_name,wizard_step,updated_at) VALUES (?,?,?,?,?)`)
-    .bind(event.id, event.eventName, event.eventName, 1, Date.now()).run();
+    (event_id,headline,host_name,theme_key,wizard_step,updated_at) VALUES (?,?,?,?,?,?)`)
+    .bind(event.id, event.eventName, event.eventName, preferredTheme ?? "signature", 1, Date.now()).run();
   return db.prepare("SELECT * FROM event_vertical_profiles WHERE event_id=?")
     .bind(event.id).first<EventVerticalProfile>();
 }
@@ -108,7 +108,7 @@ eventSetupRoutes.get("/dashboard/:code/setup", async (c) => {
   if (!user) return c.redirect(`/en/login?redirect=${encodeURIComponent(c.req.path)}`);
   const managed = await managedVerticalEvent(c.env.DB, c.req.param("code"), user.id);
   if (!managed) return c.notFound();
-  const profile = await ensureProfile(c.env.DB, managed.event);
+  const profile = await ensureProfile(c.env.DB, managed.event, normalizeEventTheme(c.req.query("template")));
   if (!profile) return c.text("Could not create event profile", 500);
   const locale = normalizeLocale(c.req.query("lang") ?? managed.event.default_locale);
   const requested = Number(c.req.query("step") ?? profile.wizard_step);

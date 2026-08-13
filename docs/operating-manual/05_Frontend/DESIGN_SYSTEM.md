@@ -1,5 +1,9 @@
 # Design System
 
+## Public template discovery
+
+The canonical template-discovery surface is [`src/views/template-catalogue.ts`](../../../src/views/template-catalogue.ts), exposed at `/:locale/templates`. It lists the complete wedding theme registry from [`src/wedding-themes.ts`](../../../src/wedding-themes.ts) and every generic event vertical from [`src/event-verticals.ts`](../../../src/event-verticals.ts). Catalogue cards must link to the real preview renderer and carry only the validated event type and template key into account creation; demo names, copy, and media must never become user event data. Template interactions emit the DOM event `memboux:template-action`, following the marketing-event convention rather than adding a third-party tracker.
+
 Memboux uses a light-only, token-driven visual system defined in
 `src/styles.css`. Server-rendered pages opt into the current system through
 `data-design-system="memboux-v2"` in `src/views/shared.ts`.

@@ -4,6 +4,8 @@
 
 Authenticated users create events through `POST /api/account/events` in [`src/routes/account.ts`](../../src/routes/account.ts). The route validates name, locale, event type, dates, and location input; reserves the owner's event quota; creates an event code/token hash; and batch-inserts `events`, the owner's `event_members` row, and an `event_access` row. It then redirects to the wedding or generic setup route. It does **not** create the specialized profile in the creation batch; setup handlers create/update profile state. On failure it releases the reserved event quota.
 
+The public catalogue at `GET /:locale/templates` is rendered by [`src/views/template-catalogue.ts`](../../src/views/template-catalogue.ts). Its “use template” links preserve an allowlisted template key through registration and the account create-event form. After event creation, the key is forwarded to the appropriate setup route. [`src/routes/event-setup.ts`](../../src/routes/event-setup.ts) and [`src/routes/wedding.ts`](../../src/routes/wedding.ts) use it only as the default in `INSERT OR IGNORE` when the specialized profile is first created; an existing profile is not changed by revisiting a URL. Demo content and demo media are not copied into user events.
+
 New-event access defaults are enforced by the current code/migrations:
 
 - `access_state = preview`

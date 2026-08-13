@@ -13,6 +13,7 @@ import { eventVerticalFor, eventVerticals } from "../event-verticals";
 import { eventVerticalLandingPage } from "../views/event-vertical-landing";
 import { eventVerticalDemoFrame, eventVerticalDemoPage, normalizeDemoTheme } from "../views/event-vertical-demo";
 import { weddingDemoFrame, weddingDemoPage } from "../views/wedding-demo";
+import { templateCataloguePage } from "../views/template-catalogue";
 import { normalizeWeddingTheme } from "../wedding-themes";
 import { cookiePolicyPage, privacyPolicyPage, privacyRequestPage, termsPage } from "../views/legal";
 import { brandMark, page } from "../views/shared";
@@ -73,6 +74,12 @@ Allow: /fr$
 Allow: /de$
 Allow: /es$
 Allow: /it$
+Allow: /en/templates
+Allow: /el/templates
+Allow: /fr/templates
+Allow: /de/templates
+Allow: /es/templates
+Allow: /it/templates
 Allow: /en/wedding
 Allow: /el/wedding
 Allow: /fr/wedding
@@ -112,11 +119,13 @@ publicRoutes.get("/sitemap.xml", (c) => {
   const homeUrls = supportedLocales.map((locale) => `<url><loc>https://memboux.com/${locale}</loc>${alternates}<xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en"/></url>`);
   const weddingAlternates = supportedLocales.map((locale) => `<xhtml:link rel="alternate" hreflang="${locale}" href="https://memboux.com/${locale}/wedding"/>`).join("");
   const weddingUrls = supportedLocales.map((locale) => `<url><loc>https://memboux.com/${locale}/wedding</loc>${weddingAlternates}<xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en/wedding"/></url>`);
+  const templateAlternates = supportedLocales.map((locale) => `<xhtml:link rel="alternate" hreflang="${locale}" href="https://memboux.com/${locale}/templates"/>`).join("");
+  const templateUrls = supportedLocales.map((locale) => `<url><loc>https://memboux.com/${locale}/templates</loc>${templateAlternates}<xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en/templates"/></url>`);
   const verticalUrls = eventVerticals.flatMap((vertical) => {
     const verticalAlternates = supportedLocales.map((locale) => `<xhtml:link rel="alternate" hreflang="${locale}" href="https://memboux.com/${locale}/events/${vertical.type}"/>`).join("");
     return supportedLocales.map((locale) => `<url><loc>https://memboux.com/${locale}/events/${vertical.type}</loc>${verticalAlternates}<xhtml:link rel="alternate" hreflang="x-default" href="https://memboux.com/en/events/${vertical.type}"/></url>`);
   });
-  const urls = [...homeUrls, ...weddingUrls, ...verticalUrls].join("\n  ");
+  const urls = [...homeUrls, ...templateUrls, ...weddingUrls, ...verticalUrls].join("\n  ");
   return c.body(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   ${urls}
@@ -173,6 +182,7 @@ publicRoutes.get("/fr", localizedHome);
 publicRoutes.get("/de", localizedHome);
 publicRoutes.get("/es", localizedHome);
 publicRoutes.get("/it", localizedHome);
+publicRoutes.get("/:locale{el|en|fr|de|es|it}/templates", (c) => c.html(templateCataloguePage(normalizeLocale(c.req.param("locale")))));
 publicRoutes.get("/:locale{el|en|fr|de|es|it}/wedding", (c) => c.html(weddingLandingPage(normalizeLocale(c.req.param("locale")))));
 publicRoutes.get("/:locale{el|en|fr|de|es|it}/wedding/preview", (c) => c.html(weddingDemoPage(normalizeLocale(c.req.param("locale")), normalizeWeddingTheme(c.req.query("theme")))));
 publicRoutes.get("/:locale{el|en|fr|de|es|it}/wedding/demo-frame", (c) => {

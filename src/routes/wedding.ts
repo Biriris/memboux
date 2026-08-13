@@ -105,13 +105,13 @@ async function ownedWedding(db: D1Database, code: string, userId: string) {
   return roleCan(role, "manage_event") ? event : null;
 }
 
-async function ensureProfile(db: D1Database, event: EventRow) {
+async function ensureProfile(db: D1Database, event: EventRow, preferredTheme: WeddingThemeKey | null = null) {
   const now = Date.now();
   const estimate = calculateWeddingEstimate(defaultWeddingFeatures());
   await db.prepare(`INSERT OR IGNORE INTO event_wedding_profiles
-    (event_id,ceremony_at,ceremony_location,wizard_step,catalog_version,estimated_total_minor,currency,updated_at)
-    VALUES (?,?,?,?,?,?,?,?)`)
-    .bind(event.id, event.event_start_date ? `${event.event_start_date}T12:00` : null, event.location ?? "", 1, estimate.catalogVersion, estimate.totalMinor, estimate.currency, now)
+    (event_id,ceremony_at,ceremony_location,template_key,wizard_step,catalog_version,estimated_total_minor,currency,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .bind(event.id, event.event_start_date ? `${event.event_start_date}T12:00` : null, event.location ?? "", preferredTheme ?? "cypress", 1, estimate.catalogVersion, estimate.totalMinor, estimate.currency, now)
     .run();
   return db.prepare("SELECT * FROM event_wedding_profiles WHERE event_id=?").bind(event.id).first<WeddingProfile>();
 }
@@ -448,7 +448,7 @@ weddingRoutes.get("/dashboard/:code/wedding/setup", async (c) => {
   const event = await ownedWedding(c.env.DB, c.req.param("code"), user.id);
   if (!event) return c.text("Wedding event not found", 404);
   const locale = normalizeLocale(c.req.query("lang") ?? event.default_locale);
-  const profile = await ensureProfile(c.env.DB, event);
+  const profile = await ensureProfile(c.env.DB, event, c.req.query("template") ? normalizeWeddingTheme(c.req.query("template")) : null);
   if (!profile) return c.text("Wedding setup unavailable", 500);
   const requested = Number(c.req.query("step") ?? profile.wizard_step);
   const step = Math.max(1, Math.min(6, Number.isInteger(requested) ? requested : 1));
