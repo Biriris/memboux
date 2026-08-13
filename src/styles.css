@@ -194,6 +194,16 @@ button { letter-spacing: .025em; }
     radial-gradient(circle at 90% 5%, rgba(217, 134, 152, .16), transparent 18rem),
     rgba(255, 255, 255, .7);
 }
+.home-hero-photo { aspect-ratio: 1.55 / 1; }
+.home-hero-photo picture,
+.home-memory-collage picture { display: contents; }
+.home-hero-photo-shade {
+  background: linear-gradient(180deg, transparent 48%, rgba(31, 20, 42, .52));
+  pointer-events: none;
+}
+.home-memory-collage figure { aspect-ratio: 4 / 5; }
+.home-memory-collage figure:first-child { aspect-ratio: 4 / 4.35; }
+.home-memory-collage img { transition: transform .7s cubic-bezier(.2,.8,.2,1); }
 
 /* Text actions use restrained rounded rectangles. Pills remain available for
    status labels, filters and avatars, where the shape carries meaning. */
@@ -214,6 +224,7 @@ button { letter-spacing: .025em; }
     border-color: var(--accent-soft);
     box-shadow: var(--shadow-xl);
   }
+  .home-memory-collage figure:hover img { transform: scale(1.025); }
 }
 
 @media (max-width: 639px) {
@@ -273,10 +284,11 @@ button { letter-spacing: .025em; }
     line-height: 1.45;
   }
   .home-hero-preview { width: calc(100% + .25rem); }
-  .home-hero-preview > div:last-child {
-    border-radius: 1.5rem;
-    padding: .55rem;
-  }
+  .home-hero-photo { aspect-ratio: 4 / 4.45; }
+  .home-hero-share { right: .75rem; }
+  .home-memory-collage { gap: .75rem; }
+  .home-memory-collage figure,
+  .home-memory-collage figure:first-child { aspect-ratio: 16 / 10; }
 
   .home-event-chips {
     width: calc(100vw - 1.25rem);

@@ -142,6 +142,45 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
     },
   };
   const vision = visionCopy[locale];
+  const visualCopy: Record<Locale, { heroAlt: string; birthdayAlt: string; tripAlt: string; capturedBy: string }> = {
+    el: {
+      heroAlt: "Παρέα καταγράφει από διαφορετικές οπτικές μια αυθόρμητη στιγμή σε γαμήλια δεξίωση",
+      birthdayAlt: "Οικογένεια φωτογραφίζει ένα παιδί που σβήνει τα κεράκια των γενεθλίων του",
+      tripAlt: "Παρέα μοιράζεται φωτογραφίες από τις διακοπές της σε μια παραλία του Αιγαίου",
+      capturedBy: "Από 8 καλεσμένους",
+    },
+    en: {
+      heroAlt: "Friends capture a candid wedding reception moment from different perspectives",
+      birthdayAlt: "A family photographs a child blowing out birthday candles",
+      tripAlt: "Friends share their holiday photos on an Aegean beach",
+      capturedBy: "From 8 guests",
+    },
+    fr: {
+      heroAlt: "Des amis immortalisent sous plusieurs angles un moment spontané de mariage",
+      birthdayAlt: "Une famille photographie un enfant qui souffle ses bougies d’anniversaire",
+      tripAlt: "Des amis partagent leurs photos de vacances sur une plage de la mer Égée",
+      capturedBy: "Par 8 invités",
+    },
+    de: {
+      heroAlt: "Freunde halten einen spontanen Hochzeitsmoment aus verschiedenen Perspektiven fest",
+      birthdayAlt: "Eine Familie fotografiert ein Kind beim Ausblasen der Geburtstagskerzen",
+      tripAlt: "Freunde teilen ihre Urlaubsfotos an einem Strand in der Ägäis",
+      capturedBy: "Von 8 Gästen",
+    },
+    es: {
+      heroAlt: "Amigos capturan desde distintos ángulos un momento espontáneo de una boda",
+      birthdayAlt: "Una familia fotografía a una niña soplando las velas de cumpleaños",
+      tripAlt: "Un grupo de amigos comparte sus fotos de vacaciones en una playa del Egeo",
+      capturedBy: "De 8 invitados",
+    },
+    it: {
+      heroAlt: "Amici immortalano da prospettive diverse un momento spontaneo di un matrimonio",
+      birthdayAlt: "Una famiglia fotografa una bambina mentre spegne le candeline",
+      tripAlt: "Un gruppo di amici condivide le foto delle vacanze su una spiaggia dell’Egeo",
+      capturedBy: "Da 8 invitati",
+    },
+  };
+  const visuals = visualCopy[locale];
   const commercialSections = homeCommercialSections(locale, products);
 
   const featureIcon = (name: string) => icons[name as keyof typeof icons] ?? icons.gallery;
@@ -200,21 +239,19 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
           </div>
 
           <div class="home-hero-preview relative mx-auto w-full max-w-2xl">
-            <div class="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-[#ddcff5]/70 via-white/20 to-[#d9e8e2]/60 blur-2xl"></div>
-            <div class="relative overflow-hidden rounded-[1.5rem] border border-[#ded9e6] bg-[#eeeaf5] p-3 shadow-[0_24px_70px_rgba(57,48,69,.12)] sm:rounded-[1.75rem] sm:p-5">
-              <div class="rounded-[1.35rem] bg-[#faf8ff] p-4 sm:rounded-[1.75rem] sm:p-6">
-                <div class="flex items-start justify-between gap-4">
-                  <div><p class="text-[10px] font-semibold uppercase tracking-[.18em] text-[#8b5cf6]">${copy.previewEyebrow}</p><h2 class="mt-2 text-xl font-medium sm:text-2xl">${copy.previewTitle}</h2><p class="mt-1 text-xs text-[#748a82]">${copy.previewDate}</p></div>
-                  <div class="flex -space-x-2"><span class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#ddcff5] text-[10px] font-semibold">A</span><span class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#fde68a] text-[10px] font-semibold">M</span><span class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#fecdd3] text-[10px] font-semibold">+4</span></div>
-                </div>
-                <div class="mt-5 grid grid-cols-12 grid-rows-2 gap-2 sm:gap-3">
-                  <div class="relative col-span-7 row-span-2 min-h-52 overflow-hidden rounded-2xl bg-gradient-to-br from-[#8aa99d] via-[#58776c] to-[#294c41] sm:min-h-72"><span class="absolute left-4 top-4 rounded-full bg-white/85 px-3 py-1.5 text-[10px] font-semibold text-[#2b174d]">${copy.previewUploads}</span><span class="absolute bottom-5 left-5 h-16 w-20 rounded-xl border border-white/20 bg-white/10 backdrop-blur"></span><span class="absolute bottom-8 left-8 h-10 w-12 rounded-lg bg-[#d4e4dd]/40"></span><span class="absolute right-5 top-16 h-24 w-24 rounded-full bg-[#f5d0a9]/35 blur-xl"></span></div>
-                  <div class="relative col-span-5 min-h-24 overflow-hidden rounded-2xl bg-gradient-to-br from-[#d9c5b6] to-[#7d6f76]"><span class="absolute inset-x-5 bottom-0 h-3/5 rounded-t-full bg-[#f2e7dd]/35"></span></div>
-                  <div class="relative col-span-5 min-h-24 overflow-hidden rounded-2xl bg-gradient-to-br from-[#a9c5c0] to-[#35675a]"><span class="absolute inset-0 flex items-center justify-center text-white"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-black/25 backdrop-blur">${icons.play}</span></span></div>
-                </div>
-                <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[#e1eae6] bg-white px-4 py-3"><span class="flex min-w-0 items-center gap-3"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f2ecff] text-[#7c3aed]">${icons.link}</span><span class="min-w-0"><strong class="block truncate text-xs">${copy.previewShare}</strong><span class="block truncate text-[10px] text-[#84978f]">memboux.com/gallery/MILOS26</span></span></span><span class="grid h-10 w-10 shrink-0 grid-cols-3 gap-0.5 rounded-lg bg-[#2b174d] p-2"><i class="bg-white"></i><i></i><i class="bg-white"></i><i></i><i class="bg-white"></i><i></i><i class="bg-white"></i><i></i><i class="bg-white"></i></span></div>
-              </div>
-            </div>
+            <div class="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-[#ddcff5]/70 via-white/20 to-[#f7d8de]/60 blur-2xl"></div>
+            <figure class="home-hero-photo relative overflow-hidden rounded-[1.5rem] border border-white/70 bg-[#eeeaf5] shadow-[0_24px_70px_rgba(57,48,69,.16)] sm:rounded-[1.75rem]">
+              <picture>
+                <source media="(max-width: 720px)" srcset="/marketing/hero-moments-720.webp">
+                <img src="/marketing/hero-moments-1600.webp" width="1600" height="838" alt="${visuals.heroAlt}" fetchpriority="high" decoding="async" class="h-full w-full object-cover">
+              </picture>
+              <div class="home-hero-photo-shade absolute inset-0"></div>
+              <figcaption class="absolute inset-x-3 bottom-3 flex items-end justify-between gap-3 sm:inset-x-5 sm:bottom-5">
+                <span class="rounded-xl bg-white/92 px-4 py-3 text-left shadow-lg backdrop-blur-md"><span class="block text-[10px] font-bold uppercase tracking-[.16em] text-[#7967bd]">${copy.previewEyebrow}</span><strong class="mt-1 block text-sm text-[#302b38] sm:text-base">${copy.previewUploads}</strong><span class="mt-0.5 block text-[10px] text-[#756f7c]">${visuals.capturedBy}</span></span>
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#7967bd] text-white shadow-lg" aria-hidden="true">${icons.gallery}</span>
+              </figcaption>
+            </figure>
+            <div class="home-hero-share absolute -bottom-6 right-4 flex max-w-[85%] items-center gap-3 rounded-xl border border-[#e1dce8] bg-white px-4 py-3 shadow-[0_16px_35px_rgba(57,48,69,.14)] sm:-bottom-7 sm:right-8"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f2ecff] text-[#7c3aed]">${icons.link}</span><span class="min-w-0"><strong class="block truncate text-xs">${copy.previewShare}</strong><span class="block truncate text-[10px] text-[#84978f]">memboux.com/gallery/OUR-DAY</span></span></div>
           </div>
         </div>
       </section>
@@ -231,9 +268,12 @@ export function homePage(locale: Locale, products: CommerceProduct[]) {
       <section class="relative overflow-hidden border-y border-[#e9e6ed] bg-[#f5f3f8] text-[#302b38]">
         <div class="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#e8e2f3]/70 blur-3xl"></div>
         <div class="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#f4e8eb]/70 blur-3xl"></div>
-        <div class="relative mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
-          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${vision.eyebrow}</p><h2 class="mt-5 max-w-4xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${vision.title}</h2><p class="mt-7 max-w-3xl text-base leading-8 text-[#756f7c] sm:text-lg">${vision.text}</p></div>
-          <ul class="space-y-3">${vision.points.map((point) => `<li class="flex items-center gap-3 rounded-xl border border-[#e4e0e8] bg-white/80 px-5 py-4 text-sm text-[#514a58]"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e9e4f7] text-[#57468e]">${icons.check}</span>${point}</li>`).join("")}</ul>
+        <div class="relative mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:gap-20">
+          <div><p class="text-xs font-semibold uppercase tracking-[.22em] text-[#7967bd]">${vision.eyebrow}</p><h2 class="mt-5 max-w-4xl text-4xl font-medium leading-tight tracking-[-.035em] sm:text-6xl">${vision.title}</h2><p class="mt-7 max-w-3xl text-base leading-8 text-[#756f7c] sm:text-lg">${vision.text}</p><ul class="mt-8 space-y-3">${vision.points.map((point) => `<li class="flex items-center gap-3 text-sm text-[#514a58]"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e9e4f7] text-[#57468e]">${icons.check}</span>${point}</li>`).join("")}</ul></div>
+          <div class="home-memory-collage grid grid-cols-12 gap-3 sm:gap-4" aria-label="${vision.eyebrow}">
+            <figure class="col-span-12 overflow-hidden rounded-[1.35rem] bg-white shadow-[0_18px_50px_rgba(57,48,69,.1)] sm:col-span-7"><picture><source media="(max-width: 720px)" srcset="/marketing/birthday-moments-720.webp"><img loading="lazy" decoding="async" src="/marketing/birthday-moments-1280.webp" width="1280" height="853" alt="${visuals.birthdayAlt}" class="h-full w-full object-cover"></picture></figure>
+            <figure class="col-span-12 overflow-hidden rounded-[1.35rem] bg-white shadow-[0_18px_50px_rgba(57,48,69,.1)] sm:col-span-5 sm:mt-16"><picture><source media="(max-width: 720px)" srcset="/marketing/trip-moments-720.webp"><img loading="lazy" decoding="async" src="/marketing/trip-moments-1280.webp" width="1280" height="853" alt="${visuals.tripAlt}" class="h-full w-full object-cover"></picture></figure>
+          </div>
         </div>
       </section>
 
