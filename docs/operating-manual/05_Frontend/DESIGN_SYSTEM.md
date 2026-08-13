@@ -57,3 +57,13 @@ prefer them over one-off visual declarations.
 
 Event templates may define their own artistic palettes, but application and
 account surfaces must keep the shared semantic system. Avoid one-off styles.
+
+## Demo photography
+
+Public event demos use the verified catalog in `src/views/demo-media.ts`. Demo
+photography is stored as responsive WebP assets under `public/demo-media/` and
+`public/marketing/`; hero images load eagerly while gallery images below the
+fold load lazily. The same catalog is shared by all appearance themes so theme
+changes alter the art direction without replacing the event story. These
+campaign images are generated marketing material and must not be presented as
+customer testimonials or user-submitted media.

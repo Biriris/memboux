@@ -6,6 +6,7 @@ import type { WeddingMenuRow } from "../wedding-menu";
 import { groupWeddingMenuCourses, weddingMenuCourseLabel, type WeddingMenuCourseRow } from "../wedding-menu-courses";
 import type { WeddingMediaRow } from "../wedding-portraits";
 import { brandMark, page } from "./shared";
+import { demoPicture, type DemoMediaAsset } from "./demo-media";
 import { weddingArtDirectionStyles } from "./wedding-art-direction";
 import { weddingLuxuryStyles } from "./wedding-luxury-style";
 
@@ -70,9 +71,10 @@ export function renderWeddingPage(input: {
   experienceScripts?: string;
   portraitMap?: Record<string, string | null>;
   preWeddingMedia?: readonly WeddingMediaRow[];
+  demoMedia?: readonly DemoMediaAsset[];
   demo?: boolean;
 }) {
-  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, menuCourses = [], experienceHtml = "", experienceScripts = "", portraitMap = {}, preWeddingMedia = [], demo = false } = input;
+  const { event, profile, locale, selectedFeatures, coverUpdatedAt, preview = false, menu = null, menuCourses = [], experienceHtml = "", experienceScripts = "", portraitMap = {}, preWeddingMedia = [], demoMedia = [], demo = false } = input;
   const theme = weddingThemeFor(profile.template_key);
   const accent = profile.accent_color ?? theme.defaultAccent;
   const names = [profile.partner_one_name, profile.partner_two_name].filter(Boolean).join(" & ") || event.eventName;
@@ -102,7 +104,7 @@ export function renderWeddingPage(input: {
     ...preWeddingMedia.filter((item) => item.media_type === "image").map((item) => item.id),
   ]).slice(0, 12);
   const heroPhotoIds = distinctMediaIds([portraitMap.hero, ...galleryPhotoIds]).slice(0, 3);
-  const hasPreWeddingGallery = galleryPhotoIds.length >= 2;
+  const hasPreWeddingGallery = galleryPhotoIds.length >= 2 || demoMedia.length >= 2;
   const weddingMediaUrl = (mediaId: string, variant: "thumb" | "preview") => `/wedding-media/${encodeURIComponent(mediaId)}?variant=${variant}`;
   const experienceCards = [
     features.has("guestbook") ? { href: experienceHtml ? (demo ? "#guest-experience" : "#participate") : `/gallery/${event.code}?lang=${locale}#participate`, title: t(locale, "Guestbook", "Ευχολόγιο", "Livre d’or", "Gästebuch", "Libro de visitas", "Libro degli ospiti"), copy: t(locale, "Leave a message for the couple.", "Άφησε μια ευχή για το ζευγάρι.", "Laissez un message au couple.", "Hinterlasse dem Paar eine Nachricht.", "Deja un mensaje para la pareja.", "Lascia un messaggio alla coppia.") } : null,
@@ -129,21 +131,26 @@ export function renderWeddingPage(input: {
   const navigationLabel = t(locale, "Wedding navigation", "Πλοήγηση γάμου", "Navigation du mariage", "Hochzeitsnavigation", "Navegación de la boda", "Navigazione del matrimonio");
   const scrollLabel = t(locale, "Continue to the event details", "Συνέχεια στις λεπτομέρειες", "Voir les détails de l’événement", "Weiter zu den Veranstaltungsdetails", "Continuar a los detalles del evento", "Continua ai dettagli dell’evento");
   const languagePicker = `<label class="sr-only" for="wedding-language">${esc(languageLabel)}</label><select id="wedding-language" aria-label="${esc(languageLabel)}" onchange="location.href=this.value">${supportedLocales.map((value) => `<option value="${languageUrl(value)}" ${value === locale ? "selected" : ""}>${esc(localeNames[value])}</option>`).join("")}</select>`;
-  const heroImage = heroPhotoIds.length
+  const heroImage = demo && demoMedia.length
+    ? `<div class="w-hero-media" data-w-hero-slideshow data-slide-count="${demoMedia.length}">${demoMedia.map((asset, index) => demoPicture(asset, `class="w-cover w-hero-slide ${index === 0 ? "is-active" : ""}" ${index === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" data-w-slide="${index}"`)).join("")}</div>`
+    : heroPhotoIds.length
     ? `<div class="w-hero-media" data-w-hero-slideshow data-slide-count="${heroPhotoIds.length}">${heroPhotoIds.map((mediaId, index) => `<img class="w-cover w-hero-slide ${index === 0 ? "is-active" : ""}" src="${weddingMediaUrl(mediaId, "preview")}" alt="" ${index === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-w-slide="${index}">`).join("")}</div>`
     : coverUpdatedAt
       ? `<div class="w-hero-media"><img class="w-cover w-hero-slide is-active" src="/gallery/${encodeURIComponent(event.code)}/cover?v=${coverUpdatedAt}" alt="" loading="eager" fetchpriority="high"></div>`
       : "";
   const storyPhotoId = portraitMap.story ?? galleryPhotoIds.find((mediaId) => mediaId !== heroPhotoIds[0]) ?? null;
-  const storyPortrait = storyPhotoId ? `<figure class="w-story-portrait" data-reveal-item style="--w-reveal-index:2"><img class="w-story-image" src="${weddingMediaUrl(storyPhotoId, "preview")}" alt="" loading="lazy"><span aria-hidden="true">${esc(monogram)}</span></figure>` : "";
+  const storyPortrait = demo && demoMedia[1]
+    ? `<figure class="w-story-portrait" data-reveal-item style="--w-reveal-index:2">${demoPicture(demoMedia[1], 'class="w-story-image" loading="lazy" decoding="async"')}<span aria-hidden="true">${esc(monogram)}</span></figure>`
+    : storyPhotoId ? `<figure class="w-story-portrait" data-reveal-item style="--w-reveal-index:2"><img class="w-story-image" src="${weddingMediaUrl(storyPhotoId, "preview")}" alt="" loading="lazy"><span aria-hidden="true">${esc(monogram)}</span></figure>` : "";
   const divider = (mediaId: string | null | undefined, position: number) => mediaId
     ? `<section class="w-section w-divider" data-divider="${position}" data-reveal-item style="--w-reveal-index:0"><img class="w-divider-image" src="${weddingMediaUrl(mediaId, "preview")}" alt="" loading="lazy"><span class="w-divider-mark" aria-hidden="true">${String(position).padStart(2, "0")}</span></section>`
     : "";
   const divider1 = divider(portraitMap.divider_1, 1);
   const divider2 = divider(portraitMap.divider_2, 2);
   const divider3 = divider(portraitMap.divider_3, 3);
+  const galleryMedia = demo && demoMedia.length ? demoMedia : null;
   const preWeddingGallery = hasPreWeddingGallery
-    ? `<section id="prewedding" class="w-section w-prewedding"><div class="w-inner"><header class="w-photo-head" data-reveal><div><p class="w-eyebrow">${esc(t(locale, "Before the day", "Πριν από τη μεγάλη μέρα", "Avant le grand jour", "Vor dem großen Tag", "Antes del gran día", "Prima del grande giorno"))}</p><h2>${esc(t(locale, "Our photographs", "Οι φωτογραφίες μας", "Nos photographies", "Unsere Fotografien", "Nuestras fotografías", "Le nostre fotografie"))}</h2></div><p>${esc(t(locale, "A few frames from the story that brought us here.", "Μερικά καρέ από την ιστορία που μας έφερε ως εδώ.", "Quelques images de l’histoire qui nous a menés jusqu’ici.", "Einige Bilder aus der Geschichte, die uns hierhergeführt hat.", "Algunas imágenes de la historia que nos trajo hasta aquí.", "Alcuni scatti della storia che ci ha portati fin qui."))}</p></header><div class="w-photo-grid" data-photo-count="${galleryPhotoIds.length}">${galleryPhotoIds.map((mediaId, index) => `<figure class="w-photo-card" data-photo-index="${index + 1}" data-reveal-item style="--w-reveal-index:${index % 6}"><img src="${weddingMediaUrl(mediaId, index < 2 ? "preview" : "thumb")}" alt="" loading="${index < 2 ? "eager" : "lazy"}"><span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span></figure>`).join("")}</div></div></section>`
+    ? `<section id="prewedding" class="w-section w-prewedding"><div class="w-inner"><header class="w-photo-head" data-reveal><div><p class="w-eyebrow">${esc(t(locale, "Before the day", "Πριν από τη μεγάλη μέρα", "Avant le grand jour", "Vor dem großen Tag", "Antes del gran día", "Prima del grande giorno"))}</p><h2>${esc(t(locale, "Our photographs", "Οι φωτογραφίες μας", "Nos photographies", "Unsere Fotografien", "Nuestras fotografías", "Le nostre fotografie"))}</h2></div><p>${esc(t(locale, "A few frames from the story that brought us here.", "Μερικά καρέ από την ιστορία που μας έφερε ως εδώ.", "Quelques images de l’histoire qui nous a menés jusqu’ici.", "Einige Bilder aus der Geschichte, die uns hierhergeführt hat.", "Algunas imágenes de la historia que nos trajo hasta aquí.", "Alcuni scatti della storia che ci ha portati fin qui."))}</p></header><div class="w-photo-grid" data-photo-count="${galleryMedia?.length ?? galleryPhotoIds.length}">${galleryMedia ? galleryMedia.map((asset, index) => `<figure class="w-photo-card" data-photo-index="${index + 1}" data-reveal-item style="--w-reveal-index:${index % 6}">${demoPicture(asset, `loading="${index === 0 ? "eager" : "lazy"}" decoding="async"`)}<span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span></figure>`).join("") : galleryPhotoIds.map((mediaId, index) => `<figure class="w-photo-card" data-photo-index="${index + 1}" data-reveal-item style="--w-reveal-index:${index % 6}"><img src="${weddingMediaUrl(mediaId, index < 2 ? "preview" : "thumb")}" alt="" loading="${index < 2 ? "eager" : "lazy"}"><span aria-hidden="true">${String(index + 1).padStart(2, "0")}</span></figure>`).join("")}</div></div></section>`
     : "";
   const ornament = (index: number) => `<div class="w-ornament" data-ornament="${index}" aria-hidden="true"><span></span></div>`;
   const countdown = hasCountdown

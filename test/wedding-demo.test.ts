@@ -43,6 +43,10 @@ describe("public wedding demo", () => {
       expect(html).toContain('id="official-album"');
       expect(html).toContain('id="live"');
       expect(html).toContain("Every perspective, together");
+      expect(html).toContain("/marketing/hero-moments-1600.webp");
+      expect(html).toContain("/demo-media/wedding-exit-1440.webp");
+      expect(html).toContain("/demo-media/wedding-dance-1440.webp");
+      expect(html).toContain('data-w-hero-slideshow');
       expect(html).not.toContain('href="/gallery/WEDDING-DEMO');
     }
   });

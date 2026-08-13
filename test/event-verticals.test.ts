@@ -63,6 +63,25 @@ describe("event vertical landing framework", () => {
     expect(normalizeDemoTheme("invalid")).toBe("signature");
   });
 
+  it("uses responsive photography in every event demo hero and shared album", () => {
+    for (const vertical of eventVerticals) {
+      const frame = eventVerticalDemoFrame("en", vertical, "signature");
+      expect(frame).toContain("data-event-demo-hero");
+      expect(frame).toContain('<source media="(max-width:720px)"');
+      expect(frame).toContain('fetchpriority="high"');
+      expect(frame.match(/class="v-demo-photo"/g)).toHaveLength(3);
+      expect(frame).not.toContain("v-demo-photo\" style=\"background:linear-gradient");
+    }
+  });
+
+  it("gives the Maya birthday demo its own complete photo story", () => {
+    const frame = eventVerticalDemoFrame("en", eventVerticalFor("birthday")!, "vivid");
+    expect(frame).toContain("/demo-media/birthday-hero-1440.webp");
+    expect(frame).toContain("/demo-media/birthday-cake-1440.webp");
+    expect(frame).toContain("/demo-media/birthday-dance-1440.webp");
+    expect(frame).toContain("Maya celebrates with friends");
+  });
+
   it("renders a resolved event cover as the generic event hero", () => {
     const vertical = eventVerticalFor("birthday")!;
     const html = eventVerticalPreviewPage("en", {
