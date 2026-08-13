@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventTypes } from "../src/event-types";
+import { eventTypes, type EventType } from "../src/event-types";
 import { eventVerticalFor, eventVerticals, verticalText } from "../src/event-verticals";
 import { eventUiCopy, eventWizardCopy } from "../src/event-ui-copy";
 import { supportedLocales } from "../src/i18n";
@@ -80,6 +80,21 @@ describe("event vertical landing framework", () => {
     expect(frame).toContain("/demo-media/birthday-cake-1440.webp");
     expect(frame).toContain("/demo-media/birthday-dance-1440.webp");
     expect(frame).toContain("Maya celebrates with friends");
+  });
+
+  it("keeps category demos inside a dedicated visual-continuity set", () => {
+    const expectedAssets = {
+      baptism: ["family-hero", "family-candid", "family-table"],
+      trip: ["trip-moments", "travel-group", "travel-phones"],
+      corporate: ["corporate-hero", "corporate-stage", "corporate-networking"],
+      graduation: ["graduation-hero", "graduation-caps", "graduation-family"],
+      community: ["community-hero", "community-dance", "community-group"],
+      memorial: ["memorial-hero", "remembrance-story", "remembrance-group"],
+    } as const;
+    for (const [type, assets] of Object.entries(expectedAssets)) {
+      const frame = eventVerticalDemoFrame("en", eventVerticalFor(type as EventType)!, "signature");
+      for (const asset of assets) expect(frame).toContain(asset);
+    }
   });
 
   it("renders a resolved event cover as the generic event hero", () => {

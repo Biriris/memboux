@@ -67,3 +67,10 @@ fold load lazily. The same catalog is shared by all appearance themes so theme
 changes alter the art direction without replacing the event story. These
 campaign images are generated marketing material and must not be presented as
 customer testimonials or user-submitted media.
+
+Each demo album is a single visual-continuity set. Recurring people must keep
+the same identity, hairstyle, clothing and clothing colors across every frame;
+the venue, decor, weather, time of day, lighting direction and color grade must
+also remain consistent. Generate supporting views from the approved hero as a
+locked reference. Do not combine attractive but unrelated campaign images into
+one event album.
