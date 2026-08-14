@@ -178,6 +178,11 @@ eventSetupRoutes.get("/event/:code", async (c) => {
     vertical,
     renderedProfile,
     manager && preview,
-    { guestExperienceOpen: eventAccessAllows(access, "guest_access"), guestItems, coverUpdatedAt: cover?.updated_at ?? null },
+    {
+      guestExperienceOpen: eventAccessAllows(access, "guest_access"),
+      originalDownloads: eventAccessAllows(access, "original_downloads"),
+      guestItems,
+      coverUpdatedAt: cover?.updated_at ?? null,
+    },
   ));
 });

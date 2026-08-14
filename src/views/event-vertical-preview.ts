@@ -160,7 +160,7 @@ export function eventVerticalPreviewPage(
   vertical: EventVertical,
   profile: EventVerticalProfile,
   ownerPreview: boolean,
-  options: { demo?: boolean; guestExperienceOpen?: boolean; guestItems?: readonly MediaCardRow[]; coverUpdatedAt?: number | null } = {},
+  options: { demo?: boolean; guestExperienceOpen?: boolean; originalDownloads?: boolean; guestItems?: readonly MediaCardRow[]; coverUpdatedAt?: number | null } = {},
 ) {
   const ui = eventUiCopy[locale];
   const headline = profile.headline.trim() || event.eventName;
@@ -200,7 +200,7 @@ export function eventVerticalPreviewPage(
   const demoMedia = options.demo ? demoMediaFor(vertical.type, locale) : [];
   const guestAlbum = options.demo ? "" : `<section id="guest-album" class="mx-auto max-w-7xl px-4 pb-20 sm:px-6"><div class="rounded-[2.5rem] p-5 sm:p-8 lg:p-10" style="background:${theme.card}"><header class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-xs font-bold uppercase tracking-[.2em]" style="color:${theme.accent}">${esc(guestAlbumCopy.kicker)}</p><h2 class="mt-3 max-w-3xl text-4xl font-medium leading-tight tracking-[-.04em] sm:text-5xl">${esc(guestAlbumCopy.title)}</h2>${guestItems.length ? `<div class="mt-4">${galleryFilterControls(guestItems, "event-guest-gallery", locale)}</div>` : ""}</div><span class="text-sm font-bold opacity-60">${esc(guestAlbumCopy.count(guestItems.length))}</span></header>${guestItems.length ? `<div data-gallery-grid="event-guest-gallery" class="mt-8 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">${cards(guestItems, { lightbox: true, reportCode: event.code, locale, likes: true, deferAfter: 12 })}</div>${galleryProgressiveControls(guestItems.length, "event-guest-gallery", locale)}` : `<p class="mt-8 rounded-2xl border border-dashed border-current/20 px-5 py-12 text-center opacity-65">${esc(guestAlbumCopy.empty)}</p>`}<div class="mt-7 flex flex-col gap-3 sm:flex-row"><a href="/gallery/${encodeURIComponent(event.code)}?lang=${locale}" class="inline-flex min-h-12 items-center justify-center rounded-xl px-5 py-3 text-sm font-bold text-white" style="background:${theme.accent}">${esc(guestAlbumCopy.open)}</a><a href="/gallery/${encodeURIComponent(event.code)}?lang=${locale}#guest-upload" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-current/20 px-5 py-3 text-sm font-bold">${esc(guestAlbumCopy.add)}</a></div></div></section>`;
   const guestAlbumScripts = !options.demo && guestItems.length
-    ? `${galleryFilterScript(guestItems, "event-guest-gallery")}${galleryProgressiveScript("event-guest-gallery")}${lightboxMarkup(locale, true)}${mediaLikesScript(event.code, locale)}`
+    ? `${galleryFilterScript(guestItems, "event-guest-gallery")}${galleryProgressiveScript("event-guest-gallery")}${lightboxMarkup(locale, true, options.originalDownloads === true)}${mediaLikesScript(event.code, locale)}`
     : "";
   const languageLabel = ({ en: "Language", el: "Γλώσσα", fr: "Langue", de: "Sprache", es: "Idioma", it: "Lingua" } as const)[locale];
   const languagePicker = `<label class="sr-only" for="event-language">${esc(languageLabel)}</label><select id="event-language" aria-label="${esc(languageLabel)}" class="max-w-[7rem] rounded-full border border-current/15 bg-transparent px-3 py-2 text-xs font-bold" onchange="location.href=this.value">${supportedLocales.map((language) => {

@@ -119,6 +119,37 @@ describe("event vertical landing framework", () => {
     expect(html).toContain('fetchpriority="high"');
   });
 
+  it("renders original downloads only when the generic event entitlement allows them", () => {
+    const vertical = eventVerticalFor("birthday")!;
+    const event = {
+      id: "event-download-test", code: "DOWN1", eventName: "Birthday", couple: "Birthday",
+      admin_token_hash: "", created_at: 1, expires_at: Date.now() + 86_400_000,
+      status: "active", notes: "", updated_at: 1, default_locale: "en",
+      event_start_date: "2026-08-20", event_end_date: "2026-08-20", event_type: "birthday",
+      location: "Athens", gallery_pin_hash: null, deleted_at: null, purge_at: null,
+    } as const;
+    const profile = {
+      event_id: event.id, headline: "Birthday", host_name: "Alex",
+      introduction: "", story: "", schedule_notes: "", guest_notes: "", contact_email: "",
+      custom_fields_json: "{}", theme_key: "signature", wizard_step: 4,
+      wizard_completed_at: 1, publish_status: "published", updated_at: 1,
+    } as const;
+    const guestItems = [{
+      id: "birthday-video", event_id: event.id, object_key: "events/birthday.mov",
+      media_type: "video", content_type: "video/quicktime", uploaded_by: "Guest",
+      uploaded_at: 1, captured_at: null, content_hash: "hash", reported_at: null,
+      size_bytes: 1024, title: null, deleted_at: null, purge_at: null,
+      upload_consent_at: null, upload_policy_version: null, origin: "guest", uploaded_by_user_id: null,
+    }] as const;
+
+    const trial = eventVerticalPreviewPage("en", event, vertical, profile, false, { guestItems, originalDownloads: false });
+    expect(trial).toContain("Originals unlock with upgrade");
+    expect(trial).not.toContain('id="lightbox-download"');
+
+    const unlocked = eventVerticalPreviewPage("en", event, vertical, profile, false, { guestItems, originalDownloads: true });
+    expect(unlocked).toContain('id="lightbox-download"');
+  });
+
   it("offers safe event-specific guest simulations instead of a disabled static demo", () => {
     const bachelor = eventVerticalDemoFrame("el", eventVerticalFor("bachelor")!, "signature");
     const birthday = eventVerticalDemoFrame("el", eventVerticalFor("birthday")!, "signature");

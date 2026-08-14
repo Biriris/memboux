@@ -497,6 +497,8 @@ describe("account route boundaries", () => {
     expect(ownerPreviewHtml).toContain('id="guest-album"');
     expect(ownerPreviewHtml).toContain('data-gallery-grid="event-guest-gallery"');
     expect(ownerPreviewHtml).toContain("trip-guest-photo");
+    expect(ownerPreviewHtml).toContain("Originals unlock with upgrade");
+    expect(ownerPreviewHtml).not.toContain('id="lightbox-download"');
 
     for (const [step, fields] of [
       [2, { scheduleNotes: "Day one: Stone Town. Day two: Nungwi.", mustSeeStops: "Stone Town, Nungwi" }],

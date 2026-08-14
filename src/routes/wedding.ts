@@ -278,6 +278,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
   const profile = await c.env.DB.prepare("SELECT * FROM event_wedding_profiles WHERE event_id=?")
     .bind(event.id).first<WeddingProfile>();
   if (!profile) return c.text("Wedding page not found", 404);
+  const access = await getEventAccess(c.env.DB, event.id);
 
   const previewRequested = c.req.query("preview") === "1";
   let preview = false;
@@ -288,7 +289,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     if (profile.publish_status !== "published" && !authorizedPreview) return c.text("Wedding page not published", 404);
     preview = authorizedPreview;
   }
-  if (!authorizedPreview && !eventAccessAllows(await getEventAccess(c.env.DB, event.id), "guest_access"))
+  if (!authorizedPreview && !eventAccessAllows(access, "guest_access"))
     return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">${brandMark("/", true)}<p class="mt-7 text-xs font-bold uppercase tracking-[.16em] text-[#7c3aed]">Memboux preview</p><h1 class="mt-2 text-4xl">${esc(localized(locale, "This wedding is not open yet", "Αυτός ο γάμος δεν έχει ανοίξει ακόμη", "Ce mariage n'est pas encore ouvert", "Diese Hochzeit ist noch nicht geöffnet", "Esta boda aún no está abierta", "Questo matrimonio non è ancora aperto"))}</h1><p class="mt-3 leading-6 text-[#6f657c]">${esc(localized(locale, "The couple is preparing the private preview.", "Το ζευγάρι προετοιμάζει την ιδιωτική προεπισκόπηση.", "Le couple prépare l'aperçu privé.", "Das Paar bereitet die private Vorschau vor.", "La pareja está preparando la vista previa privada.", "La coppia sta preparando l'anteprima privata."))}</p></section></main>`, { locale }), 403);
 
   if (!authorizedPreview && !(await hasEventSurfaceAccess(c.req.raw, event, "website"))) {
@@ -349,6 +350,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     guestbookEntries: guestbook.results,
     settings: { ...settings, rsvp_enabled: 0 },
     curatorName: curator?.business_name ?? "Memboux Studio",
+    originalDownloads: eventAccessAllows(access, "original_downloads"),
   });
   const previewTheme = authorizedPreview && c.req.query("theme")
     ? normalizeWeddingTheme(c.req.query("theme"))

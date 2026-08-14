@@ -58,6 +58,30 @@ describe("integrated wedding guest experience", () => {
     expect(result.scripts).toContain("wedding-select-media");
   });
 
+  it("matches wedding download controls to the event entitlement", () => {
+    const input = {
+      code: "ABC123",
+      eventName: "Alex & Sam",
+      locale: "en" as const,
+      guestUrl: "https://memboux.com/wedding/ABC123",
+      guestQrSvg: "<svg></svg>",
+      guestItems: [photo("guest-1", "guest")],
+      officialItems: [],
+      guestbookEntries: [],
+      settings: { rsvp_enabled: 0, guestbook_enabled: 0, comments_enabled: 0, slideshow_enabled: 0 },
+      curatorName: "Memboux Studio",
+    };
+
+    const trial = renderWeddingExperience({ ...input, originalDownloads: false });
+    expect(trial.scripts).toContain("Originals unlock with upgrade");
+    expect(trial.scripts).not.toContain('id="lightbox-download"');
+    expect(trial.scripts).toContain("#wedding-select-media,#wedding-download-selected");
+
+    const unlocked = renderWeddingExperience({ ...input, originalDownloads: true });
+    expect(unlocked.scripts).toContain('id="lightbox-download"');
+    expect(unlocked.scripts).not.toContain("#wedding-select-media,#wedding-download-selected");
+  });
+
   it("progressively reveals large guest galleries", () => {
     const result = renderWeddingExperience({
       code: "ABC123",
