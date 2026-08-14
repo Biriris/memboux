@@ -24,6 +24,7 @@ type ExperienceSettings = {
   guestbook_moderation: number;
   media_moderation_enabled: number;
   guest_downloads_enabled: number;
+  guest_bulk_downloads_enabled: number;
   slideshow_album_id: string | null;
   slideshow_only_approved: number;
   slideshow_interval_seconds: number;
@@ -43,6 +44,7 @@ const defaults: ExperienceSettings = {
   guestbook_moderation: 1,
   media_moderation_enabled: 0,
   guest_downloads_enabled: 1,
+  guest_bulk_downloads_enabled: 1,
   slideshow_album_id: null,
   slideshow_only_approved: 1,
   slideshow_interval_seconds: 6,
@@ -330,7 +332,9 @@ experienceRoutes.get("/dashboard/:code/engagement", async (c) => {
   const commentRows = comments.results.map((row: any) => `<article class="flex items-start gap-3 rounded-2xl border border-[#e2e9e6] bg-white p-4"><img src="/media/${encodeURIComponent(row.media_id)}" alt="" class="h-16 w-16 rounded-xl object-cover"><div class="min-w-0 flex-1"><p class="font-semibold">${esc(row.author_name)}</p><p class="mt-1 text-sm text-[#746a80]">${esc(row.message)}</p></div>${row.status === "approved" ? `<form action="/api/account/events/${event.code}/comments/${row.id}/hide" method="post"><input type="hidden" name="locale" value="${locale}"><button class="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Hide</button></form>` : `<span class="text-xs font-bold text-[#9aaba4]">Hidden</span>`}</article>`).join("");
   const body = `${eventHeader(locale, { name: user.name ?? user.email, email: user.email })}<main class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10"><div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><a href="/dashboard/${event.code}?lang=${locale}" class="text-sm font-semibold text-[#6d28d9]">← ${text(locale, "Πίσω στο event", "Back to event")}</a><p class="mt-5 text-xs font-bold uppercase tracking-[.18em] text-[#7c3aed]">Engagement</p><h1 class="mt-2 text-4xl">${esc(event.eventName)}</h1></div><a href="/gallery/${event.code}/slideshow?lang=${locale}" target="_blank" class="rounded-xl bg-[#2b174d] px-5 py-3 text-center text-sm font-semibold text-white">${text(locale, "Έναρξη live slideshow", "Launch live slideshow")}</a></div><section class="mt-6 grid gap-4 lg:grid-cols-[.8fr_1.2fr]"><form action="/api/account/events/${event.code}/experience-settings" method="post" class="rounded-[2rem] border bg-[#f7f3ff] p-5 sm:p-6"><input type="hidden" name="locale" value="${locale}"><h2 class="text-2xl">${text(locale, "Ρυθμίσεις εμπειρίας", "Experience settings")}</h2><div class="mt-4 grid gap-2">${option("rsvp_enabled", "RSVP", "rsvp")}${option("guestbook_enabled", "Guestbook", "guestbook")}${option("comments_enabled", "Comments", "guestbook")}${option("slideshow_enabled", "Live slideshow", "live_slideshow")}</div>${event.event_type === "wedding" ? `<a href="/dashboard/${event.code}/wedding/setup?lang=${locale}&amp;step=5" class="mt-3 inline-flex text-xs font-bold text-[#6d28d9]">${text(locale, "Διαχείριση λειτουργιών και τιμών →", "Manage features and pricing →")}</a>` : ""}<button class="mt-4 w-full rounded-xl bg-[#7c3aed] px-4 py-3 font-semibold text-white">${text(locale, "Αποθήκευση", "Save settings")}</button></form><section class="overflow-hidden rounded-[2rem] border bg-white"><div class="p-5 sm:p-6"><h2 class="text-2xl">RSVP <span class="text-[#929f9a]">(${rsvps.results.length})</span></h2></div><div class="overflow-x-auto"><table class="w-full min-w-[650px] text-left"><thead class="bg-[#f8f5ff] text-xs uppercase text-[#7a7085]"><tr><th class="px-4 py-3">Guest</th><th class="px-4 py-3">Answer</th><th class="px-4 py-3">People</th><th class="px-4 py-3">Notes</th></tr></thead><tbody>${rsvpRows || `<tr><td colspan="4" class="px-5 py-10 text-center text-[#807588]">${text(locale, "Δεν υπάρχουν απαντήσεις ακόμη.", "No responses yet.")}</td></tr>`}</tbody></table></div></section></section><section class="mt-6 grid gap-6 lg:grid-cols-2"><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Guestbook <span class="text-[#929f9a]">(${guestbook.results.length})</span></h2><div class="mt-4 grid gap-3">${guestRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα μήνυμα ακόμη.", "No messages yet.")}</p>`}</div></div><div class="rounded-[2rem] border bg-[#f8f5ff] p-5 sm:p-6"><h2 class="text-2xl">Comments <span class="text-[#929f9a]">(${comments.results.length})</span></h2><div class="mt-4 grid gap-3">${commentRows || `<p class="rounded-2xl bg-white p-6 text-center text-[#807588]">${text(locale, "Κανένα σχόλιο ακόμη.", "No comments yet.")}</p>`}</div></div></section></main>`;
   const advancedSettings = `<div class="mt-4 grid gap-2"><h3 class="font-semibold">Media & privacy</h3>${option("media_moderation_enabled", text(locale, "Έγκριση νέων uploads πριν εμφανιστούν", "Approve new uploads before they appear"))}${option("guest_downloads_enabled", text(locale, "Οι καλεσμένοι μπορούν να κατεβάζουν αρχεία", "Guests can download media"))}${option("guestbook_video_enabled", "Video guestbook")}${option("guestbook_private", text(locale, "Ευχές ορατές μόνο στους owners", "Guestbook visible only to owners"))}<h3 class="mt-3 font-semibold">Live slideshow</h3>${option("slideshow_include_videos", text(locale, "Συμπερίληψη βίντεο", "Include videos"))}${option("slideshow_show_names", text(locale, "Εμφάνιση ονόματος uploader", "Show uploader names"))}${option("slideshow_shuffle", text(locale, "Τυχαία σειρά", "Shuffle playback"))}<label class="block rounded-xl border bg-white px-4 py-3 text-sm font-semibold">${text(locale, "Album για το slideshow", "Slideshow album")}<select name="slideshow_album_id" class="mt-2 w-full rounded-lg border px-3 py-2"><option value="">${text(locale, "Κεντρική gallery", "Main gallery")}</option>${albums.map((album) => `<option value="${album.id}" ${eventSettings.slideshow_album_id === album.id ? "selected" : ""}>${esc(album.name)}</option>`).join("")}</select></label><div class="grid gap-2 sm:grid-cols-2"><label class="block rounded-xl border bg-white px-4 py-3 text-sm font-semibold">${text(locale, "Χρόνος φωτογραφίας", "Photo duration")}<input name="slideshow_interval_seconds" type="number" min="3" max="20" value="${eventSettings.slideshow_interval_seconds}" class="mt-2 w-full rounded-lg border px-3 py-2"></label><label class="block rounded-xl border bg-white px-4 py-3 text-sm font-semibold">${text(locale, "Μετάβαση", "Transition")}<select name="slideshow_transition" class="mt-2 w-full rounded-lg border px-3 py-2"><option value="fade" ${eventSettings.slideshow_transition === "fade" ? "selected" : ""}>Fade</option><option value="zoom" ${eventSettings.slideshow_transition === "zoom" ? "selected" : ""}>Zoom</option><option value="slide" ${eventSettings.slideshow_transition === "slide" ? "selected" : ""}>Slide</option></select></label></div></div>`;
-  const enhancedBody = body.replace('<button class="mt-4 w-full rounded-xl bg-[#7c3aed]', `${advancedSettings}<button class="mt-4 w-full rounded-xl bg-[#7c3aed]`);
+  const downloadSettings = `${option("guest_downloads_enabled", text(locale, "Μεμονωμένη λήψη φωτογραφιών και βίντεο από καλεσμένους", "Allow guests to download individual photos and videos"))}${option("guest_bulk_downloads_enabled", text(locale, "Μαζική λήψη ολόκληρου του shared gallery από καλεσμένους", "Allow guests to download the complete shared gallery"))}`;
+  const advancedSettingsWithDownloads = advancedSettings.replace(option("guest_downloads_enabled", text(locale, "Οι καλεσμένοι μπορούν να κατεβάζουν αρχεία", "Guests can download media")), downloadSettings);
+  const enhancedBody = body.replace('<button class="mt-4 w-full rounded-xl bg-[#7c3aed]', `${advancedSettingsWithDownloads}<button class="mt-4 w-full rounded-xl bg-[#7c3aed]`);
   const directoryEvent = ["wedding", "baptism"].includes(event.event_type ?? "");
   const organizedBody = directoryEvent
     ? enhancedBody
@@ -360,21 +364,22 @@ experienceRoutes.post("/api/account/events/:code/experience-settings", async (c)
   const interval = Math.min(20, Math.max(3, Number(body.slideshow_interval_seconds) || 6));
   await c.env.DB.prepare(`INSERT INTO event_experience_settings
       (event_id,rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled,guestbook_moderation,
-       media_moderation_enabled,guest_downloads_enabled,slideshow_album_id,slideshow_only_approved,
+       media_moderation_enabled,guest_downloads_enabled,guest_bulk_downloads_enabled,slideshow_album_id,slideshow_only_approved,
        slideshow_interval_seconds,guestbook_video_enabled,guestbook_private,slideshow_include_videos,
        slideshow_show_names,slideshow_shuffle,slideshow_transition,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event_id) DO UPDATE SET
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event_id) DO UPDATE SET
       rsvp_enabled=excluded.rsvp_enabled,guestbook_enabled=excluded.guestbook_enabled,
       comments_enabled=excluded.comments_enabled,slideshow_enabled=excluded.slideshow_enabled,
       guestbook_moderation=excluded.guestbook_moderation,media_moderation_enabled=excluded.media_moderation_enabled,
-      guest_downloads_enabled=excluded.guest_downloads_enabled,slideshow_album_id=excluded.slideshow_album_id,
+      guest_downloads_enabled=excluded.guest_downloads_enabled,guest_bulk_downloads_enabled=excluded.guest_bulk_downloads_enabled,
+      slideshow_album_id=excluded.slideshow_album_id,
       slideshow_only_approved=excluded.slideshow_only_approved,slideshow_interval_seconds=excluded.slideshow_interval_seconds,
       guestbook_video_enabled=excluded.guestbook_video_enabled,guestbook_private=excluded.guestbook_private,
       slideshow_include_videos=excluded.slideshow_include_videos,slideshow_show_names=excluded.slideshow_show_names,
       slideshow_shuffle=excluded.slideshow_shuffle,slideshow_transition=excluded.slideshow_transition,
       updated_at=excluded.updated_at`)
     .bind(event.id, enabled("rsvp_enabled", "rsvp"), enabled("guestbook_enabled", "guestbook"), enabled("comments_enabled", "guestbook"), enabled("slideshow_enabled", "live_slideshow"), 0,
-      value("media_moderation_enabled"), value("guest_downloads_enabled"), albumId || null, 1, interval,
+      value("media_moderation_enabled"), value("guest_downloads_enabled"), value("guest_bulk_downloads_enabled"), albumId || null, 1, interval,
       value("guestbook_video_enabled"), value("guestbook_private"), value("slideshow_include_videos"),
       value("slideshow_show_names"), value("slideshow_shuffle"), ["zoom", "slide"].includes(String(body.slideshow_transition)) ? String(body.slideshow_transition) : "fade", Date.now()).run();
   return c.redirect(`/dashboard/${event.code}/engagement?lang=${locale}`, 303);

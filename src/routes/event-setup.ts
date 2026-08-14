@@ -167,9 +167,11 @@ eventSetupRoutes.get("/event/:code", async (c) => {
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [galleryItems, cover] = await Promise.all([
+  const [galleryItems, cover, downloadSettings] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     resolveEventCover(c.env.DB, event.id),
+    c.env.DB.prepare("SELECT guest_downloads_enabled,guest_bulk_downloads_enabled FROM event_experience_settings WHERE event_id=?")
+      .bind(event.id).first<{ guest_downloads_enabled: number; guest_bulk_downloads_enabled: number }>().catch(() => null),
   ]);
   const guestItems = galleryItems.filter((item) => item.origin !== "official");
   return c.html(eventVerticalPreviewPage(
@@ -180,7 +182,8 @@ eventSetupRoutes.get("/event/:code", async (c) => {
     manager && preview,
     {
       guestExperienceOpen: eventAccessAllows(access, "guest_access"),
-      originalDownloads: eventAccessAllows(access, "original_downloads"),
+      originalDownloads: eventAccessAllows(access, "original_downloads") && (downloadSettings?.guest_downloads_enabled ?? 1) === 1,
+      bulkDownloads: eventAccessAllows(access, "original_downloads") && (downloadSettings?.guest_downloads_enabled ?? 1) === 1 && (downloadSettings?.guest_bulk_downloads_enabled ?? 1) === 1,
       guestItems,
       coverUpdatedAt: cover?.updated_at ?? null,
     },

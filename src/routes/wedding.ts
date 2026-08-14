@@ -319,7 +319,7 @@ weddingRoutes.get("/wedding/:code", async (c) => {
         AND (g.media_id IS NULL OR EXISTS (SELECT 1 FROM media m WHERE m.id=g.media_id AND m.deleted_at IS NULL AND m.reported_at IS NULL AND m.moderation_status='approved'))
       ORDER BY g.created_at DESC LIMIT 6`)
       .bind(event.id).all<GuestbookPreview>().catch(() => ({ results: [] as GuestbookPreview[] })),
-    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled,guestbook_video_enabled,guestbook_private FROM event_experience_settings WHERE event_id=?")
+    c.env.DB.prepare("SELECT rsvp_enabled,guestbook_enabled,comments_enabled,slideshow_enabled,guestbook_video_enabled,guestbook_private,guest_downloads_enabled,guest_bulk_downloads_enabled FROM event_experience_settings WHERE event_id=?")
       .bind(event.id).first<WeddingExperienceSettings>().catch(() => null),
     c.env.DB.prepare(`SELECT p.business_name FROM event_professional_assignments a
       JOIN professional_profiles p ON p.user_id=a.professional_user_id
@@ -338,6 +338,8 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     guestbook_enabled: selectedFeatureKeys.includes("guestbook") ? 1 : 0,
     comments_enabled: selectedFeatureKeys.includes("guestbook") ? 1 : 0,
     slideshow_enabled: selectedFeatureKeys.includes("live_slideshow") ? 1 : 0,
+    guest_downloads_enabled: 1,
+    guest_bulk_downloads_enabled: 1,
   };
   const experience = renderWeddingExperience({
     code: event.code,
@@ -350,7 +352,8 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     guestbookEntries: guestbook.results,
     settings: { ...settings, rsvp_enabled: 0 },
     curatorName: curator?.business_name ?? "Memboux Studio",
-    originalDownloads: eventAccessAllows(access, "original_downloads"),
+    originalDownloads: eventAccessAllows(access, "original_downloads") && (settings.guest_downloads_enabled ?? 1) === 1,
+    bulkDownloads: eventAccessAllows(access, "original_downloads") && (settings.guest_downloads_enabled ?? 1) === 1 && (settings.guest_bulk_downloads_enabled ?? 1) === 1,
   });
   const previewTheme = authorizedPreview && c.req.query("theme")
     ? normalizeWeddingTheme(c.req.query("theme"))

@@ -30,7 +30,7 @@ beforeAll(async () => {
       event_id TEXT PRIMARY KEY,rsvp_enabled INTEGER NOT NULL DEFAULT 1,
       guestbook_enabled INTEGER NOT NULL DEFAULT 1,comments_enabled INTEGER NOT NULL DEFAULT 1,
       slideshow_enabled INTEGER NOT NULL DEFAULT 1,guestbook_moderation INTEGER NOT NULL DEFAULT 1,
-      media_moderation_enabled INTEGER NOT NULL DEFAULT 0,guest_downloads_enabled INTEGER NOT NULL DEFAULT 1,
+      media_moderation_enabled INTEGER NOT NULL DEFAULT 0,guest_downloads_enabled INTEGER NOT NULL DEFAULT 1,guest_bulk_downloads_enabled INTEGER NOT NULL DEFAULT 1,
       slideshow_album_id TEXT,slideshow_only_approved INTEGER NOT NULL DEFAULT 1,
       slideshow_interval_seconds INTEGER NOT NULL DEFAULT 6,guestbook_video_enabled INTEGER NOT NULL DEFAULT 0,
       guestbook_private INTEGER NOT NULL DEFAULT 0,slideshow_include_videos INTEGER NOT NULL DEFAULT 1,

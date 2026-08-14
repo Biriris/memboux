@@ -11,6 +11,8 @@ import {
   galleryProgressiveScript,
   lightboxMarkup,
   mediaLikesScript,
+  bulkDownloadAllScript,
+  directDownloadButtonsScript,
 } from "./media";
 import {
   mediaCommentsOverlay,
@@ -23,6 +25,8 @@ import { uploadLimitsCopy } from "./upload";
 
 export type WeddingExperienceSettings = GuestParticipationSettings & {
   slideshow_enabled: number;
+  guest_downloads_enabled?: number;
+  guest_bulk_downloads_enabled?: number;
 };
 
 type WeddingExperienceInput = {
@@ -37,6 +41,7 @@ type WeddingExperienceInput = {
   settings: WeddingExperienceSettings;
   curatorName: string;
   originalDownloads?: boolean;
+  bulkDownloads?: boolean;
 };
 
 const tr = (locale: Locale, values: Record<Locale, string>) => values[locale];
@@ -49,7 +54,7 @@ export function renderWeddingExperience(input: WeddingExperienceInput) {
   const selectText = tr(locale, { en: "Select", el: "Επιλογή", fr: "Sélectionner", de: "Auswählen", es: "Seleccionar", it: "Seleziona" });
   const cancelText = tr(locale, { en: "Cancel", el: "Ακύρωση", fr: "Annuler", de: "Abbrechen", es: "Cancelar", it: "Annulla" });
   const downloadText = tr(locale, { en: "Download selected", el: "Λήψη επιλεγμένων", fr: "Télécharger la sélection", de: "Auswahl herunterladen", es: "Descargar selección", it: "Scarica selezionate" });
-  const selectionScript = input.originalDownloads === true ? bulkSelectionScript({
+  const selectionScript = (input.bulkDownloads ?? input.originalDownloads) === true ? `${bulkSelectionScript({
     selectButtonId: "wedding-select-media",
     cardSelector: "#guest-moments .selectable-media",
     selectorSelector: "#guest-moments .media-selector",
@@ -58,7 +63,7 @@ export function renderWeddingExperience(input: WeddingExperienceInput) {
     selectText,
     cancelText,
     actions: [{ buttonId: "wedding-download-selected", label: downloadText, kind: "download" }],
-  }) : `<style>#wedding-select-media,#wedding-download-selected{display:none!important}</style>`;
+  })}${bulkDownloadAllScript({ buttonId: "wedding-download-all", selectButtonId: "wedding-select-media", checkboxSelector: "#guest-moments .media-select", actionButtonId: "wedding-download-selected", label: tr(locale, { en: "Download all", el: "Λήψη όλων", fr: "Tout télécharger", de: "Alle herunterladen", es: "Descargar todo", it: "Scarica tutto" }) })}` : `<style>#wedding-select-media,#wedding-download-selected{display:none!important}#wedding-download-all{display:none!important}</style>`;
   const experienceStyles = `<style>.w-integrated{background:var(--w-bg);color:var(--w-ink)}.w-integrated-alt{background:var(--w-panel)}.w-guest-grid{display:grid;gap:1rem;margin-top:3rem}.w-integrated-card{border:1px solid color-mix(in srgb,var(--w-ink) 14%,transparent);background:color-mix(in srgb,var(--w-panel) 94%,transparent);padding:clamp(1.25rem,4vw,2.5rem)}.w-integrated-card h3{margin:.4rem 0;font-family:var(--w-display);font-size:clamp(1.8rem,4vw,3rem);font-weight:400}.w-integrated-card p{line-height:1.7}.w-card-kicker{color:var(--w-accent);font-size:.68rem;font-weight:750;letter-spacing:.2em;text-transform:uppercase}.w-qr{width:min(12rem,70%);margin:1.5rem auto;background:#fff;padding:.75rem}.w-integrated-button{display:inline-flex;min-height:3rem;align-items:center;justify-content:center;border:0;background:var(--w-ink);padding:.75rem 1.2rem;color:var(--w-bg);font-size:.76rem;font-weight:750;letter-spacing:.06em;text-decoration:none;text-transform:uppercase}.w-integrated-button.secondary{margin-top:1rem;border:1px solid color-mix(in srgb,var(--w-ink) 20%,transparent);background:transparent;color:var(--w-ink)}.w-section-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1.5rem}.w-section-head h2{font-size:clamp(2.8rem,6vw,5.5rem)}.w-select-actions{display:flex;gap:.5rem}.w-select-actions button{border:1px solid color-mix(in srgb,var(--w-ink) 24%,transparent);padding:.65rem 1rem;font-size:.75rem;font-weight:700}.w-select-actions button:last-child{background:var(--w-ink);color:var(--w-bg)}.w-empty{margin-top:2rem;border:1px dashed color-mix(in srgb,var(--w-ink) 25%,transparent);padding:3rem;text-align:center}.w-count{display:flex;height:3rem;min-width:3rem;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--w-ink) 20%,transparent);border-radius:50%;font-weight:700}.w-live{background:#080b0a;color:#f3efe5}.w-live .w-eyebrow{color:#86b9a6}.w-live-stage{position:relative;display:flex;min-height:min(70vh,44rem);margin-top:3rem;align-items:center;justify-content:center;overflow:hidden;background:#020303;color:#ffffff8f}.w-live-image{position:absolute;inset:0;height:100%;width:100%;object-fit:contain;animation:w-live-in .7s ease}.w-live-meta{display:flex;justify-content:space-between;gap:1rem;padding-top:1rem;color:#ffffff9c;font-size:.75rem}.w-share-card [data-native-share],.w-share-card [data-message-app],.w-share-card a{cursor:pointer}@keyframes w-live-in{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}</style>`;
   const uploadTitle = tr(locale, { en: "Add your moments", el: "Πρόσθεσε τις στιγμές σου", fr: "Ajoutez vos moments", de: "Füge deine Momente hinzu", es: "Añade tus momentos", it: "Aggiungi i tuoi momenti" });
   const uploadCopy = tr(locale, { en: "No app or account needed. Select many photos at once.", el: "Χωρίς εφαρμογή ή εγγραφή. Επίλεξε πολλές φωτογραφίες μαζί.", fr: "Sans application ni compte. Sélectionnez plusieurs photos à la fois.", de: "Keine App und kein Konto nötig. Wähle mehrere Fotos gleichzeitig.", es: "Sin app ni cuenta. Selecciona varias fotos a la vez.", it: "Nessuna app o account. Seleziona più foto insieme." });
@@ -85,5 +90,5 @@ export function renderWeddingExperience(input: WeddingExperienceInput) {
 
   const liveScript = settings.slideshow_enabled ? `<script>(()=>{const stage=document.getElementById('wedding-live-stage'),count=document.getElementById('wedding-live-count'),uploader=document.getElementById('wedding-live-uploader');if(!stage)return;let items=[],index=0,signature='',timer;const render=()=>{clearTimeout(timer);if(!items.length)return;const item=items[index%items.length],image=document.createElement('img');image.src=item.url+'?variant=preview';image.alt='';image.className='w-live-image';stage.replaceChildren(image);count.textContent=(index+1)+' / '+items.length;uploader.textContent=item.uploaded_by?${JSON.stringify(tr(locale, { en: "Uploaded by ", el: "Ανέβηκε από ", fr: "Ajouté par ", de: "Hochgeladen von ", es: "Subido por ", it: "Caricata da " }))}+item.uploaded_by:'';timer=setTimeout(()=>{index=(index+1)%items.length;render()},5000)};const refresh=async()=>{try{const response=await fetch('/api/gallery/${encodeURIComponent(code)}/slideshow-feed',{credentials:'include',cache:'no-store'});if(!response.ok)return;const data=await response.json(),next=(data.items||[]).filter(item=>item.media_type==='image'),nextSignature=next.map(item=>item.id).join(',');if(nextSignature!==signature){const current=items[index]?.id;items=next;signature=nextSignature;index=Math.max(0,items.findIndex(item=>item.id===current));render()}}catch{}};refresh();setInterval(refresh,5000)})()<\/script>` : "";
   const scripts = `${galleryFilterScript(guestItems, "wedding-guest-gallery")}${galleryProgressiveScript("wedding-guest-gallery")}${lightboxMarkup(locale, true, input.originalDownloads === true)}${settings.comments_enabled === 0 ? "" : mediaCommentsOverlay(code, locale)}${selectionScript}${mediaLikesScript(code, locale)}${liveScript}<script>(()=>{const button=document.getElementById('copy-wedding-link');button?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(${JSON.stringify(guestUrl)});button.textContent=${JSON.stringify(tr(locale, { en: "Link copied", el: "Ο σύνδεσμος αντιγράφηκε", fr: "Lien copié", de: "Link kopiert", es: "Enlace copiado", it: "Link copiato" }))}}catch{}})})()<\/script>`;
-  return { html: `${experienceStyles}${html}`, scripts };
+  return { html: `${experienceStyles}${html}`, scripts: `${scripts}${input.originalDownloads === true ? directDownloadButtonsScript(locale, "#guest-moments") : ""}` };
 }

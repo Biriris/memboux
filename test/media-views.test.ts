@@ -185,6 +185,14 @@ describe("media views", () => {
     expect(html).toContain("data-like-count>12</span>");
   });
 
+  it("renders a direct tile download only when the resolved policy allows it", () => {
+    const denied = cards([media()], { lightbox: true, downloads: false });
+    const allowed = cards([media()], { lightbox: true, downloads: true });
+    expect(denied).not.toContain("data-direct-media-download");
+    expect(allowed).toContain("data-direct-media-download");
+    expect(allowed).toContain("?download=1");
+  });
+
   it("localizes media interactions and lightbox controls in every supported language", () => {
     for (const [locale, expected] of [
       ["en", ["Like photo", "Report", "Uploaded by", "Download original", "Previous"]],
@@ -203,7 +211,8 @@ describe("media views", () => {
       });
       const lightbox = lightboxMarkup(locale, true);
       expect(cardHtml).toContain(expected[0]);
-      expect(cardHtml).toContain(expected[1]);
+      expect(cardHtml).not.toContain(`>${expected[1]}<`);
+      expect(mediaUploaderOverlay(locale)).toContain(expected[1]);
       expect(cardHtml).toContain('aria-label="');
       expect(mediaUploaderOverlay(locale)).toContain(expected[2]);
       expect(lightbox).toContain(expected[3]);
@@ -219,12 +228,13 @@ describe("media views", () => {
     }
   });
 
-  it("shows the uploader on gallery cards and in the open-photo overlay", () => {
+  it("keeps uploader identity and reporting inside the open-photo overlay", () => {
     const html = cards([media({ uploaded_by: "Nina Guest" })], { lightbox: true });
-    expect(html).toContain("Nina Guest");
     expect(html).toContain('data-uploader="Nina Guest"');
+    expect(html.match(/Nina Guest/g)).toHaveLength(1);
     expect(mediaUploaderOverlay("en")).toContain("Uploaded by");
     expect(mediaUploaderOverlay("en")).toContain("lightbox-uploader");
+    expect(mediaUploaderOverlay("en")).toContain("lightbox-report");
   });
 
   it("keeps keyboard, backdrop close, and touch-following swipe behavior", () => {
@@ -262,7 +272,9 @@ describe("media views", () => {
     expect(html).toContain("original=item.dataset.original||item.dataset.full||src");
     expect(html).toContain('id="lightbox-download"');
     expect(html).not.toContain('id="lightbox-download" aria-label="Download original" class="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/25 bg-black/55 px-3 py-2 text-xs font-bold text-white shadow-xl backdrop-blur" download');
-    expect(html).toContain("headers:{Range:'bytes=0-0'}");
+    expect(html).toContain("new File([blob]");
+    expect(html).toContain("navigator.canShare?.({files:[file]})");
+    expect(html).not.toContain("headers:{Range:'bytes=0-0'}");
     expect(html).toContain("if(!response.ok)throw new Error");
     expect(html).toContain("memboux:media-download");
     expect(html).not.toContain("fullResolution");

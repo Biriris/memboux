@@ -65,6 +65,14 @@ beforeAll(async () => {
       request_count INTEGER NOT NULL, expires_at INTEGER NOT NULL
     )`),
     env.DB.prepare(`CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT,created_at INTEGER)`),
+    env.DB.prepare(`CREATE TABLE event_experience_settings (
+      event_id TEXT PRIMARY KEY,rsvp_enabled INTEGER NOT NULL DEFAULT 1,
+      guestbook_enabled INTEGER NOT NULL DEFAULT 1,comments_enabled INTEGER NOT NULL DEFAULT 1,
+      slideshow_enabled INTEGER NOT NULL DEFAULT 1,guestbook_moderation INTEGER NOT NULL DEFAULT 1,
+      media_moderation_enabled INTEGER NOT NULL DEFAULT 0,guest_downloads_enabled INTEGER NOT NULL DEFAULT 1,
+      guest_bulk_downloads_enabled INTEGER NOT NULL DEFAULT 1,guestbook_video_enabled INTEGER NOT NULL DEFAULT 0,
+      guestbook_private INTEGER NOT NULL DEFAULT 0,updated_at INTEGER NOT NULL
+    )`),
     env.DB.prepare(`CREATE TABLE event_access (
       event_id TEXT PRIMARY KEY,access_state TEXT NOT NULL,enforcement_state TEXT NOT NULL,
       media_limit INTEGER NOT NULL,guest_access_enabled INTEGER NOT NULL,
@@ -183,6 +191,20 @@ beforeAll(async () => {
 });
 
 describe("gallery, upload, and media routes", () => {
+  it("keeps individual and bulk guest download permissions independent", async () => {
+    await env.DB.prepare(`INSERT INTO event_experience_settings
+      (event_id,guest_downloads_enabled,guest_bulk_downloads_enabled,updated_at) VALUES (?,1,0,?)
+      ON CONFLICT(event_id) DO UPDATE SET guest_downloads_enabled=1,guest_bulk_downloads_enabled=0,updated_at=excluded.updated_at`)
+      .bind(publicEventId, now).run();
+    const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}?lang=en`);
+    const html = await response.text();
+    expect(html).toContain("data-direct-media-download");
+    expect(html).toContain("#download-all-media{display:none!important}");
+    expect(html).not.toContain("bulkDownloadAllScript");
+    await env.DB.prepare("UPDATE event_experience_settings SET guest_bulk_downloads_enabled=1 WHERE event_id=?")
+      .bind(publicEventId).run();
+  });
+
   it("exposes public event albums without leaking them into the main gallery", async () => {
     const albumId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     await env.DB.prepare(`INSERT INTO event_albums
