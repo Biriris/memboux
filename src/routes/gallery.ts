@@ -284,6 +284,9 @@ galleryRoutes.get("/gallery/:code", async (c) => {
   }));
   const items = allMedia.filter((item) => item.origin !== "official");
   const photoItems = items;
+  const soleAlbumVideo = selectedAlbum && items.length === 1 && items[0]?.media_type === "video"
+    ? items[0]
+    : null;
   const officialCount = officialResult?.total ?? 0;
   const guestQrSvg = guestQrRaw.replace("<svg", '<svg class="block h-auto w-full max-w-full"');
   const participationSettings: GuestParticipationSettings = {
@@ -321,7 +324,9 @@ galleryRoutes.get("/gallery/:code", async (c) => {
       `${eventBrandingStyle(branding)}<main class="event-brand-soft guest-album-page mx-auto max-w-7xl p-4 sm:p-6 lg:p-10">
         <header class="guest-album-topbar flex items-center justify-between px-1 py-2">${eventBrandIdentity(branding, event.eventName)}${galleryLanguagePicker(event.code, locale)}</header>
         <section class="event-brand-surface guest-event-hero relative mt-4 overflow-hidden rounded-[2rem] bg-[#2b174d] px-6 py-9 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
-          ${cover ? `<img src="/gallery/${encodeURIComponent(event.code)}/cover?v=${cover.updated_at}" alt="" class="absolute inset-0 h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-r from-[#24143b]/95 via-[#2b174d]/80 to-[#2b174d]/45"></div>` : ""}
+          ${soleAlbumVideo
+            ? `<video data-album-video-cover src="/media/${encodeURIComponent(soleAlbumVideo.id)}#t=0.1" poster="/media/${encodeURIComponent(soleAlbumVideo.id)}?variant=thumb" muted playsinline preload="metadata" aria-hidden="true" class="absolute inset-0 h-full w-full object-cover"></video><div class="absolute inset-0 bg-gradient-to-r from-[#24143b]/95 via-[#2b174d]/80 to-[#2b174d]/45"></div>`
+            : cover ? `<img src="/gallery/${encodeURIComponent(event.code)}/cover?v=${cover.updated_at}" alt="" class="absolute inset-0 h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-r from-[#24143b]/95 via-[#2b174d]/80 to-[#2b174d]/45"></div>` : ""}
           <div class="relative">
             <p class="text-xs font-bold uppercase tracking-[.22em] text-[#ddcff5]">${esc(selectedAlbum ? "Event album" : g.privateAlbum)}</p>
             <h1 class="mt-3 max-w-4xl text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">${esc(selectedAlbum?.name ?? event.eventName)}</h1>

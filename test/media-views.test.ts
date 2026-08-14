@@ -213,8 +213,9 @@ describe("media views", () => {
         expect(lightbox).not.toContain("Λήψη original");
         expect(lightbox).not.toContain("Τα original");
       }
-      const source = lightbox.slice(lightbox.indexOf("<script>") + 8, lightbox.lastIndexOf("</script>"));
-      expect(() => new Function(source)).not.toThrow();
+      const sources = [...lightbox.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+      expect(sources.length).toBeGreaterThan(1);
+      for (const source of sources) expect(() => new Function(source)).not.toThrow();
     }
   });
 
@@ -242,8 +243,11 @@ describe("media views", () => {
     expect(html).toContain("if(event.target===dialog||event.target===stage)dialog.close()");
     expect(html).toContain("ArrowLeft");
     expect(html).toContain("ArrowRight");
-    const source = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
-    expect(() => new Function(source)).not.toThrow();
+    expect(html).toContain("dialog.addEventListener('close',stopPlayback)");
+    expect(html).toContain("media.pause()");
+    expect(html).toContain("media.removeAttribute('src')");
+    const sources = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+    for (const source of sources) expect(() => new Function(source)).not.toThrow();
   });
 
   it("likes an open photo with a mobile double tap", () => {
@@ -257,6 +261,10 @@ describe("media views", () => {
     expect(html).toContain("{passive:false}");
     expect(html).toContain("original=item.dataset.original||item.dataset.full||src");
     expect(html).toContain('id="lightbox-download"');
+    expect(html).not.toContain('id="lightbox-download" aria-label="Download original" class="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/25 bg-black/55 px-3 py-2 text-xs font-bold text-white shadow-xl backdrop-blur" download');
+    expect(html).toContain("headers:{Range:'bytes=0-0'}");
+    expect(html).toContain("if(!response.ok)throw new Error");
+    expect(html).toContain("memboux:media-download");
     expect(html).not.toContain("fullResolution");
   });
 

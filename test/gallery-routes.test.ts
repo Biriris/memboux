@@ -203,6 +203,26 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain("album-photo-media");
   });
 
+  it("uses the thumbnail of a sole album video as the album cover", async () => {
+    const albumId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    await env.DB.prepare(`INSERT INTO event_albums
+      (id,event_id,slug,name,description,privacy,allow_uploads,allow_downloads,sort_order,created_by,created_at,updated_at)
+      VALUES (?,?,?,?,?,'public',1,1,1,?,?,?)`)
+      .bind(albumId, publicEventId, "video-memories", "Video memories", "One video", "gallery-owner", now, now).run();
+    await env.DB.prepare(`INSERT INTO media
+      (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes,album_id)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .bind("sole-album-video", publicEventId, "test/sole-album-video.mp4", "video", "video/mp4", "Guest", now + 20, 12, albumId).run();
+
+    const response = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/albums/video-memories?lang=en`, { redirect: "follow" });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('data-album-video-cover');
+    expect(html).toContain('poster="/media/sole-album-video?variant=thumb"');
+    expect(html).toContain('src="/media/sole-album-video#t=0.1"');
+  });
+
   it("exposes the trial upload usage needed for the guest quota notice", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/upload/${trialCode}/capacity`);
     expect(response.status).toBe(200);
@@ -945,6 +965,12 @@ describe("gallery, upload, and media routes", () => {
     expect(download.headers.get("content-disposition")).toMatch(/^attachment; filename="memboux-\d{4}-\d{2}-\d{2}\.jpg"$/);
     expect(download.headers.get("content-type")).toBe("image/jpeg");
     expect(new TextDecoder().decode(await download.arrayBuffer())).toBe("public-image");
+
+    const videoDownload = await SELF.fetch("https://memboux.com/media/public-legacy-video?download=1");
+    expect(videoDownload.status).toBe(200);
+    expect(videoDownload.headers.get("content-disposition")).toMatch(/^attachment; filename="memboux-\d{4}-\d{2}-\d{2}\.mp4"$/);
+    expect(videoDownload.headers.get("content-type")).toBe("video/mp4");
+    expect(new TextDecoder().decode(await videoDownload.arrayBuffer())).toBe("legacy-video");
   });
 
   it("protects PIN media with the same gallery cookie", async () => {
