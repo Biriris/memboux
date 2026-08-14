@@ -184,6 +184,7 @@ eventRoutes.get("/api/account/events/:code/media-page", async (c) => {
       coverControl: roleCan(membership, "manage_event")
         ? { eventCode: event.code, locale, activeMediaId: cover?.automatic ? null : cover?.source_media_id ?? null }
         : undefined,
+      trashControl: roleCan(membership, "manage_event") ? { eventCode: event.code, locale } : undefined,
     }),
     nextOffset,
     remaining: Math.max(0, count.total - nextOffset),

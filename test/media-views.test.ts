@@ -115,6 +115,7 @@ describe("media views", () => {
     expect(html).toContain("navigator.canShare");
     expect(html).toContain("form.requestSubmit?form.requestSubmit():form.submit()");
     expect(html).toContain("[data-media-like]");
+    expect(html).toContain("[data-media-cover],[data-media-trash]");
   });
 
   it("shows a separate localized photo count and keeps sorting", () => {
@@ -200,9 +201,24 @@ describe("media views", () => {
     expect(inactive).toContain('name="mediaId"');
     expect(inactive).toContain("Set as cover");
     expect(inactive).toContain("absolute right-2 top-2");
+    expect(inactive).toContain("h-9 w-9");
+    expect(inactive).toContain("sm:w-auto");
     expect(active).toContain('aria-pressed="true"');
     expect(active).toContain("Album cover");
     expect(cards([media()], { lightbox: true })).not.toContain("data-media-cover");
+  });
+
+  it("offers a compact per-card trash action only when requested", () => {
+    const managed = cards([media()], {
+      lightbox: true,
+      trashControl: { eventCode: "ABC123", locale: "el" },
+    });
+
+    expect(managed).toContain("data-media-trash");
+    expect(managed).toContain("/api/account/events/ABC123/media/11111111-1111-4111-8111-111111111111/trash");
+    expect(managed).toContain("Μεταφορά στον κάδο");
+    expect(managed).toContain("absolute bottom-2 left-2");
+    expect(cards([media()], { lightbox: true })).not.toContain("data-media-trash");
   });
 
   it("keeps reactions interactive in an authenticated lightbox", () => {

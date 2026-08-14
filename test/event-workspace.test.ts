@@ -199,7 +199,9 @@ describe("event workspace", () => {
     expect(html).toContain("Perspectives");
     expect(html).toContain("contributors");
     expect(html).toContain('data-gallery-photo-count="1"');
-    expect(html).toContain("data-media-cover");
+    expect(html).toContain("<form data-media-cover");
+    expect(html).toContain("<form data-media-trash");
+    expect(html).toContain(`/api/account/events/${event.code}/media/dashboard-photo/trash`);
     expect(html).toContain("Set as cover");
     expect(html).toContain('name="mediaId" value="dashboard-photo"');
     expect(html).not.toContain('id="owner-set-cover"');
@@ -243,7 +245,8 @@ describe("event workspace", () => {
     expect(html).not.toContain('id="people"');
     expect(html).not.toContain('id="danger"');
     expect(html).not.toContain("Delete selected");
-    expect(html).not.toContain("data-media-cover");
+    expect(html).not.toContain("<form data-media-cover");
+    expect(html).not.toContain("<form data-media-trash");
   });
 
   it("gives baptism events the shared guest invitation and seating workflow", () => {
