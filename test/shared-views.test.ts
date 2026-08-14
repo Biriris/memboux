@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { accountMenu, brandMark, eventHeader, googleIcon, logoutScript, page, settingsBackLink } from "../src/views/shared";
 
 describe("shared views", () => {
-  it("adds swipe-up dismissal only to pages with a media lightbox", () => {
+  it("adds mobile vertical swipe dismissal for image and video lightboxes", () => {
     const gallery = page("Gallery", '<dialog id="media-lightbox"><div id="lightbox-content"></div></dialog>');
     const plain = page("Plain", "<main>No lightbox</main>");
     expect(gallery).toContain("swipeDismissReady");
-    expect(gallery).toContain("dragY<-80");
-    expect(gallery).toContain("translateY(-110vh)");
+    expect(gallery).toContain("Math.abs(dragY)>80");
+    expect(gallery).toContain("dragY>0?'down':'up'");
+    expect(gallery).toContain("'110vh':'-110vh'");
+    expect(gallery).toContain(".native-save-image,video");
+    expect(gallery).toContain("bottom-72");
+    expect(gallery).toContain("memboux:lightbox-dismiss");
+    expect(gallery).toContain("method:'swipe_'+direction");
     expect(plain).not.toContain("swipeDismissReady");
   });
 
