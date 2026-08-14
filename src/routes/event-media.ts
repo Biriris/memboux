@@ -51,7 +51,9 @@ eventMediaRoutes.post("/api/account/events/:code/media/:id/rename", async(c)=>{
 eventMediaRoutes.post("/api/account/events/:code/media/:id/trash", async(c)=>{
   const user=await currentUser(c);if(!user)return c.text("Unauthorized",401);const event=await getEvent(c.env.DB,c.req.param("code"));if(!event)return c.text("Event not found",404);
   if(!roleCan(await getEventRole(c.env.DB,event.id,user.id),"manage_media"))return c.text("Forbidden",403);
-  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const now=Date.now();await c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=?").bind(now,now+TRASH_RETENTION_MS,c.req.param("id"),event.id).run();return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
+  const body=await c.req.parseBody();const locale=normalizeLocale(String(body.locale??event.default_locale));const now=Date.now();const result=await c.env.DB.prepare("UPDATE media SET deleted_at=?,purge_at=? WHERE id=? AND event_id=? AND deleted_at IS NULL").bind(now,now+TRASH_RETENTION_MS,c.req.param("id"),event.id).run();
+  if(c.req.header("Accept")?.includes("application/json"))return c.json({ok:true,trashed:Number(result.meta.changes??0)>0,mediaId:c.req.param("id")});
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}`,303);
 });
 
 eventMediaRoutes.post("/api/account/events/:code/media/bulk-trash", async(c)=>{

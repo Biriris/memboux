@@ -203,6 +203,7 @@ describe("event workspace", () => {
     expect(html).toContain("<details data-media-actions");
     expect(html).toContain("<form data-media-cover");
     expect(html).toContain("<form data-media-trash");
+    expect(html).toContain("__membouxMediaTrash");
     expect(html).toContain(`/api/account/events/${event.code}/media/dashboard-photo/trash`);
     expect(html).toContain("Set as cover");
     expect(html).toContain('name="mediaId" value="dashboard-photo"');

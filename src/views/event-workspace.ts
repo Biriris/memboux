@@ -7,7 +7,7 @@ import type { EventAccessRow } from "../domain";
 import { eventTemplateFor, eventTemplateText } from "../event-templates";
 import type { Locale } from "../i18n";
 import { esc, formatDateTime, formatEventDates } from "../utils";
-import { bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, type MediaCardRow } from "./media";
+import { bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaTrashScript, type MediaCardRow } from "./media";
 import { mediaCommentsOverlay } from "./experience";
 import { locationPickerMarkup, locationPickerScript } from "./location-picker";
 import { shareIconButtons } from "./share";
@@ -297,7 +297,7 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
   })}
   <script>(()=>{document.querySelectorAll('[data-copy-link]').forEach(button=>button.addEventListener('click',async()=>{const input=document.getElementById(button.dataset.copyLink);if(!input)return;await navigator.clipboard.writeText(input.value);const label=button.querySelector('span'),previous=label?.textContent;if(label)label.textContent=${JSON.stringify(el ? "Αντιγράφηκε" : "Copied")};setTimeout(()=>{if(label)label.textContent=previous},1400)}));document.querySelectorAll('[data-copy-album-link]').forEach(button=>button.addEventListener('click',async()=>{await navigator.clipboard.writeText(button.dataset.copyAlbumLink);const previous=button.textContent;button.textContent=${JSON.stringify(el ? "Αντιγράφηκε" : "Copied")};setTimeout(()=>button.textContent=previous,1400)}))})()<\/script>
   <script>(()=>{document.querySelectorAll('[data-surface-pin-form]').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const submitter=event.submitter,error=form.querySelector('[data-surface-pin-error]'),button=submitter instanceof HTMLButtonElement?submitter:null;if(button)button.disabled=true;error?.classList.add('hidden');const data=new FormData(form);data.set('action',button?.value||'set');try{const response=await fetch(form.action,{method:'POST',credentials:'include',headers:{Accept:'application/json'},body:data}),result=await response.json().catch(()=>null);if(!response.ok)throw new Error(result?.message||${JSON.stringify(el ? "Δεν αποθηκεύτηκε το PIN." : "The PIN could not be saved.")});location.reload()}catch(reason){if(error){error.textContent=reason instanceof Error?reason.message:${JSON.stringify(el ? "Δεν αποθηκεύτηκε το PIN." : "The PIN could not be saved.")};error.classList.remove('hidden')}}finally{if(button)button.disabled=false}}))})()<\/script>
-  ${locationEnhancement}${inlineEditScript}${ownerSelectionScript}${galleryFilterScript(photoItems, "owner-gallery")}${galleryProgressiveScript("owner-gallery")}${lightboxMarkup(locale, true, canDownloadOriginals)}${mediaCommentsOverlay(event.code, locale)}${mediaLikesScript(event.code, locale)}${logoutScript(locale)}`;
+  ${locationEnhancement}${inlineEditScript}${ownerSelectionScript}${galleryFilterScript(photoItems, "owner-gallery")}${galleryProgressiveScript("owner-gallery")}${mediaTrashScript(locale)}${lightboxMarkup(locale, true, canDownloadOriginals)}${mediaCommentsOverlay(event.code, locale)}${mediaLikesScript(event.code, locale)}${logoutScript(locale)}`;
 
   return page(event.eventName, body);
 }

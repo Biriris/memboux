@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MediaRow } from "../src/domain";
-import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaPreviewFallbackScript, mediaUploaderOverlay } from "../src/views/media";
+import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaPreviewFallbackScript, mediaTrashScript, mediaUploaderOverlay } from "../src/views/media";
 
 const media = (overrides: Partial<MediaRow> = {}): MediaRow => ({
   id: "11111111-1111-4111-8111-111111111111",
@@ -216,10 +216,25 @@ describe("media views", () => {
     });
 
     expect(managed).toContain("data-media-trash");
+    expect(managed).toContain("data-confirm=");
+    expect(managed).not.toContain("onsubmit=");
     expect(managed).toContain("/api/account/events/ABC123/media/11111111-1111-4111-8111-111111111111/trash");
     expect(managed).toContain("Μεταφορά στον κάδο");
     expect(managed).toContain("<details data-media-actions");
     expect(cards([media()], { lightbox: true })).not.toContain("data-media-trash");
+  });
+
+  it("enhances owner trash actions without navigating away from the gallery", () => {
+    const script = mediaTrashScript("el");
+
+    expect(script).toContain("form[data-media-trash]");
+    expect(script).toContain("event.preventDefault()");
+    expect(script).toContain("confirm(form.dataset.confirm)");
+    expect(script).toContain("headers:{Accept:'application/json'}");
+    expect(script).toContain("card.remove()");
+    expect(script).toContain("__membouxBrickwallRelayout");
+    expect(script).toContain("Μεταφέρθηκε στον κάδο");
+    expect(() => new Function(script.replace(/^<script>/, "").replace(/<\/script>$/, ""))).not.toThrow();
   });
 
   it("keeps reactions interactive in an authenticated lightbox", () => {

@@ -580,6 +580,21 @@ describe("account route boundaries", () => {
     expect(finishedHtml).toContain(`/dashboard/${createBody.code}?lang=en#package-access-title`);
     expect(finishedHtml).toContain(`/dashboard/${createBody.code}?lang=en`);
 
+    const inlineTrash = await SELF.fetch(`https://memboux.com/api/account/events/${createBody.code}/media/trip-guest-photo/trash`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        Accept: "application/json",
+        Cookie: cookieHeader,
+      },
+      body: new URLSearchParams({ locale: "en" }),
+      redirect: "manual",
+    });
+    expect(inlineTrash.status).toBe(200);
+    expect(await inlineTrash.json()).toEqual({ ok: true, trashed: true, mediaId: "trip-guest-photo" });
+    expect((await env.DB.prepare("SELECT deleted_at FROM media WHERE id=?").bind("trip-guest-photo").first<{ deleted_at: number | null }>())?.deleted_at)
+      .toBeTypeOf("number");
+
     const user = await env.DB.prepare('SELECT id FROM "user" WHERE email=?')
       .bind(email)
       .first<{ id: string }>();
