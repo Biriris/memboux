@@ -111,18 +111,16 @@ export function cards(items: MediaCardRow[], options?: MediaCardOptions) {
     const like = options?.likesReadonly
       ? mediaLikeBadge(m, options?.locale, "absolute bottom-2 right-2 z-30")
       : likesEnabled ? mediaLikeButton(m, options?.locale, "absolute bottom-2 right-2 z-30") : "";
-    const cover = options?.coverControl && m.media_type === "image"
-      ? mediaCoverButton(m.id, options.coverControl)
+    const ownerMenu = options?.coverControl || options?.trashControl
+      ? mediaOwnerActionsMenu(m, options)
       : "";
-    const trash = options?.trashControl
-      ? mediaTrashButton(m.id, options.trashControl)
-      : "";
-    const directDownload = options?.downloads ? `<button type="button" data-direct-media-download data-download="${originalSrc}?download=1" data-media-type="${m.media_type}" aria-label="${esc(copy.saveToDevice)}" title="${esc(copy.saveToDevice)}" class="absolute right-2 top-2 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/90 text-[#2b174d] shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14"/></svg></button>` : "";
-    return `<article data-media-type="${m.media_type}" data-media-order="${index}" data-media-uploaded="${Number(m.uploaded_at) || 0}" data-media-captured="${Number(m.captured_at ?? m.uploaded_at) || 0}" data-media-rating="${Math.max(0, Number(m.like_count ?? 0))}"${deferred ? ' data-gallery-deferred="true" style="display:none"' : ""} class="memboux-media-card selectable-media relative mb-3 overflow-hidden rounded-2xl bg-[#f7f3ff] shadow-sm transition sm:mb-4${deferred ? " hidden" : ""}">${selector}${cover}${trash}${directDownload}${like}${content}</article>`;
+    const directDownload = options?.downloads && !ownerMenu ? `<button type="button" data-direct-media-download data-download="${originalSrc}?download=1" data-media-type="${m.media_type}" aria-label="${esc(copy.saveToDevice)}" title="${esc(copy.saveToDevice)}" class="absolute right-2 top-2 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/90 text-[#2b174d] shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14"/></svg></button>` : "";
+    return `<article data-media-type="${m.media_type}" data-media-order="${index}" data-media-uploaded="${Number(m.uploaded_at) || 0}" data-media-captured="${Number(m.captured_at ?? m.uploaded_at) || 0}" data-media-rating="${Math.max(0, Number(m.like_count ?? 0))}"${deferred ? ' data-gallery-deferred="true" style="display:none"' : ""} class="memboux-media-card selectable-media relative mb-3 overflow-visible rounded-2xl bg-[#f7f3ff] shadow-sm transition sm:mb-4${deferred ? " hidden" : ""}">${selector}${ownerMenu}${directDownload}${like}${content}</article>`;
   }).join("");
 }
 
-function mediaCoverButton(mediaId: string, control: NonNullable<MediaCardOptions["coverControl"]>) {
+function mediaOwnerActionsMenu(media: MediaCardRow, options: MediaCardOptions) {
+  const locale = options.coverControl?.locale ?? options.trashControl?.locale ?? options.locale ?? "en";
   const labels: Record<Locale, { set: string; active: string }> = {
     en: { set: "Set as cover", active: "Album cover" },
     el: { set: "Ορισμός ως cover", active: "Εξώφυλλο album" },
@@ -131,17 +129,24 @@ function mediaCoverButton(mediaId: string, control: NonNullable<MediaCardOptions
     es: { set: "Establecer como portada", active: "Portada del álbum" },
     it: { set: "Imposta come copertina", active: "Copertina dell’album" },
   };
-  const active = control.activeMediaId === mediaId;
-  const label = active ? labels[control.locale].active : labels[control.locale].set;
-  return `<form data-media-cover action="/api/account/events/${encodeURIComponent(control.eventCode)}/cover" method="post" class="absolute right-2 top-2 z-30"><input type="hidden" name="locale" value="${control.locale}"><input type="hidden" name="mediaId" value="${esc(mediaId)}"><button type="submit" aria-pressed="${active}" aria-label="${esc(label)}" title="${esc(label)}" class="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border ${active ? "border-white/25 bg-[#2b174d] text-white" : "border-white/70 bg-white/90 text-[#2b174d]"} p-0 text-xs font-bold shadow-lg backdrop-blur transition hover:scale-105 hover:bg-[#2b174d] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa] sm:h-10 sm:w-auto sm:px-3"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 shrink-0 ${active ? "fill-white/20" : "fill-transparent"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4Z"/></svg><span class="hidden sm:inline">${esc(label)}</span></button></form>`;
-}
-
-function mediaTrashButton(mediaId: string, control: NonNullable<MediaCardOptions["trashControl"]>) {
-  const label = control.locale === "el" ? "Μεταφορά στον κάδο" : "Move to trash";
-  const confirmation = control.locale === "el"
+  const active = options.coverControl?.activeMediaId === media.id;
+  const coverLabel = active ? labels[locale].active : labels[locale].set;
+  const detailsLabel = locale === "el" ? "Προβολή λεπτομερειών" : "View details";
+  const downloadLabel = locale === "el" ? "Λήψη πρωτότυπου" : "Download original";
+  const trashLabel = locale === "el" ? "Μεταφορά στον κάδο" : "Move to trash";
+  const menuLabel = locale === "el" ? "Ενέργειες αρχείου" : "Media actions";
+  const confirmation = locale === "el"
     ? "Να μεταφερθεί αυτό το αρχείο στον κάδο;"
     : "Move this media to trash?";
-  return `<form data-media-trash action="/api/account/events/${encodeURIComponent(control.eventCode)}/media/${encodeURIComponent(mediaId)}/trash" method="post" onsubmit="return confirm('${confirmation}')" class="absolute bottom-2 left-2 z-30"><input type="hidden" name="locale" value="${control.locale}"><button type="submit" aria-label="${esc(label)}" title="${esc(label)}" class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/90 p-0 text-red-700 shadow-lg backdrop-blur transition hover:scale-105 hover:border-red-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 sm:h-10 sm:w-10"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg></button></form>`;
+  const code = options.coverControl?.eventCode ?? options.trashControl?.eventCode;
+  if (!code) return "";
+  const itemClass = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#49395a] hover:bg-[#f7f3ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]";
+  return `<details data-media-actions class="absolute right-2 top-2 z-40"><summary aria-label="${esc(menuLabel)}" title="${esc(menuLabel)}" class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-white/70 bg-white/95 text-xl font-bold leading-none text-[#2b174d] shadow-lg backdrop-blur transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]">⋯</summary><div class="absolute right-0 mt-2 w-56 rounded-xl border border-[#e4ddec] bg-white p-1.5 shadow-2xl">
+    <a href="/dashboard/${encodeURIComponent(code)}/media/${encodeURIComponent(media.id)}?lang=${locale}" class="${itemClass}"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>${esc(detailsLabel)}</a>
+    ${options.downloads ? `<a href="/media/${encodeURIComponent(media.id)}?download=1" download class="${itemClass}"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14"/></svg>${esc(downloadLabel)}</a>` : ""}
+    ${options.coverControl && media.media_type === "image" ? `<form data-media-cover action="/api/account/events/${encodeURIComponent(code)}/cover" method="post"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="mediaId" value="${esc(media.id)}"><button type="submit" aria-pressed="${active}" class="${itemClass}"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 ${active ? "fill-violet-100" : "fill-transparent"}" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18l-6-4-6 4Z"/></svg>${esc(coverLabel)}</button></form>` : ""}
+    ${options.trashControl ? `<div class="my-1 border-t border-[#eee8f5]"></div><form data-media-trash action="/api/account/events/${encodeURIComponent(code)}/media/${encodeURIComponent(media.id)}/trash" method="post" onsubmit="return confirm('${confirmation}')"><input type="hidden" name="locale" value="${locale}"><button type="submit" class="${itemClass} text-red-700 hover:bg-red-50"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>${esc(trashLabel)}</button></form>` : ""}
+  </div></details>`;
 }
 
 export function mediaUploaderOverlay(locale: Locale) {
@@ -222,7 +227,7 @@ function staticBulkSelectionScript(options: BulkSelectionScriptOptions) {
 export function bulkSelectionScript(options: BulkSelectionScriptOptions) {
   return staticBulkSelectionScript(options).replace(
     "document.querySelectorAll('[data-media-like]').forEach(button=>button.classList.toggle('hidden',mode));",
-    "document.querySelectorAll('[data-media-like],[data-media-cover],[data-media-trash]').forEach(button=>button.classList.toggle('hidden',mode));",
+    "document.querySelectorAll('[data-media-like],[data-media-actions]').forEach(button=>button.classList.toggle('hidden',mode));",
   );
 }
 

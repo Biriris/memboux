@@ -114,6 +114,11 @@ export function dashboardVideoCoverMarkup(mediaId: string) {
 }
 
 export type AccountEventFilter = "all" | "owner" | "shared" | "professional" | "upcoming" | "past";
+export type AccountDashboardLayout = "list" | "grid" | "compact";
+
+export function normalizeAccountDashboardLayout(value: unknown): AccountDashboardLayout {
+  return value === "grid" || value === "compact" ? value : "list";
+}
 
 type CalendarEvent = Pick<EventRow, "event_start_date" | "event_end_date">;
 
@@ -629,6 +634,7 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
   ].includes(c.req.query("sort") ?? "")
     ? c.req.query("sort")!
     : "date_desc";
+  const layout = normalizeAccountDashboardLayout(c.req.query("layout"));
   let where = "em.user_id=? AND e.deleted_at IS NULL";
   const bindings: unknown[] = [user.id];
   if (filter === "owner") where += " AND em.role='owner'";
@@ -727,10 +733,10 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     const dateLabel = formatEventDates(event, locale);
     const openLabel = `${locale === "el" ? "Άνοιγμα event" : "Open event"}: ${event.eventName}`;
     return `<article data-dashboard-event class="group relative grid grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-visible rounded-2xl border border-[#e9e3f2] bg-white p-3 shadow-sm transition hover:border-[#d8cbea] hover:shadow-md sm:grid-cols-[7rem_minmax(0,1fr)_10rem_auto] sm:items-center sm:gap-5 sm:p-4">
-      <a href="${href}" aria-label="${esc(openLabel)}" class="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-[#5b4a78] via-[#8b5cf6] to-[#a7c5ba] sm:aspect-[4/3]">${coverVisual}<span class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></span></a>
-      <a href="${href}" class="flex min-w-0 flex-col justify-center"><span class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8b5cf6] sm:hidden">${esc(formatEventDates(event, locale))}</span><div class="mt-1 flex min-w-0 items-center gap-2"><h2 class="min-w-0 truncate text-xl font-semibold leading-tight text-[#2b174d] sm:text-2xl">${esc(event.eventName)}</h2>${dashboardEventTypeBadge(locale, event.event_type)}</div><div class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756b82]"><span>${esc(roleLabel)}</span><span>${esc(dashboardMediaSummary(locale, event.image_count, event.video_count))}</span>${location}</div></a>
-      <a href="${href}" aria-label="${esc(dateLabel)}" class="hidden rounded-xl border border-[#ece6f3] bg-[#faf8ff] px-3 py-3 text-center sm:block"><strong class="block text-xs font-bold leading-5 text-[#2b174d]">${esc(dateLabel)}</strong></a>
-      <div class="col-span-2 flex items-center justify-end gap-2 border-t border-[#f1edf5] pt-3 sm:col-span-1 sm:border-0 sm:pt-0"><a href="${previewHref}" target="_blank" rel="noopener" aria-label="Preview album" title="Preview album" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7e0f0] text-[#6d28d9] transition hover:bg-[#f8f5ff]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></a>${ownerActions}<a href="${href}" aria-label="${esc(openLabel)}" class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b174d] text-white transition hover:bg-[#6d28d9]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg></a></div>
+      <a data-dashboard-cover href="${href}" aria-label="${esc(openLabel)}" class="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-[#5b4a78] via-[#8b5cf6] to-[#a7c5ba] sm:aspect-[4/3]">${coverVisual}<span class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></span></a>
+      <a data-dashboard-content href="${href}" class="flex min-w-0 flex-col justify-center"><span class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8b5cf6] sm:hidden">${esc(formatEventDates(event, locale))}</span><div class="mt-1 flex min-w-0 items-center gap-2"><h2 class="min-w-0 truncate text-xl font-semibold leading-tight text-[#2b174d] sm:text-2xl">${esc(event.eventName)}</h2>${dashboardEventTypeBadge(locale, event.event_type)}</div><div class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756b82]"><span>${esc(roleLabel)}</span><span>${esc(dashboardMediaSummary(locale, event.image_count, event.video_count))}</span>${location}</div></a>
+      <a data-dashboard-date href="${href}" aria-label="${esc(dateLabel)}" class="hidden rounded-xl border border-[#ece6f3] bg-[#faf8ff] px-3 py-3 text-center sm:block"><strong class="block text-xs font-bold leading-5 text-[#2b174d]">${esc(dateLabel)}</strong></a>
+      <div data-dashboard-actions class="col-span-2 flex items-center justify-end gap-2 border-t border-[#f1edf5] pt-3 sm:col-span-1 sm:border-0 sm:pt-0"><a href="${previewHref}" target="_blank" rel="noopener" aria-label="Preview album" title="Preview album" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7e0f0] text-[#6d28d9] transition hover:bg-[#f8f5ff]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></a>${ownerActions}<a href="${href}" aria-label="${esc(openLabel)}" class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b174d] text-white transition hover:bg-[#6d28d9]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg></a></div>
     </article>`;
   };
   const renderCalendarGroups = (items: DashboardEvent[]) => {
@@ -744,7 +750,7 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
       const subtitle = upcoming
         ? (locale === "el" ? "Το επόμενο event εμφανίζεται πρώτο" : "Your next event appears first")
         : (locale === "el" ? "Τα πιο πρόσφατα εμφανίζονται πρώτα" : "Most recent events appear first");
-      return `<section data-calendar-group="${kind}"><div class="mb-3 flex items-end justify-between gap-3"><div><h3 class="text-lg font-semibold text-[#2b174d]">${title}</h3><p class="mt-0.5 text-xs text-[#81768a]">${subtitle}</p></div><span class="rounded-lg ${upcoming ? "bg-[#f0eaff] text-[#6d28d9]" : "bg-[#eef1f0] text-[#66736e]"} px-2.5 py-1 text-xs font-bold">${eventsInGroup.length}</span></div><div class="space-y-3">${eventsInGroup.map(renderEventCard).join("")}</div></section>`;
+      return `<section data-calendar-group="${kind}"><div class="mb-3 flex items-end justify-between gap-3"><div><h3 class="text-lg font-semibold text-[#2b174d]">${title}</h3><p class="mt-0.5 text-xs text-[#81768a]">${subtitle}</p></div><span class="rounded-lg ${upcoming ? "bg-[#f0eaff] text-[#6d28d9]" : "bg-[#eef1f0] text-[#66736e]"} px-2.5 py-1 text-xs font-bold">${eventsInGroup.length}</span></div><div data-dashboard-event-list class="${layout === "grid" ? "grid gap-4 md:grid-cols-2" : layout === "compact" ? "space-y-1.5" : "space-y-3"}">${eventsInGroup.map(renderEventCard).join("")}</div></section>`;
     };
     return `${group("upcoming", groups.upcoming)}${group("past", groups.past)}`;
   };
@@ -818,7 +824,31 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
   const templateLabel = requestedTemplate ? (requestedCreateType === "wedding" ? weddingThemeFor(normalizeWeddingTheme(requestedTemplate)).name[locale] : eventUiCopy[locale][selectedEventTemplate(requestedTemplate) ?? "signature"]) : "";
   const selectedTemplateMarkup = requestedTemplate ? `<input type="hidden" name="template" value="${esc(requestedTemplate)}"><div class="md:col-span-2 rounded-2xl border border-[#dcd0ee] bg-[#f8f4ff] p-4"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-[#7c3aed]">${locale === "el" ? "Επιλεγμένο template" : "Selected template"}</p><strong class="mt-1 block text-[#2b174d]">${esc(templateLabel)}</strong><p class="mt-1 text-xs text-[#756b82]">${locale === "el" ? "Θα είναι ήδη επιλεγμένο όταν ανοίξει το wizard." : "It will already be selected when the setup wizard opens."}</p></div>` : "";
   const newEventLocationEnhancement = `<template id="new-event-type-template">${renderNewEventTypeField(locale, requestedCreateType)}</template><template id="new-event-selected-template">${selectedTemplateMarkup}</template><template id="new-event-location-template">${locationPickerMarkup({ id: "new-event-location", locale })}</template><script>document.addEventListener('DOMContentLoaded',()=>{const input=document.querySelector('#new-event input[name="location"]'),locationTemplate=document.getElementById('new-event-location-template'),typeTemplate=document.getElementById('new-event-type-template'),selectedTemplate=document.getElementById('new-event-selected-template');if(input&&typeTemplate)input.closest('label')?.before(typeTemplate.content.cloneNode(true));if(input&&selectedTemplate)input.closest('label')?.before(selectedTemplate.content.cloneNode(true));if(input&&locationTemplate)input.replaceWith(locationTemplate.content.cloneNode(true));const dialog=document.getElementById('new-event');if(${requestedCreateType ? "true" : "false"}&&dialog){dialog.showModal();dialog.querySelector('input[name="eventName"]')?.focus()}},{once:true})<\/script>${locationPickerScript(locale)}`;
-  const eventSections = `${standardEventSections}${professionalSection}${newEventLocationEnhancement}`;
+  const layoutHref = (next: AccountDashboardLayout) => `/${locale}/account?${new URLSearchParams({ filter, sort, layout: next }).toString()}`;
+  const layoutLabels = locale === "el"
+    ? { list: "Λίστα", grid: "Κάρτες", compact: "Συμπαγής" }
+    : { list: "List", grid: "Grid", compact: "Compact" };
+  const layoutIcon = (kind: AccountDashboardLayout) => kind === "grid"
+    ? `<svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`
+    : kind === "compact"
+      ? `<svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>`
+      : `<svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>`;
+  const dashboardLayoutAssets = `<style>
+    .event-sort-toolbar>button{display:none!important}
+    html[data-dashboard-layout=grid] [data-dashboard-event]{display:flex;flex-direction:column;align-items:stretch;gap:.8rem;padding:.8rem}
+    html[data-dashboard-layout=grid] [data-dashboard-cover]{width:100%;aspect-ratio:16/10}
+    html[data-dashboard-layout=grid] [data-dashboard-content]{padding:.15rem .25rem}
+    html[data-dashboard-layout=grid] [data-dashboard-date]{display:block;text-align:left}
+    html[data-dashboard-layout=grid] [data-dashboard-actions]{grid-column:auto;border-top:1px solid #f1edf5;padding-top:.7rem}
+    html[data-dashboard-layout=compact] [data-dashboard-event]{grid-template-columns:3.5rem minmax(0,1fr) auto;gap:.75rem;padding:.55rem .7rem;align-items:center}
+    html[data-dashboard-layout=compact] [data-dashboard-cover]{width:3.5rem;aspect-ratio:1;border-radius:.65rem}
+    html[data-dashboard-layout=compact] [data-dashboard-content] h2{font-size:1rem;line-height:1.25rem}
+    html[data-dashboard-layout=compact] [data-dashboard-content]>span,html[data-dashboard-layout=compact] [data-dashboard-content] div.mt-2{display:none}
+    html[data-dashboard-layout=compact] [data-dashboard-date]{display:none}
+    html[data-dashboard-layout=compact] [data-dashboard-actions]{grid-column:3;border:0;padding:0}
+    @media(max-width:639px){html[data-dashboard-layout=grid] [data-dashboard-event-list]{grid-template-columns:minmax(0,1fr)}html[data-dashboard-layout=compact] [data-dashboard-actions]>a:first-child,html[data-dashboard-layout=compact] [data-dashboard-actions]>a:last-child{display:none}}
+  </style><script>(()=>{document.documentElement.dataset.dashboardLayout=${JSON.stringify(layout)};const form=document.querySelector('.event-sort-toolbar');if(!form)return;form.querySelector(':scope>button')?.remove();form.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>form.requestSubmit()));const nav=document.createElement('nav');nav.setAttribute('aria-label',${JSON.stringify(locale === "el" ? "Διάταξη dashboard" : "Dashboard layout")});nav.className='inline-flex items-center gap-1 rounded-xl border border-[#e2dcef] bg-white p-1 shadow-sm';nav.innerHTML=${JSON.stringify(((["list", "grid", "compact"] as AccountDashboardLayout[]).map((kind) => `<a href="${layoutHref(kind)}" aria-current="${layout === kind ? "page" : "false"}" title="${layoutLabels[kind]}" aria-label="${layoutLabels[kind]}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg ${layout === kind ? "bg-[#2b174d] text-white" : "text-[#756b82] hover:bg-[#f7f3ff]"}">${layoutIcon(kind)}</a>`).join("")))};const archive=document.createElement('a');archive.href='/${locale}/event-archive';archive.className='inline-flex min-h-9 items-center rounded-xl border border-[#e2dcef] bg-white px-3 py-2 text-xs font-semibold text-[#65566f] shadow-sm hover:bg-[#f8f5ff]';archive.textContent=${JSON.stringify(locale === "el" ? "Εισαγωγή archive" : "Import archive")};form.append(nav,archive)})()<\/script>`;
+  const eventSections = `${standardEventSections}${professionalSection}${newEventLocationEnhancement}${dashboardLayoutAssets}`;
   const filterLabel =
     locale === "el"
       ? {

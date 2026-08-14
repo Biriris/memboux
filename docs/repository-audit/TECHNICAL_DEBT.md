@@ -4,12 +4,11 @@ This register contains conditions visible in the audited source. It does not tre
 
 ## High priority
 
-### Event purge can leave specialized R2 objects
+### Event purge cleanup coverage remains incomplete
 
-- **Evidence:** [`permanentlyDeleteEvent`](../../src/repositories.ts) enumerates ordinary `media` keys and separately looks up cover/menu keys. It does not enumerate `event_wedding_media`. D1 cascades remove metadata, not R2 bytes.
-- **Impact:** permanent event deletion can leave wedding-library objects and their generated variants in R2, creating privacy, retention, and cost risk.
-- **Existing coverage:** [`retention.test.ts`](../../test/retention.test.ts) and [`official-album-retention.test.ts`](../../test/official-album-retention.test.ts) do not establish complete specialized-object deletion.
-- **Required follow-up:** define a complete object ownership manifest and add deletion/integration tests before relying on event purge for data-erasure guarantees.
+- **Evidence:** [`permanentlyDeleteEvent`](../../src/repositories.ts) now enumerates ordinary and wedding-library media variants plus cover/menu objects. [`repositories.test.ts`](../../test/repositories.test.ts) verifies that cleanup, retained commerce history, and storage reconciliation.
+- **Remaining gap:** active multipart-upload sessions are removed through the event cascade, but this path does not explicitly abort their outstanding R2 multipart uploads. Complete cleanup of interrupted uploads is therefore not established by the event-deletion test.
+- **Required follow-up:** define a complete object ownership manifest and explicitly abort active multipart uploads during event purge before relying on the path for comprehensive data-erasure guarantees.
 
 ### Payment fulfillment is not wired to a registered production route
 

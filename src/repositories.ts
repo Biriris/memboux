@@ -35,16 +35,40 @@ export async function permanentlyDeleteEvent(
   env: Pick<Bindings, "DB" | "MEDIA">,
   eventId: string,
 ) {
-  const usage = await env.DB.prepare(
-    "SELECT COALESCE(SUM(m.size_bytes),0) size_bytes,(SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1) owner_id FROM media m WHERE m.event_id=?",
-  ).bind(eventId, eventId).first<{ size_bytes: number; owner_id: string | null }>();
+  const owner = await env.DB.prepare(
+    "SELECT user_id FROM event_members WHERE event_id=? AND role='owner' LIMIT 1",
+  ).bind(eventId).first<{ user_id: string }>();
   const objects = await env.DB.prepare("SELECT object_key FROM media WHERE event_id=?")
     .bind(eventId)
     .all<{ object_key: string }>();
   const availableTables = await env.DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('event_covers','event_wedding_menus')",
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('commerce_orders','event_covers','event_wedding_media','event_wedding_menus')",
   ).all<{ name: string }>();
   const tableNames = new Set(availableTables.results.map((table) => table.name));
+  const usageStatements = [
+    env.DB.prepare("SELECT COALESCE(SUM(size_bytes),0) size_bytes FROM media WHERE event_id=?").bind(eventId),
+  ];
+  if (tableNames.has("event_wedding_media")) {
+    usageStatements.push(
+      env.DB.prepare("SELECT COALESCE(SUM(size_bytes),0) size_bytes FROM event_wedding_media WHERE event_id=?").bind(eventId),
+    );
+  }
+  if (tableNames.has("event_wedding_menus")) {
+    usageStatements.push(
+      env.DB.prepare("SELECT COALESCE(SUM(size_bytes),0) size_bytes FROM event_wedding_menus WHERE event_id=?").bind(eventId),
+    );
+  }
+  const usageResults = await env.DB.batch<{ size_bytes: number }>(usageStatements);
+  const releasedBytes = usageResults.reduce(
+    (total, result) => total + Number(result.results[0]?.size_bytes ?? 0),
+    0,
+  );
+
+  const weddingObjects = tableNames.has("event_wedding_media")
+    ? await env.DB.prepare("SELECT object_key FROM event_wedding_media WHERE event_id=?")
+      .bind(eventId)
+      .all<{ object_key: string }>()
+    : { results: [] as Array<{ object_key: string }> };
   const auxiliaryObjectKeys: string[] = [];
   if (tableNames.has("event_covers")) {
     const cover = await env.DB.prepare("SELECT object_key FROM event_covers WHERE event_id=?")
@@ -62,13 +86,32 @@ export async function permanentlyDeleteEvent(
       objects.results.slice(index, index + 333).flatMap((item) => mediaObjectKeys(item.object_key)),
     );
   }
-  await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(eventId).run();
-  await releaseStorage(
-    env.DB,
-    usage?.owner_id ?? null,
-    Number(usage?.size_bytes ?? 0),
-  );
-  return env.DB.prepare("DELETE FROM events WHERE id=?").bind(eventId).run();
+  for (let index = 0; index < weddingObjects.results.length; index += 333) {
+    await env.MEDIA.delete(
+      weddingObjects.results.slice(index, index + 333).flatMap((item) => mediaObjectKeys(item.object_key)),
+    );
+  }
+
+  const statements: D1PreparedStatement[] = [];
+  if (tableNames.has("commerce_orders")) {
+    // Financial records must be retained, but their RESTRICT foreign key must
+    // no longer point at an event that the owner is permanently deleting.
+    statements.push(
+      env.DB.prepare("UPDATE commerce_orders SET event_id=NULL,updated_at=? WHERE event_id=?")
+        .bind(Date.now(), eventId),
+    );
+  }
+  statements.push(env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(eventId));
+  const deletionIndex = statements.length;
+  statements.push(env.DB.prepare("DELETE FROM events WHERE id=?").bind(eventId));
+  if (owner?.user_id && releasedBytes > 0) {
+    statements.push(
+      env.DB.prepare("UPDATE account_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE user_id=?")
+        .bind(releasedBytes, Date.now(), owner.user_id),
+    );
+  }
+  const results = await env.DB.batch(statements);
+  return results[deletionIndex];
 }
 
 export async function purgeExpiredTrash(env: Bindings) {

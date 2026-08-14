@@ -84,7 +84,7 @@ Ordinary media soft deletion sets `deleted_at` and `purge_at`; the object remain
 
 [`purgeExpiredTrash`](../../src/repositories.ts) runs daily and deletes up to 100 expired media records per run, removing the original and both derived variant keys and releasing account storage. [`permanentlyDeleteMedia`](../../src/media-trash.ts) performs the same object cleanup for explicit permanent deletion.
 
-Deleting an event explicitly cleans ordinary media variants plus known cover/menu objects. The code does not enumerate `event_wedding_media` or `support_attachments` object keys during event deletion; D1 cascade deletion does not delete R2 bytes. Wedding-media orphan cleanup after event purge is therefore **unverified and likely incomplete** based on [`permanentlyDeleteEvent`](../../src/repositories.ts).
+Deleting an event explicitly cleans ordinary media variants, wedding-library media variants, and known cover/menu objects. Support attachments belong to support conversations rather than events and are not part of event deletion. [`permanentlyDeleteEvent`](../../src/repositories.ts) also releases the ordinary-media, wedding-media, and menu bytes charged to the owning account.
 
 No repository-defined R2 lifecycle rule independently expires orphan objects.
 
@@ -135,6 +135,12 @@ returns its package slot. Existing events above a newly introduced limit keep
 their albums but cannot create another until below their limit.
 
 Google Drive and Dropbox backup creation snapshots active ordinary `media` rows into `event_backup_items`. Workflow steps read each R2 `object_key`, upload it to the provider, and update item/backup progress. Wedding library, menus, covers, and support attachments are not included in that snapshot. See [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
+
+The portable Event Archive complements provider backup but does not contain R2
+objects or media rows that would point at missing objects. A complete
+user-controlled recovery set therefore requires the `.memboux.json`
+configuration archive plus Google Drive/Dropbox backup or an originals ZIP.
+See [`src/event-archive.ts`](../../src/event-archive.ts).
 
 Original export is denied when enforced event access disables originals. The exact retention of completed provider backups is provider-side and **Unknown**.
 

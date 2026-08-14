@@ -384,7 +384,9 @@ backupRoutes.post("/api/account/events/:code/backups/google", async (c) => {
   if (queued.status === "originals_locked") {
     return c.text("Original exports are not enabled for this event", 403);
   }
-  return c.redirect(`/${locale}/backups`, 303);
+  return c.redirect(body.returnTo === "event"
+    ? `/dashboard/${encodeURIComponent(event.code)}?lang=${locale}&backup=queued#event-protection-title`
+    : `/${locale}/backups`, 303);
 });
 
 backupRoutes.post("/api/account/events/:code/backups/dropbox", async (c) => {

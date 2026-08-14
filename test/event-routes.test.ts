@@ -71,6 +71,7 @@ describe("event route boundaries", () => {
     `/dashboard/${code}/share`,
     `/dashboard/${code}/team`,
     `/dashboard/${code}/manage`,
+    `/dashboard/${code}/archive`,
     `/dashboard/${code}/edit`,
     `/dashboard/${code}/professional`,
     `/dashboard/${code}/qr-templates`,
@@ -108,6 +109,11 @@ describe("event route boundaries", () => {
       redirect: "manual",
     });
 
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects anonymous Event Archive export", async () => {
+    const response = await SELF.fetch(`https://memboux.com/api/account/events/${code}/archive`);
     expect(response.status).toBe(401);
   });
 

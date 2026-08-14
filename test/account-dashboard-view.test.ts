@@ -4,6 +4,7 @@ import {
   dashboardEventTypeBadge,
   dashboardMediaSummary,
   dashboardVideoCoverMarkup,
+  normalizeAccountDashboardLayout,
   partitionDashboardEvents,
   professionalAssignmentHref,
   renderCreateEventTile,
@@ -13,6 +14,14 @@ import {
   selectedEventCoverUrl,
   shouldShowProfessionalDashboardSection,
 } from "../src/routes/account";
+
+describe("dashboard layout", () => {
+  it("accepts grid and compact while keeping list as the safe default", () => {
+    expect(normalizeAccountDashboardLayout("grid")).toBe("grid");
+    expect(normalizeAccountDashboardLayout("compact")).toBe("compact");
+    expect(normalizeAccountDashboardLayout("unknown")).toBe("list");
+  });
+});
 
 describe("new event controls", () => {
   it("requires a localized event type from the shared category list", () => {

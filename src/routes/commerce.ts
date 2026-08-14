@@ -4,6 +4,7 @@ import {
   activateComplimentaryEventOrder,
   complimentaryEventActivationAvailable,
   commerceLaunchReady,
+  commerceAlbumLimit,
   commerceProductDescription,
   commerceProductName,
   eventProducts,
@@ -243,7 +244,7 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
     ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
     : `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section>`;
   const planSelection = commercePlanSelectionAssets(locale);
-  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}${activatedNotice}<section class="mt-8 grid gap-3 rounded-[1.7rem] border border-[#e4daf4] bg-[#faf8ff] p-5 sm:grid-cols-2"><div><span class="text-xs font-bold uppercase tracking-wide text-[#7c3aed]">${t.current}</span><strong class="mt-2 block text-2xl">${esc(accessLabel(locale, access.access_state))}</strong><p class="mt-2 text-sm text-[#6f657c]">${Number(usage?.total ?? 0)} / ${access.media_limit.toLocaleString(locale)} ${t.files}</p></div><div class="border-t border-[#e4daf4] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p class="text-sm leading-6 text-[#6f657c]">${t.trialIncludes}</p><ul class="mt-2 text-sm"><li>• ${t.trialFiles}</li><li>• ${t.trialDays}</li><li>• ${t.noOriginals}</li></ul></div></section><div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="${checkoutAction}" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-3">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${esc(checkoutButton)}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}${checkoutStateCard}<section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
+  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}${activatedNotice}<div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="${checkoutAction}" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-3">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${esc(checkoutButton)}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}${checkoutStateCard}<section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
   return c.html(page(t.title, `${body}${planSelection.style}${planSelection.script}`, { locale }));
 });
 
@@ -272,6 +273,12 @@ commerceRoutes.post("/api/account/events/:code/checkout/select", async (c) => {
     "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
   ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
+  const albumCount = Number((await c.env.DB.prepare("SELECT COUNT(*) total FROM event_albums WHERE event_id=? AND deleted_at IS NULL").bind(event.id).first<{ total: number }>())?.total ?? 0);
+  if (albumCount > commerceAlbumLimit(product)) {
+    return c.text(locale === "el"
+      ? `Το επιλεγμένο πακέτο υποστηρίζει έως ${commerceAlbumLimit(product)} custom albums. Διάλεξε μεγαλύτερο πακέτο ή αφαίρεσε albums.`
+      : `The selected package supports up to ${commerceAlbumLimit(product)} custom albums. Choose a larger package or remove albums.`, 409);
+  }
 
   if (product.product_key === EVENT_FREE_PRODUCT_KEY) {
     const access = await getEventAccess(c.env.DB, event.id);
@@ -343,6 +350,8 @@ commerceRoutes.post("/api/account/events/:code/checkout/start-trial", async (c) 
     "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
   ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
+  const albumCount = Number((await c.env.DB.prepare("SELECT COUNT(*) total FROM event_albums WHERE event_id=? AND deleted_at IS NULL").bind(event.id).first<{ total: number }>())?.total ?? 0);
+  if (albumCount > commerceAlbumLimit(product)) return c.text("The selected package does not include enough custom albums.", 409);
   const usage = await eventMediaUsage(c.env.DB, event.id);
   const access = await getEventAccess(c.env.DB, event.id);
   if (access.premium_activated_at != null || access.access_state === "unlocked")
@@ -377,6 +386,8 @@ commerceRoutes.post("/api/account/events/:code/checkout/activate-beta", async (c
     "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
   ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
+  const albumCount = Number((await c.env.DB.prepare("SELECT COUNT(*) total FROM event_albums WHERE event_id=? AND deleted_at IS NULL").bind(event.id).first<{ total: number }>())?.total ?? 0);
+  if (albumCount > commerceAlbumLimit(product)) return c.text("The selected package does not include enough custom albums.", 409);
 
   const orderId = await saveDraftEventOrder(c.env.DB, {
     userId: user.id,

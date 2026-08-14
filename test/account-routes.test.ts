@@ -245,6 +245,11 @@ describe("account route boundaries", () => {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )`),
+      env.DB.prepare(`CREATE TABLE event_albums (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        deleted_at INTEGER
+      )`),
       env.DB.prepare(`CREATE TABLE commerce_products (
         product_key TEXT PRIMARY KEY,scope TEXT NOT NULL,billing_model TEXT NOT NULL,
         name_en TEXT NOT NULL,name_el TEXT NOT NULL,name_fr TEXT NOT NULL DEFAULT '',name_de TEXT NOT NULL DEFAULT '',name_es TEXT NOT NULL DEFAULT '',name_it TEXT NOT NULL DEFAULT '',

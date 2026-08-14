@@ -4,6 +4,8 @@ import { getEvent, getMedia, permanentlyDeleteEvent } from "../src/repositories"
 
 beforeEach(async () => {
   await env.DB.batch([
+    env.DB.prepare("DROP TABLE IF EXISTS commerce_orders"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_wedding_media"),
     env.DB.prepare("DROP TABLE IF EXISTS event_wedding_menus"),
     env.DB.prepare("DROP TABLE IF EXISTS event_covers"),
     env.DB.prepare("DROP TABLE IF EXISTS media"),
@@ -49,7 +51,9 @@ beforeEach(async () => {
     env.DB.prepare("CREATE TABLE event_members (event_id TEXT,user_id TEXT,role TEXT)"),
     env.DB.prepare("CREATE TABLE account_storage_usage (user_id TEXT PRIMARY KEY,used_bytes INTEGER,updated_at INTEGER)"),
     env.DB.prepare("CREATE TABLE event_covers (event_id TEXT PRIMARY KEY,object_key TEXT NOT NULL)"),
-    env.DB.prepare("CREATE TABLE event_wedding_menus (event_id TEXT PRIMARY KEY,object_key TEXT NOT NULL)"),
+    env.DB.prepare("CREATE TABLE event_wedding_menus (event_id TEXT PRIMARY KEY,object_key TEXT NOT NULL,size_bytes INTEGER NOT NULL DEFAULT 0)"),
+    env.DB.prepare("CREATE TABLE event_wedding_media (id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,object_key TEXT NOT NULL,size_bytes INTEGER NOT NULL DEFAULT 0)"),
+    env.DB.prepare("CREATE TABLE commerce_orders (id TEXT PRIMARY KEY,event_id TEXT REFERENCES events(id) ON DELETE RESTRICT,updated_at INTEGER NOT NULL)"),
   ]);
 });
 
@@ -85,18 +89,28 @@ describe("event repository", () => {
       .bind("event-delete", "event-covers/event-delete.webp").run();
     await env.DB.prepare("INSERT INTO event_wedding_menus (event_id,object_key) VALUES (?,?)")
       .bind("event-delete", "wedding-menus/event-delete/menu.pdf").run();
+    await env.DB.prepare("INSERT INTO event_wedding_media (id,event_id,object_key,size_bytes) VALUES (?,?,?,?)")
+      .bind("wedding-delete", "event-delete", "wedding/event-delete/portrait.jpg", 80).run();
+    await env.DB.prepare("UPDATE event_wedding_menus SET size_bytes=? WHERE event_id=?")
+      .bind(30, "event-delete").run();
+    await env.DB.prepare("INSERT INTO commerce_orders (id,event_id,updated_at) VALUES (?,?,?)")
+      .bind("order-delete", "event-delete", 1).run();
     await env.MEDIA.put("event-covers/event-delete.webp", new Uint8Array([4, 5, 6]));
     await env.MEDIA.put("wedding-menus/event-delete/menu.pdf", new Uint8Array([7, 8, 9]));
+    await env.MEDIA.put("wedding/event-delete/portrait.jpg", new Uint8Array([10, 11, 12]));
 
     const result = await permanentlyDeleteEvent(env, "event-delete");
 
-    expect(result.meta.changes).toBe(1);
+    expect(Number(result.meta.changes)).toBeGreaterThan(0);
     expect(await getEvent(env.DB, "DEL999", true)).toBeNull();
     expect(await env.DB.prepare("SELECT id FROM media WHERE event_id=?").bind("event-delete").first()).toBeNull();
     expect(await env.MEDIA.get("event-delete/photo.jpg")).toBeNull();
     expect(await env.MEDIA.get("event-covers/event-delete.webp")).toBeNull();
     expect(await env.MEDIA.get("wedding-menus/event-delete/menu.pdf")).toBeNull();
-    expect((await env.DB.prepare("SELECT used_bytes FROM account_storage_usage WHERE user_id=?").bind("owner-1").first<{ used_bytes: number }>())?.used_bytes).toBe(380);
+    expect(await env.MEDIA.get("wedding/event-delete/portrait.jpg")).toBeNull();
+    expect(await env.DB.prepare("SELECT event_id FROM commerce_orders WHERE id=?").bind("order-delete").first())
+      .toEqual({ event_id: null });
+    expect((await env.DB.prepare("SELECT used_bytes FROM account_storage_usage WHERE user_id=?").bind("owner-1").first<{ used_bytes: number }>())?.used_bytes).toBe(270);
   });
 });
 

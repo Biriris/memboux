@@ -9,7 +9,7 @@ import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEve
 import { resolveEventCover } from "../event-cover";
 import { eventTypeLabel, isEventType, normalizeEventType } from "../event-types";
 import { changeEventType } from "../event-type-transitions";
-import { eventMediaUsage, eventOfficialAlbumEnabled, getEventAccess } from "../event-access";
+import { eventAccessAllows, eventMediaUsage, eventOfficialAlbumEnabled, getEventAccess } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { createInvitationToken, createOrReplaceInvitation, hashInvitationToken, normalizeInviteRole } from "../invitations";
 import { countGalleryMedia, existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
@@ -23,11 +23,16 @@ import { canManageOfficialAlbum } from "../studio";
 import { esc, formatEventDates, sha256, validEventDate } from "../utils";
 import { renderEventWorkspace } from "../views/event-workspace";
 import { cards } from "../views/media";
+import { accountHeader, eventHeader, logoutScript, page } from "../views/shared";
 import type { EventWorkspaceSection } from "../views/event-workspace-shell";
+import { buildEventArchive, EVENT_ARCHIVE_MAX_BYTES, parseEventArchive, restoreEventArchiveStatements } from "../event-archive";
+import { releaseOwnedEvent, reserveOwnedEvent } from "../quotas";
 
 export const eventRoutes = new Hono<{ Bindings: Bindings }>();
 
 const EVENT_MEDIA_PAGE_SIZE = 24;
+
+const archiveEventCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (value) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[value % 32]).join("");
 
 export function eventInvitationInstruction(existingUser: boolean, locale: Locale) {
   return existingUser
@@ -56,7 +61,7 @@ async function eventDashboard(
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, galleryCount, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums] = await Promise.all([
+  const [items, galleryCount, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums, googleDriveConnection] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { limit: EVENT_MEDIA_PAGE_SIZE }),
     countGalleryMedia(c.env.DB, event.id),
     canManageEvent
@@ -96,6 +101,9 @@ async function eventDashboard(
       : Promise.resolve(null),
     canManageEvent ? getCommerceLaunchSettings(c.env.DB) : Promise.resolve(null),
     canManageEvent ? listEventAlbums(c.env.DB, event.id) : Promise.resolve([]),
+    canManageEvent
+      ? c.env.DB.prepare("SELECT 1 connected FROM cloud_connections WHERE user_id=? AND provider='google_drive'").bind(user.id).first<{ connected: number }>()
+      : Promise.resolve(null),
   ]);
   const origin = new URL(c.req.url).origin;
   const guestUrl = `${origin}/gallery/${event.code}`;
@@ -140,6 +148,7 @@ async function eventDashboard(
     commerceProducts,
     selectedProductKey: eventAccess.plan_key ?? draftOrder?.product_key ?? null,
     commerceLaunchReady: commerceSettings ? commerceLaunchReady(commerceSettings) : false,
+    googleDriveConnected: Boolean(googleDriveConnection),
   }));
 }
 
@@ -151,6 +160,89 @@ eventRoutes.get("/dashboard/:code/menu", (c) => eventDashboard(c, "menu"));
 eventRoutes.get("/dashboard/:code/share", (c) => eventDashboard(c, "share"));
 eventRoutes.get("/dashboard/:code/team", (c) => eventDashboard(c, "team"));
 eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c));
+
+eventRoutes.get("/dashboard/:code/archive", async (c) => {
+  const locale = normalizeLocale(c.req.query("lang") ?? "en");
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  if ((await getEventRole(c.env.DB, event.id, user.id)) !== "owner") return c.text("Forbidden", 403);
+  const el = locale === "el";
+  return c.html(page(el ? "Event Archive" : "Event Archive", `${eventHeader(locale, user, "")}<main class="mx-auto max-w-4xl p-5 md:p-10"><a href="/dashboard/${event.code}?lang=${locale}#event-protection-title" class="text-sm font-bold text-violet-700">← ${el ? "Πίσω στο event" : "Back to event"}</a><section class="mt-6 rounded-[2rem] border border-[#e5dff0] bg-white p-6 shadow-sm sm:p-9"><p class="text-xs font-bold uppercase tracking-[.18em] text-violet-700">Memboux Event Archive</p><h1 class="mt-3 text-4xl text-[#2b174d]">${esc(event.eventName)}</h1><p class="mt-4 max-w-2xl text-sm leading-7 text-[#6f657c]">${el ? "Κατέβασε ένα φορητό, versioned αρχείο με τη δομή, τα albums, το design, τις ρυθμίσεις, το μενού και τον προγραμματισμό καλεσμένων. Μπορείς να το εισαγάγεις αργότερα ως νέο ιδιωτικό event." : "Download a portable, versioned archive containing structure, albums, design, settings, menu, and guest planning. You can import it later as a new private event."}</p><div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>${el ? "Σημαντικό:" : "Important:"}</strong> ${el ? "Τα μεγάλα πρωτότυπα αρχεία δεν ενσωματώνονται στο JSON. Για πλήρη προστασία χρησιμοποίησε παράλληλα Google Drive backup ή ZIP originals. Πακέτα, δικαιώματα χρηστών, PIN και μυστικά δεν αντιγράφονται για λόγους ασφαλείας." : "Large original files are not embedded in the JSON. For complete protection, also use Google Drive backup or an originals ZIP. Packages, user permissions, PINs, and secrets are never copied for security."}</div><div class="mt-6 flex flex-wrap gap-3"><a href="/api/account/events/${event.code}/archive" download class="rounded-xl bg-[#2b174d] px-5 py-3 font-bold text-white">${el ? "Λήψη .memboux.json" : "Download .memboux.json"}</a><a href="/${locale}/event-archive" class="rounded-xl border border-[#d9caeb] px-5 py-3 font-bold text-violet-700">${el ? "Εισαγωγή archive" : "Import archive"}</a></div></section></main>${logoutScript(locale)}`, { locale }));
+});
+
+eventRoutes.get("/api/account/events/:code/archive", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.text("Event not found", 404);
+  if ((await getEventRole(c.env.DB, event.id, user.id)) !== "owner") return c.text("Forbidden", 403);
+  const archive = await buildEventArchive(c.env.DB, event);
+  const safeName = event.eventName.normalize("NFKD").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 60) || "event";
+  return new Response(JSON.stringify(archive, null, 2), { headers: {
+    "Content-Type": "application/vnd.memboux.event+json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${safeName}.memboux.json"`,
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+  }});
+});
+
+eventRoutes.get("/:locale{el|en|fr|de|es|it}/event-archive", async (c) => {
+  const locale = normalizeLocale(c.req.param("locale"));
+  const user = await currentUser(c);
+  if (!user) return c.redirect(`/${locale}/login`);
+  const el = locale === "el";
+  return c.html(page("Event Archive", `${accountHeader(locale, user)}<main class="mx-auto max-w-3xl p-5 md:p-10"><a href="/${locale}/account" class="text-sm font-bold text-violet-700">← ${el ? "Τα events μου" : "My events"}</a><section class="mt-6 rounded-[2rem] border border-[#e5dff0] bg-white p-6 shadow-sm sm:p-9"><p class="text-xs font-bold uppercase tracking-[.18em] text-violet-700">Memboux Event Archive</p><h1 class="mt-3 text-4xl text-[#2b174d]">${el ? "Επαναφορά event" : "Restore an event"}</h1><p class="mt-3 text-sm leading-7 text-[#6f657c]">${el ? "Επίλεξε το .memboux.json που είχες κατεβάσει. Θα δημιουργηθεί νέο ιδιωτικό event με νέο κωδικό. Δεν επαναφέρονται πληρωμές, ρόλοι, PIN ή μυστικά." : "Choose a previously downloaded .memboux.json file. A new private event with a new code will be created. Payments, roles, PINs, and secrets are not restored."}</p><form action="/api/account/event-archives/import" method="post" enctype="multipart/form-data" class="mt-6 space-y-4"><input type="hidden" name="locale" value="${locale}"><input name="archive" type="file" required accept=".json,.memboux.json,application/json,application/vnd.memboux.event+json" class="w-full rounded-xl border border-[#ddd4eb] bg-white p-3"><button class="w-full rounded-xl bg-[#2b174d] px-5 py-3.5 font-bold text-white">${el ? "Δημιουργία από archive" : "Create from archive"}</button></form></section></main>${logoutScript(locale)}`, { locale }));
+});
+
+eventRoutes.post("/api/account/event-archives/import", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.text("Unauthorized", 401);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? "en"));
+  const file = body.archive;
+  if (!(file instanceof File) || file.size <= 0 || file.size > EVENT_ARCHIVE_MAX_BYTES)
+    return c.text(locale === "el" ? "Το archive δεν είναι έγκυρο ή είναι πολύ μεγάλο." : "The archive is invalid or too large.", 400);
+  let archive;
+  try { archive = parseEventArchive(JSON.parse(await file.text())); } catch { archive = null; }
+  if (!archive) return c.text(locale === "el" ? "Μη υποστηριζόμενο Event Archive." : "Unsupported Event Archive.", 400);
+  if (archive.data.albums.length > 5) return c.text(locale === "el"
+    ? "Το archive περιέχει περισσότερα από 5 custom albums και δεν αντιστοιχεί σε διαθέσιμο πακέτο."
+    : "The archive contains more than 5 custom albums and does not fit an available package.", 409);
+  if (!await reserveOwnedEvent(c.env.DB, user.id)) return c.text(locale === "el" ? "Έφτασες το όριο events του λογαριασμού." : "Your account event limit has been reached.", 409);
+  const now = Date.now();
+  const eventId = crypto.randomUUID();
+  let code = "";
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      code = archiveEventCode();
+      if (!await getEvent(c.env.DB, code, true)) break;
+      code = "";
+    }
+    if (!code) throw new Error("archive_event_code_exhausted");
+    const restoredLocale = normalizeLocale(String(archive.event.default_locale ?? locale));
+    const restoredType = isEventType(archive.event.event_type) ? archive.event.event_type : "other";
+    const name = String(archive.event.eventName).trim().slice(0, 100);
+    const start = validEventDate(archive.event.event_start_date) ?? new Date(now).toISOString().slice(0, 10);
+    const end = validEventDate(archive.event.event_end_date) ?? start;
+    const tokenHash = await sha256(crypto.randomUUID() + crypto.randomUUID());
+    const statements = [
+      c.env.DB.prepare(`INSERT INTO events (id,code,couple,eventName,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale,event_start_date,event_end_date,event_type,location,location_place_id,location_lat,location_lng,location_provider) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(eventId, code, name, name, tokenHash, now, now + 365 * 86400000, "active", String(archive.event.notes ?? "").slice(0, 2000), now, restoredLocale, start, end, restoredType, archive.event.location ?? null, archive.event.location_place_id ?? null, archive.event.location_lat ?? null, archive.event.location_lng ?? null, archive.event.location_provider ?? null),
+      c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(eventId, user.id, "owner", now),
+      c.env.DB.prepare(`INSERT INTO event_access (event_id,access_state,enforcement_state,plan_key,media_limit,media_uploads_consumed,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,created_at,updated_at,album_limit,upload_window_days) VALUES (?,'preview','enforced',NULL,50,0,0,0,0,?,?,?,14)`).bind(eventId, now, now, Math.max(1, Math.min(5, archive.data.albums.length))),
+      ...restoreEventArchiveStatements(c.env.DB, archive, eventId, user.id, now),
+    ];
+    await c.env.DB.batch(statements);
+    console.log(JSON.stringify({ event: "event_archive_imported", eventId, userId: user.id, version: archive.version }));
+    return c.redirect(`/dashboard/${code}?lang=${locale}&archive=restored#overview`, 303);
+  } catch (error) {
+    await releaseOwnedEvent(c.env.DB, user.id).catch(() => undefined);
+    console.error(JSON.stringify({ event: "event_archive_import_failed", userId: user.id, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" }));
+    return c.text(locale === "el" ? "Η επαναφορά απέτυχε. Το archive δεν άλλαξε." : "Restore failed. The archive was not changed.", 500);
+  }
+});
 
 eventRoutes.get("/api/account/events/:code/media-page", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
@@ -169,10 +261,11 @@ eventRoutes.get("/api/account/events/:code/media-page", async (c) => {
   const locale = normalizeLocale(c.req.query("lang") ?? event.default_locale);
   const likeVisitor = existingMediaLikeVisitor(c.req.raw);
   const likeActorKey = likeVisitor ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor) : "";
-  const [items, count, cover] = await Promise.all([
+  const [items, count, cover, access] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { limit, offset, sort }),
     countGalleryMedia(c.env.DB, event.id),
     resolveEventCover(c.env.DB, event.id),
+    getEventAccess(c.env.DB, event.id),
   ]);
   const nextOffset = Math.min(count.total, offset + items.length);
   c.header("Cache-Control", "private, no-store");
@@ -181,6 +274,7 @@ eventRoutes.get("/api/account/events/:code/media-page", async (c) => {
       lightbox: true,
       selectable: true,
       deferredSelection: true,
+      downloads: eventAccessAllows(access, "original_downloads"),
       coverControl: roleCan(membership, "manage_event")
         ? { eventCode: event.code, locale, activeMediaId: cover?.automatic ? null : cover?.source_media_id ?? null }
         : undefined,

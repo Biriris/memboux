@@ -90,9 +90,23 @@ Evidence: [`src/invitations.ts`](../../src/invitations.ts), [`src/routes/invitat
 
 ## Archive, trash, restore, purge
 
+Owners can also create a portable, versioned `.memboux.json` configuration
+archive through `GET /api/account/events/:code/archive` and restore it through
+`POST /api/account/event-archives/import`. Import reserves account event
+capacity and always creates a new private preview with a new ID and code. It
+restores event identity/dates, vertical or wedding configuration, experience
+settings, custom albums, branding, QR designs, wedding guest planning, seating
+and structured menu courses. See [`src/event-archive.ts`](../../src/event-archive.ts)
+and [`src/routes/events.ts`](../../src/routes/events.ts).
+
+The archive intentionally excludes paid entitlements/orders, memberships,
+invitations, PIN/token hashes, audit activity and media binaries. Originals
+remain a separate recovery concern handled by provider backup or ZIP export;
+the archive UI and its `excluded` manifest field state this limitation.
+
 Owners trash an event via `POST /api/account/events/:code/trash`; the event gets `deleted_at` and `purge_at`, and active-event quota is released. Restore clears those timestamps and re-reserves quota. Trash UI/actions are in [`src/routes/account-trash.ts`](../../src/routes/account-trash.ts).
 
-The daily [`purgeExpiredTrash`](../../src/repositories.ts) permanently deletes expired media first and then up to 25 expired events. Permanent event deletion removes known R2 media variants, cover/menu objects, D1 media/event state, and reconciles storage usage through cascading relations and explicit cleanup. Wedding media objects are not included in the explicit `SELECT object_key FROM media` loop in [`permanentlyDeleteEvent`](../../src/repositories.ts); whether all wedding-media R2 objects are removed elsewhere is **not established** and is recorded as technical debt.
+The daily [`purgeExpiredTrash`](../../src/repositories.ts) permanently deletes expired media first and then up to 25 expired events. Permanent event deletion removes ordinary and wedding R2 media variants, cover/menu objects, D1 media/event state, and reconciles the ordinary-media, wedding-media, and menu storage usage. Commerce orders are retained as financial history with `commerce_orders.event_id` cleared before the event row is deleted; this is required by the table's `ON DELETE RESTRICT` relationship.
 
 ## Lifecycle tests
 

@@ -136,7 +136,8 @@ describe("event workspace", () => {
     expect(html.indexOf('id="engagement"')).toBeLessThan(html.indexOf('id="share"'));
     expect(html.indexOf('id="share"')).toBeLessThan(html.indexOf('id="people"'));
     expect(html.indexOf('id="overview"')).toBeLessThan(html.indexOf('id="gallery"'));
-    expect(html).toContain("Current package");
+    expect(html).not.toContain("Current package");
+    expect(html).not.toContain("2147483647");
     expect(html).not.toContain("Fully unlocked");
     expect(html).not.toContain("Next step");
     expect(html).not.toContain("Manage event media");
@@ -199,6 +200,7 @@ describe("event workspace", () => {
     expect(html).toContain("Perspectives");
     expect(html).toContain("contributors");
     expect(html).toContain('data-gallery-photo-count="1"');
+    expect(html).toContain("<details data-media-actions");
     expect(html).toContain("<form data-media-cover");
     expect(html).toContain("<form data-media-trash");
     expect(html).toContain(`/api/account/events/${event.code}/media/dashboard-photo/trash`);
@@ -328,6 +330,31 @@ describe("event workspace", () => {
     expect(html).toContain('data-workspace-product');
     expect(html).toContain('background:#6d28d9!important');
     expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
+  });
+
+  it("shows event archives to owners and Google Drive backup only for a paid event", () => {
+    const html = renderEventWorkspace({
+      ...baseInput,
+      membership: "owner",
+      googleDriveConnected: true,
+      eventAccess: {
+        event_id: event.id,
+        access_state: "unlocked",
+        enforcement_state: "enforced",
+        plan_key: "event_pass",
+        media_limit: 1000,
+        guest_access_enabled: 1,
+        guest_uploads_enabled: 1,
+        original_downloads_enabled: 1,
+        unlocked_at: 1,
+        expires_at: null,
+        created_at: 1,
+        updated_at: 1,
+      },
+    });
+    expect(html).toContain(`/dashboard/${event.code}/archive?lang=en`);
+    expect(html).toContain(`/api/account/events/${event.code}/backups/google`);
+    expect(html).toContain('name="returnTo" value="event"');
   });
 
   it("uses the unified selector during an active Free event", () => {

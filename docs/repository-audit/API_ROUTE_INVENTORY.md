@@ -375,6 +375,19 @@ POST  /api/account/events/:code/backups/dropbox
 GET   /api/backups/:id
 ```
 
+## Event Archive — `src/routes/events.ts` (4)
+
+The event-scoped page and export require an authenticated event owner. Import
+requires an authenticated account, reserves event capacity and creates a new
+private preview; it does not restore commerce or account permissions.
+
+```text
+GET   /dashboard/:code/archive
+GET   /api/account/events/:code/archive
+GET   /:locale{el|en|fr|de|es|it}/event-archive
+POST  /api/account/event-archives/import
+```
+
 ## Commerce — `src/routes/commerce.ts` (5)
 
 Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. The unified selection route requires an owner. Choosing `event_free` activates Free access with 50 lifetime media slots, a 14-day contribution window starting at first upload, and no event-access expiry; choosing a paid catalog product creates a draft and, while payment launch is disabled, uses the audited complimentary-beta activation path. Once premium has been activated, selecting Free returns `409`, with a second invariant enforced by D1. The older draft, start-trial, and activate-beta routes remain registered for compatibility. No card-provider checkout route is registered.
