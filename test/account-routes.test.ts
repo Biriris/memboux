@@ -288,7 +288,8 @@ describe("account route boundaries", () => {
         id TEXT PRIMARY KEY,event_id TEXT NOT NULL,object_key TEXT NOT NULL,
         media_type TEXT NOT NULL DEFAULT 'image',content_type TEXT NOT NULL DEFAULT 'image/jpeg',
         size_bytes INTEGER NOT NULL DEFAULT 0,uploaded_by TEXT NOT NULL DEFAULT 'Guest',
-        uploaded_at INTEGER NOT NULL DEFAULT 0,captured_at INTEGER,origin TEXT NOT NULL DEFAULT 'guest',
+        uploaded_at INTEGER NOT NULL DEFAULT 0,captured_at INTEGER,origin TEXT NOT NULL DEFAULT 'guest',album_id TEXT,
+        moderation_status TEXT NOT NULL DEFAULT 'approved',
         reported_at INTEGER,deleted_at INTEGER,purge_at INTEGER
       )`),
       env.DB.prepare(`CREATE TABLE event_covers (

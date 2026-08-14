@@ -170,6 +170,21 @@ describe("media views", () => {
     expect(script).toContain("visible+=12");
   });
 
+  it("supports remote gallery pages and dynamically appended lightbox items", () => {
+    const controls = galleryProgressiveControls(75, "remote-gallery", "en", 24, "/api/gallery/ABC123/media-page?lang=en");
+    const script = galleryProgressiveScript("remote-gallery", 24, 24);
+    const lightbox = lightboxMarkup("en", true);
+
+    expect(controls).toContain('data-gallery-endpoint="/api/gallery/ABC123/media-page?lang=en"');
+    expect(controls).toContain('data-gallery-offset="24"');
+    expect(controls).toContain("51 remaining");
+    expect(script).toContain("fetch(url");
+    expect(script).toContain("grid.append(template.content)");
+    expect(script).toContain("memboux:gallery-appended");
+    expect(lightbox).toContain("const items=()=>[...document.querySelectorAll('.lightbox-item')]");
+    expect(lightbox).toContain("event.target.closest?.('.lightbox-item')");
+  });
+
   it("offers the owner a per-photo cover control", () => {
     const inactive = cards([media()], {
       lightbox: true,

@@ -89,15 +89,17 @@ describe("integrated wedding guest experience", () => {
       locale: "en",
       guestUrl: "https://memboux.com/wedding/ABC123",
       guestQrSvg: "<svg></svg>",
-      guestItems: Array.from({ length: 14 }, (_, index) => photo(`guest-${index}`, "guest")),
+      guestItems: Array.from({ length: 24 }, (_, index) => photo(`guest-${index}`, "guest")),
+      guestMediaCount: { total: 30, photos: 30, videos: 0 },
       officialItems: [],
       guestbookEntries: [],
       settings: { rsvp_enabled: 0, guestbook_enabled: 0, comments_enabled: 0, slideshow_enabled: 0 },
       curatorName: "Memboux Studio",
     });
     expect(result.html).toContain('data-gallery-more="wedding-guest-gallery"');
-    expect(result.html).toContain("2 remaining");
-    expect(result.html).toContain('data-gallery-deferred="true"');
+    expect(result.html).toContain("6 remaining");
+    expect(result.html).toContain("/api/gallery/ABC123/media-page?lang=en&amp;surface=website");
+    expect(result.html).not.toContain('data-gallery-deferred="true"');
     expect(result.scripts).toContain('data-gallery-grid="wedding-guest-gallery"');
     expect(result.html).not.toContain('id="official-album"');
   });

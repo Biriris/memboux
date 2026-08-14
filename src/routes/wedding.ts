@@ -6,6 +6,7 @@ import { resolveEventCover } from "../event-cover";
 import { eventAccessAllows, eventMediaCapacity, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import {
+  countGalleryMedia,
   existingMediaLikeVisitor,
   getGalleryMediaWithLikes,
   getOfficialMediaWithLikes,
@@ -308,10 +309,11 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
   const guestUrl = `${new URL(c.req.url).origin}/wedding/${encodeURIComponent(event.code)}`;
-  const [featureRows, cover, allMedia, officialMedia, guestQrRaw, guestbook, experienceSettings, curator, menu, menuCourses, portraitMap, preWeddingMedia] = await Promise.all([
+  const [featureRows, cover, allMedia, guestMediaCount, officialMedia, guestQrRaw, guestbook, experienceSettings, curator, menu, menuCourses, portraitMap, preWeddingMedia] = await Promise.all([
     c.env.DB.prepare("SELECT feature_key FROM event_wedding_features WHERE event_id=? AND enabled=1").bind(event.id).all<{ feature_key: string }>(),
     resolveEventCover(c.env.DB, event.id),
-    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { albumId: null, publicOnly: true, excludeOfficial: true, limit: 24 }),
+    countGalleryMedia(c.env.DB, event.id, { albumId: null, publicOnly: true, excludeOfficial: true }),
     getOfficialMediaWithLikes(c.env.DB, event.id, likeActorKey),
     QRCode.toString(guestUrl, { type: "svg", width: 220, margin: 1, errorCorrectionLevel: "M" }),
     c.env.DB.prepare(`SELECT g.author_name,g.message,g.created_at,g.media_id FROM event_guestbook_entries g
@@ -347,7 +349,8 @@ weddingRoutes.get("/wedding/:code", async (c) => {
     locale,
     guestUrl,
     guestQrSvg: guestQrRaw.replace("<svg", '<svg class="block h-auto w-full"'),
-    guestItems: guestMediaVisible ? allMedia.filter((item) => item.origin !== "official") : [],
+    guestItems: guestMediaVisible ? allMedia : [],
+    guestMediaCount: guestMediaVisible ? guestMediaCount : { total: 0, photos: 0, videos: 0 },
     officialItems: officialMediaVisible ? officialMedia : [],
     guestbookEntries: guestbook.results,
     settings: { ...settings, rsvp_enabled: 0 },

@@ -12,7 +12,7 @@ import { changeEventType } from "../event-type-transitions";
 import { eventMediaUsage, eventOfficialAlbumEnabled, getEventAccess } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { createInvitationToken, createOrReplaceInvitation, hashInvitationToken, normalizeInviteRole } from "../invitations";
-import { existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
+import { countGalleryMedia, existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
 import { listEventAlbums } from "../event-media-hub";
 import { PlaceInputError, resolveEventPlaceInput } from "../places";
 import { canInviteToEvent } from "../quotas";
@@ -22,9 +22,12 @@ import { currentUser } from "../session";
 import { canManageOfficialAlbum } from "../studio";
 import { esc, formatEventDates, sha256, validEventDate } from "../utils";
 import { renderEventWorkspace } from "../views/event-workspace";
+import { cards } from "../views/media";
 import type { EventWorkspaceSection } from "../views/event-workspace-shell";
 
 export const eventRoutes = new Hono<{ Bindings: Bindings }>();
+
+const EVENT_MEDIA_PAGE_SIZE = 24;
 
 export function eventInvitationInstruction(existingUser: boolean, locale: Locale) {
   return existingUser
@@ -53,8 +56,9 @@ async function eventDashboard(
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums] = await Promise.all([
-    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
+  const [items, galleryCount, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums] = await Promise.all([
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { limit: EVENT_MEDIA_PAGE_SIZE }),
+    countGalleryMedia(c.env.DB, event.id),
     canManageEvent
       ? c.env.DB.prepare(`SELECT * FROM (
           SELECT em.user_id,u.name,u.email,em.role,em.created_at,NULL access_status
@@ -131,6 +135,7 @@ async function eventDashboard(
     activeSection,
     eventAccess,
     mediaUsageTotal: mediaUsage.total,
+    mediaGalleryCount: galleryCount,
     weddingState,
     commerceProducts,
     selectedProductKey: eventAccess.plan_key ?? draftOrder?.product_key ?? null,
@@ -146,6 +151,45 @@ eventRoutes.get("/dashboard/:code/menu", (c) => eventDashboard(c, "menu"));
 eventRoutes.get("/dashboard/:code/share", (c) => eventDashboard(c, "share"));
 eventRoutes.get("/dashboard/:code/team", (c) => eventDashboard(c, "team"));
 eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c));
+
+eventRoutes.get("/api/account/events/:code/media-page", async (c) => {
+  const event = await getEvent(c.env.DB, c.req.param("code"));
+  if (!event) return c.json({ message: "Event not found" }, 404);
+  const user = await currentUser(c);
+  if (!user) return c.json({ message: "Authentication required" }, 401);
+  const membership = await getEventRole(c.env.DB, event.id, user.id);
+  if (!membership || !roleCan(membership, "view")) return c.json({ message: "Forbidden" }, 403);
+
+  const offset = Math.max(0, Math.min(100_000, Number.parseInt(c.req.query("offset") ?? "0", 10) || 0));
+  const limit = Math.max(1, Math.min(EVENT_MEDIA_PAGE_SIZE, Number.parseInt(c.req.query("limit") ?? String(EVENT_MEDIA_PAGE_SIZE), 10) || EVENT_MEDIA_PAGE_SIZE));
+  const requestedSort = c.req.query("sort");
+  const sort = requestedSort === "latest" || requestedSort === "oldest" || requestedSort === "rating"
+    ? requestedSort
+    : "chronology";
+  const locale = normalizeLocale(c.req.query("lang") ?? event.default_locale);
+  const likeVisitor = existingMediaLikeVisitor(c.req.raw);
+  const likeActorKey = likeVisitor ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor) : "";
+  const [items, count, cover] = await Promise.all([
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { limit, offset, sort }),
+    countGalleryMedia(c.env.DB, event.id),
+    resolveEventCover(c.env.DB, event.id),
+  ]);
+  const nextOffset = Math.min(count.total, offset + items.length);
+  c.header("Cache-Control", "private, no-store");
+  return c.json({
+    html: cards(items, {
+      lightbox: true,
+      selectable: true,
+      deferredSelection: true,
+      coverControl: roleCan(membership, "manage_event")
+        ? { eventCode: event.code, locale, activeMediaId: cover?.automatic ? null : cover?.source_media_id ?? null }
+        : undefined,
+    }),
+    nextOffset,
+    remaining: Math.max(0, count.total - nextOffset),
+    total: count.total,
+  });
+});
 
 eventRoutes.post("/api/account/events/:code/access/start-trial", async (c) => {
   const user = await currentUser(c);

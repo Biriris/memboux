@@ -225,6 +225,45 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain("album-photo-media");
   });
 
+  it("paginates large albums without rendering every media card in the initial Worker response", async () => {
+    const albumId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await env.DB.prepare(`INSERT INTO event_albums
+      (id,event_id,slug,name,description,privacy,allow_uploads,allow_downloads,sort_order,created_by,created_at,updated_at)
+      VALUES (?,?,?,?,?,'public',1,1,2,?,?,?)`)
+      .bind(albumId, publicEventId, "large-album", "Large album", "Pagination fixture", "gallery-owner", now, now).run();
+    const insert = env.DB.prepare(`INSERT INTO media
+      (id,event_id,object_key,media_type,content_type,uploaded_by,uploaded_at,size_bytes,album_id)
+      VALUES (?,?,?,?,?,?,?,?,?)`);
+    await env.DB.batch(Array.from({ length: 30 }, (_, index) => insert.bind(
+      `page-media-${String(index).padStart(2, "0")}`,
+      publicEventId,
+      `test/page-media-${index}.jpg`,
+      "image",
+      "image/jpeg",
+      "Guest",
+      now + 100 + index,
+      12,
+      albumId,
+    )));
+
+    const page = await SELF.fetch(`https://memboux.com/gallery/${publicCode}/albums/large-album?lang=en`, { redirect: "follow" });
+    const html = await page.text();
+    expect(page.status).toBe(200);
+    expect(html).toContain("page-media-23");
+    expect(html).not.toContain("page-media-24");
+    expect(html).toContain(`/api/gallery/${publicCode}/media-page?lang=en&amp;album=large-album`);
+    expect(html).toContain("6 remaining");
+
+    const next = await SELF.fetch(`https://memboux.com/api/gallery/${publicCode}/media-page?lang=en&album=large-album&offset=24&limit=24`);
+    const payload = await next.json<{ html: string; nextOffset: number; remaining: number; total: number }>();
+    expect(next.status).toBe(200);
+    expect(payload.html).toContain("page-media-24");
+    expect(payload.html).toContain("page-media-29");
+    expect(payload.nextOffset).toBe(30);
+    expect(payload.remaining).toBe(0);
+    expect(payload.total).toBe(30);
+  });
+
   it("uses the thumbnail of a sole album video as the album cover", async () => {
     const albumId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     await env.DB.prepare(`INSERT INTO event_albums

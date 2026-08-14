@@ -10,7 +10,7 @@ import { eventAccessAllows, getEventAccess } from "../event-access";
 import { eventUiCopy, eventWizardCopy } from "../event-ui-copy";
 import { mergeWizardFields, parseCustomFields, wizardFieldsFor } from "../event-wizard-schema";
 import { hasGalleryAccess } from "../gallery-access";
-import { existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
+import { countGalleryMedia, existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
 import { esc } from "../utils";
 import { eventVerticalPreviewPage, type EventVerticalProfile } from "../views/event-vertical-preview";
 import { eventHeader, logoutScript, page } from "../views/shared";
@@ -167,13 +167,14 @@ eventSetupRoutes.get("/event/:code", async (c) => {
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [galleryItems, cover, downloadSettings] = await Promise.all([
-    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
+  const [galleryItems, galleryCount, cover, downloadSettings] = await Promise.all([
+    getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { albumId: null, publicOnly: true, excludeOfficial: true, limit: 24 }),
+    countGalleryMedia(c.env.DB, event.id, { albumId: null, publicOnly: true, excludeOfficial: true }),
     resolveEventCover(c.env.DB, event.id),
     c.env.DB.prepare("SELECT guest_downloads_enabled,guest_bulk_downloads_enabled FROM event_experience_settings WHERE event_id=?")
       .bind(event.id).first<{ guest_downloads_enabled: number; guest_bulk_downloads_enabled: number }>().catch(() => null),
   ]);
-  const guestItems = galleryItems.filter((item) => item.origin !== "official");
+  const guestItems = galleryItems;
   return c.html(eventVerticalPreviewPage(
     normalizeLocale(c.req.query("lang") ?? event.default_locale),
     event,
@@ -185,6 +186,7 @@ eventSetupRoutes.get("/event/:code", async (c) => {
       originalDownloads: eventAccessAllows(access, "original_downloads") && (downloadSettings?.guest_downloads_enabled ?? 1) === 1,
       bulkDownloads: eventAccessAllows(access, "original_downloads") && (downloadSettings?.guest_downloads_enabled ?? 1) === 1 && (downloadSettings?.guest_bulk_downloads_enabled ?? 1) === 1,
       guestItems,
+      guestMediaCount: galleryCount,
       coverUpdatedAt: cover?.updated_at ?? null,
     },
   ));
