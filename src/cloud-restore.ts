@@ -191,6 +191,50 @@ export class CloudEventRestoreWorkflow extends WorkflowEntrypoint<Bindings, { re
       });
       if (statements.length) await this.env.DB.batch(statements);
     });
+    await step.do("restore event conversations and official album", async () => {
+      const stored = await this.env.DB.prepare("SELECT manifest_json FROM cloud_event_restore_jobs WHERE id=?")
+        .bind(snapshot.job.id).first<{ manifest_json: string }>();
+      const archive = stored ? parseEventArchive(JSON.parse(stored.manifest_json)) : null;
+      if (!archive) throw new Error("Cloud restore manifest is missing");
+      const restoredGallery = await this.env.DB.prepare(`SELECT source_id,target_id FROM cloud_event_restore_items
+        WHERE restore_id=? AND kind='gallery_media' AND status='completed' AND target_id IS NOT NULL`)
+        .bind(snapshot.job.id).all<{ source_id: string; target_id: string }>();
+      const mediaIds = new Map(restoredGallery.results.map((item) => [item.source_id, item.target_id]));
+      const statements: D1PreparedStatement[] = [];
+      for (const entry of (archive.data.guestbookEntries ?? []).slice(0, 10_000)) {
+        const sourceMediaId = typeof entry.media_id === "string" ? entry.media_id : null;
+        statements.push(this.env.DB.prepare(`INSERT OR IGNORE INTO event_guestbook_entries
+          (id,event_id,author_name,message,status,created_at,moderated_at,media_id,visibility)
+          VALUES (?,?,?,?,?,?,?,?,?)`).bind(
+          await stableId(snapshot.job.id, `guestbook:${String(entry.id ?? crypto.randomUUID())}`), snapshot.job.event_id,
+          String(entry.author_name ?? "Guest").slice(0, 100), String(entry.message ?? "").slice(0, 4000),
+          ["pending", "approved", "hidden"].includes(String(entry.status)) ? entry.status : "pending",
+          Number(entry.created_at ?? Date.now()), Number.isFinite(Number(entry.moderated_at)) ? Number(entry.moderated_at) : null,
+          sourceMediaId ? mediaIds.get(sourceMediaId) ?? null : null,
+          entry.visibility === "host_only" ? "host_only" : "public",
+        ));
+      }
+      for (const comment of (archive.data.mediaComments ?? []).slice(0, 20_000)) {
+        if (typeof comment.media_id !== "string" || !mediaIds.has(comment.media_id)) continue;
+        statements.push(this.env.DB.prepare(`INSERT OR IGNORE INTO media_comments
+          (id,event_id,media_id,author_name,message,status,created_at) VALUES (?,?,?,?,?,?,?)`).bind(
+          await stableId(snapshot.job.id, `comment:${String(comment.id ?? crypto.randomUUID())}`), snapshot.job.event_id,
+          mediaIds.get(comment.media_id), String(comment.author_name ?? "Guest").slice(0, 100),
+          String(comment.message ?? "").slice(0, 2000), comment.status === "hidden" ? "hidden" : "approved",
+          Number(comment.created_at ?? Date.now()),
+        ));
+      }
+      for (const item of (archive.data.officialAlbumItems ?? []).slice(0, 20_000)) {
+        if (typeof item.media_id !== "string" || !mediaIds.has(item.media_id)) continue;
+        statements.push(this.env.DB.prepare(`INSERT OR IGNORE INTO official_album_items
+          (event_id,media_id,added_by,position,created_at) VALUES (?,?,?,?,?)`).bind(
+          snapshot.job.event_id, mediaIds.get(item.media_id), snapshot.job.user_id,
+          Number(item.position ?? 0), Number(item.created_at ?? Date.now()),
+        ));
+      }
+      for (let offset = 0; offset < statements.length; offset += 100) await this.env.DB.batch(statements.slice(offset, offset + 100));
+      return true;
+    });
     return step.do("finalize cloud event restore", async () => {
       const counts = await this.env.DB.prepare("SELECT failed_items FROM cloud_event_restore_jobs WHERE id=?")
         .bind(snapshot.job.id).first<{ failed_items: number }>();

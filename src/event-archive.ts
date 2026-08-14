@@ -23,6 +23,10 @@ export type EventArchive = {
     weddingSeatAssignments: Record<string, unknown>[];
     weddingMenuCourses: Record<string, unknown>[];
     weddingPortraitAssignments?: Record<string, unknown>[];
+    eventRsvps?: Record<string, unknown>[];
+    guestbookEntries?: Record<string, unknown>[];
+    mediaComments?: Record<string, unknown>[];
+    officialAlbumItems?: Record<string, unknown>[];
   };
   cloudBackup?: {
     version: number;
@@ -47,7 +51,7 @@ const one = (db: D1Database, sql: string, eventId: string) => db.prepare(sql).bi
 const many = async (db: D1Database, sql: string, eventId: string) => (await db.prepare(sql).bind(eventId).all<Record<string, unknown>>()).results;
 
 export async function buildEventArchive(db: D1Database, event: EventRow): Promise<EventArchive> {
-  const [verticalProfile, weddingProfile, weddingFeatures, experienceSettings, albums, branding, qrDesigns, weddingGuestGroups, weddingGuests, weddingTables, weddingSeatAssignments, weddingMenuCourses, weddingPortraitAssignments] = await Promise.all([
+  const [verticalProfile, weddingProfile, weddingFeatures, experienceSettings, albums, branding, qrDesigns, weddingGuestGroups, weddingGuests, weddingTables, weddingSeatAssignments, weddingMenuCourses, weddingPortraitAssignments, eventRsvps, guestbookEntries, mediaComments, officialAlbumItems] = await Promise.all([
     one(db, "SELECT * FROM event_vertical_profiles WHERE event_id=?", event.id),
     one(db, "SELECT * FROM event_wedding_profiles WHERE event_id=?", event.id),
     many(db, "SELECT * FROM event_wedding_features WHERE event_id=? ORDER BY feature_key", event.id),
@@ -61,6 +65,10 @@ export async function buildEventArchive(db: D1Database, event: EventRow): Promis
     many(db, "SELECT s.guest_id,s.table_id,s.seat_number,s.assigned_at FROM event_wedding_seat_assignments s JOIN event_wedding_guests g ON g.id=s.guest_id WHERE g.event_id=?", event.id),
     many(db, "SELECT id,course_type,title,description,sort_order,created_at,updated_at FROM event_wedding_menu_courses WHERE event_id=? ORDER BY sort_order,id", event.id),
     many(db, "SELECT media_id,slot,position,updated_at FROM event_wedding_portrait_assignments WHERE event_id=? ORDER BY slot", event.id),
+    many(db, "SELECT id,name,email,response,guest_count,dietary_notes,message,created_at,updated_at FROM event_rsvps WHERE event_id=? ORDER BY created_at", event.id),
+    many(db, "SELECT id,author_name,message,status,created_at,moderated_at,media_id,visibility FROM event_guestbook_entries WHERE event_id=? ORDER BY created_at", event.id),
+    many(db, "SELECT id,media_id,author_name,message,status,created_at FROM media_comments WHERE event_id=? ORDER BY created_at", event.id),
+    many(db, "SELECT media_id,position,created_at FROM official_album_items WHERE event_id=? ORDER BY position,created_at", event.id),
   ]);
   const stripEventId = (row: Record<string, unknown> | null) => {
     if (!row) return null;
@@ -98,6 +106,10 @@ export async function buildEventArchive(db: D1Database, event: EventRow): Promis
       weddingSeatAssignments,
       weddingMenuCourses,
       weddingPortraitAssignments,
+      eventRsvps,
+      guestbookEntries,
+      mediaComments,
+      officialAlbumItems,
     },
     excluded: [
       "media binaries and derivatives (use Google Drive backup or original ZIP export)",
@@ -118,6 +130,9 @@ export function parseEventArchive(value: unknown): EventArchive | null {
     if (!Array.isArray(archive.data[key])) return null;
   }
   if (archive.data.weddingPortraitAssignments && !Array.isArray(archive.data.weddingPortraitAssignments)) return null;
+  for (const key of ["eventRsvps", "guestbookEntries", "mediaComments", "officialAlbumItems"] as const) {
+    if (archive.data[key] && !Array.isArray(archive.data[key])) return null;
+  }
   if (archive.cloudBackup) {
     if (archive.cloudBackup.version !== 1 || !["google_drive", "dropbox"].includes(archive.cloudBackup.provider)) return null;
     if (!Array.isArray(archive.cloudBackup.files) || archive.cloudBackup.files.length > 20_000) return null;
@@ -211,6 +226,26 @@ export function restoreEventArchiveStatements(
   for (const course of archive.data.weddingMenuCourses.slice(0, 100)) {
     statements.push(db.prepare("INSERT INTO event_wedding_menu_courses (id,event_id,course_type,title,description,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)")
       .bind(crypto.randomUUID(), eventId, course.course_type, course.title, course.description, course.sort_order, now, now));
+  }
+  for (const rsvp of (archive.data.eventRsvps ?? []).slice(0, 5000)) {
+    statements.push(db.prepare(`INSERT INTO event_rsvps
+      (id,event_id,name,email,response,guest_count,dietary_notes,message,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(
+      crypto.randomUUID(), eventId, String(rsvp.name ?? "Guest").slice(0, 100), String(rsvp.email ?? "").slice(0, 254),
+      ["yes", "no", "maybe"].includes(String(rsvp.response)) ? rsvp.response : "maybe", Number(rsvp.guest_count ?? 1),
+      String(rsvp.dietary_notes ?? "").slice(0, 1000), String(rsvp.message ?? "").slice(0, 2000), now, now,
+    ));
+  }
+  if (!archive.cloudBackup) {
+    for (const entry of (archive.data.guestbookEntries ?? []).slice(0, 10_000)) {
+      statements.push(db.prepare(`INSERT INTO event_guestbook_entries
+        (id,event_id,author_name,message,status,created_at,moderated_at,media_id,visibility)
+        VALUES (?,?,?,?,?,?,?,NULL,?)`).bind(
+        crypto.randomUUID(), eventId, String(entry.author_name ?? "Guest").slice(0, 100), String(entry.message ?? "").slice(0, 4000),
+        ["pending", "approved", "hidden"].includes(String(entry.status)) ? entry.status : "pending", now, null,
+        entry.visibility === "host_only" ? "host_only" : "public",
+      ));
+    }
   }
   return statements;
 }
