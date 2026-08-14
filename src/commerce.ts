@@ -1,4 +1,5 @@
 import type { Locale } from "./i18n";
+import type { EventAccessState } from "./domain";
 
 export type CommerceProduct = {
   product_key: string;
@@ -91,6 +92,16 @@ export function commerceLaunchReady(settings: CommerceLaunchSettings) {
     settings.payments_enabled &&
       commerceLaunchChecks.every(([key]) => settings[key] === 1),
   );
+}
+
+export function complimentaryEventActivationAvailable(input: {
+  accessState: EventAccessState;
+  launchReady: boolean;
+  owner: boolean;
+}) {
+  return input.owner
+    && !input.launchReady
+    && (input.accessState === "trial" || input.accessState === "expired");
 }
 
 export function commerceProductName(product: CommerceProduct, locale: Locale) {

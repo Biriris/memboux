@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { getEventRole, roleCan } from "../access";
 import {
   activateComplimentaryEventOrder,
+  complimentaryEventActivationAvailable,
   commerceLaunchReady,
   commerceProductDescription,
   commerceProductName,
@@ -205,7 +206,11 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
   const selectedProduct = products.find((product) => product.product_key === draft?.product_key);
   const launchReady = commerceLaunchReady(launchSettings);
   const beta = complimentaryCopy[locale];
-  const complimentaryAvailable = !launchReady && role === "owner";
+  const complimentaryAvailable = complimentaryEventActivationAvailable({
+    accessState: access.access_state,
+    launchReady,
+    owner: role === "owner",
+  });
   const draftSummary = selectedProduct && draft
     ? `<section class="rounded-[1.6rem] border border-[#d9caf1] bg-white p-5 shadow-sm"><div class="flex flex-col gap-3"><div><p class="text-xs font-bold uppercase tracking-[.15em] text-[#7c3aed]">${t.draftTitle}</p><h2 class="mt-2 text-xl">${esc(commerceProductName(selectedProduct, locale))}</h2></div><span class="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">${t.noChargeLabel}</span></div><dl class="mt-5 space-y-3 border-t border-[#eee8f5] pt-4 text-sm"><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.eventLabel}</dt><dd class="text-right font-semibold">${esc(event.eventName)}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.packageLabel}</dt><dd class="text-right font-semibold">${esc(commerceProductName(selectedProduct, locale))}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.totalLabel}</dt><dd class="text-right font-bold">${esc(formatCommerceMoney(draft.total_minor, draft.currency, locale))}</dd></div><div class="flex justify-between gap-3"><dt class="text-[#756b82]">${t.draftReference}</dt><dd class="font-mono text-xs">${esc(draft.id.slice(0, 8).toUpperCase())}</dd></div></dl></section>`
     : "";
@@ -217,12 +222,12 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
     : "";
   const checkoutAction = access.access_state === "preview"
     ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/start-trial`
-    : complimentaryAvailable && access.access_state === "expired"
+    : complimentaryAvailable
       ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
       : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
   const checkoutButton = access.access_state === "preview"
     ? (locale === "el" ? "Επιλογή πακέτου & έναρξη Memboux Free" : "Choose package & start Memboux Free")
-    : complimentaryAvailable && access.access_state === "expired" ? beta.activate : t.save;
+    : complimentaryAvailable ? beta.activate : t.save;
   const checkoutStateCard = complimentaryAvailable
     ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
     : `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section>`;

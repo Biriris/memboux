@@ -13,7 +13,7 @@ import { locationPickerMarkup, locationPickerScript } from "./location-picker";
 import { shareIconButtons } from "./share";
 import { eventHeader, logoutScript, page } from "./shared";
 import { eventWorkspaceShell, type EventWorkspaceSection } from "./event-workspace-shell";
-import { commerceProductDescription, commerceProductName, formatCommerceMoney, type CommerceProduct } from "../commerce";
+import { commerceProductDescription, commerceProductName, complimentaryEventActivationAvailable, formatCommerceMoney, type CommerceProduct } from "../commerce";
 
 type RemovalRequest = {
   id: string;
@@ -174,14 +174,19 @@ export function renderEventWorkspace(input: EventWorkspaceInput) {
     : 7;
   const commerceProducts = input.commerceProducts ?? [];
   const selectedProductKey = input.selectedProductKey ?? commerceProducts[0]?.product_key ?? null;
+  const complimentaryActivationAvailable = complimentaryEventActivationAvailable({
+    accessState: eventAccess.access_state,
+    launchReady: Boolean(input.commerceLaunchReady),
+    owner: input.membership === "owner",
+  });
   const packageAction = eventAccess.access_state === "preview"
     ? `/api/account/events/${event.code}/checkout/start-trial`
-    : eventAccess.access_state === "expired" && !input.commerceLaunchReady
+    : complimentaryActivationAvailable
       ? `/api/account/events/${event.code}/checkout/activate-beta`
       : `/api/account/events/${event.code}/checkout/draft`;
   const packageButton = eventAccess.access_state === "preview"
     ? (el ? "Επιλογή πακέτου & έναρξη Memboux Free" : "Choose package & start Memboux Free")
-    : eventAccess.access_state === "expired" && !input.commerceLaunchReady
+    : complimentaryActivationAvailable
       ? (el ? "Ενεργοποίηση πακέτου beta" : "Activate beta package")
       : (el ? "Αποθήκευση επιλογής πακέτου" : "Save package selection");
   const packageCards = commerceProducts.map((product) => {

@@ -318,6 +318,32 @@ describe("event workspace", () => {
     expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
   });
 
+  it("activates the selected complimentary package immediately during an active trial", () => {
+    const html = renderEventWorkspace({
+      ...baseInput,
+      membership: "owner",
+      eventAccess: {
+        event_id: event.id,
+        access_state: "trial",
+        enforcement_state: "enforced",
+        media_limit: 50,
+        guest_access_enabled: 1,
+        guest_uploads_enabled: 1,
+        original_downloads_enabled: 0,
+        trial_started_at: 1,
+        trial_ends_at: Date.now() + 86_400_000,
+        unlocked_at: null,
+        expires_at: null,
+        created_at: 1,
+        updated_at: 1,
+      },
+    });
+
+    expect(html).toContain(`/api/account/events/${event.code}/checkout/activate-beta`);
+    expect(html).toContain("Activate beta package");
+    expect(html).not.toContain(`/api/account/events/${event.code}/checkout/draft`);
+  });
+
   it("uses the specialized wedding management workspace without changing the gallery", () => {
     const html = renderEventWorkspace({
       ...baseInput,

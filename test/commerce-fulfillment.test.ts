@@ -173,6 +173,34 @@ describe("provider-neutral event order fulfillment", () => {
 });
 
 describe("complimentary beta event activation", () => {
+  it("upgrades an active trial immediately instead of waiting for expiry", async () => {
+    const orderId = await seedOrder({ status: "draft" });
+    await env.DB.prepare(
+      `INSERT INTO event_access
+       (event_id,access_state,enforcement_state,media_limit,guest_access_enabled,
+        guest_uploads_enabled,original_downloads_enabled,trial_started_at,trial_ends_at,
+        unlocked_at,expires_at,created_at,updated_at)
+       VALUES ('event-order-1','trial','enforced',50,1,1,0,100,200,NULL,NULL,100,100)`,
+    ).run();
+
+    const result = await activateComplimentaryEventOrder(env.DB, {
+      orderId,
+      userId: "user-1",
+      eventId: "event-order-1",
+      activatedAt: 150,
+    });
+
+    expect(result.activated).toBe(true);
+    expect(await env.DB.prepare(
+      "SELECT access_state,media_limit,original_downloads_enabled,unlocked_at FROM event_access WHERE event_id='event-order-1'",
+    ).first()).toEqual({
+      access_state: "unlocked",
+      media_limit: 500,
+      original_downloads_enabled: 1,
+      unlocked_at: 150,
+    });
+  });
+
   it("unlocks the selected draft without recording a payment and writes an audit record", async () => {
     const orderId = await seedOrder({ status: "draft" });
     const activatedAt = Date.UTC(2026, 7, 1);

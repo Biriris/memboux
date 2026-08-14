@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commerceLaunchReady,
+  complimentaryEventActivationAvailable,
   commerceProductDescription,
   commerceProductName,
   formatCommerceMoney,
@@ -76,6 +77,14 @@ describe("provider-neutral commerce catalog", () => {
       stripe_account_ready: 1,
       updated_at: 1,
     })).toBe(true);
+  });
+
+  it("offers complimentary activation during trial or after expiry, but not after unlock", () => {
+    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: false, owner: true })).toBe(true);
+    expect(complimentaryEventActivationAvailable({ accessState: "expired", launchReady: false, owner: true })).toBe(true);
+    expect(complimentaryEventActivationAvailable({ accessState: "unlocked", launchReady: false, owner: true })).toBe(false);
+    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: true, owner: true })).toBe(false);
+    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: false, owner: false })).toBe(false);
   });
 
   it("presents the direct event unlock journey in every supported language", () => {
