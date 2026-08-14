@@ -9,10 +9,11 @@ import { changeEventPersonRole, changePendingInvitationRole, normalizeManagedEve
 import { resolveEventCover } from "../event-cover";
 import { eventTypeLabel, isEventType, normalizeEventType } from "../event-types";
 import { changeEventType } from "../event-type-transitions";
-import { eventMediaUsage, getEventAccess } from "../event-access";
+import { eventMediaUsage, eventOfficialAlbumEnabled, getEventAccess } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { createInvitationToken, createOrReplaceInvitation, hashInvitationToken, normalizeInviteRole } from "../invitations";
 import { existingMediaLikeVisitor, getGalleryMediaWithLikes, mediaLikeActorKey } from "../media-likes";
+import { listEventAlbums } from "../event-media-hub";
 import { PlaceInputError, resolveEventPlaceInput } from "../places";
 import { canInviteToEvent } from "../quotas";
 import { commerceLaunchReady, eventProducts, getCommerceLaunchSettings, type CommerceOrder } from "../commerce";
@@ -52,7 +53,7 @@ async function eventDashboard(
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings] = await Promise.all([
+  const [items, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey),
     canManageEvent
       ? c.env.DB.prepare(`SELECT * FROM (
@@ -90,6 +91,7 @@ async function eventDashboard(
         .bind(user.id, event.id).first<CommerceOrder & { product_key: string | null }>()
       : Promise.resolve(null),
     canManageEvent ? getCommerceLaunchSettings(c.env.DB) : Promise.resolve(null),
+    canManageEvent ? listEventAlbums(c.env.DB, event.id) : Promise.resolve([]),
   ]);
   const origin = new URL(c.req.url).origin;
   const guestUrl = `${origin}/gallery/${event.code}`;
@@ -102,6 +104,10 @@ async function eventDashboard(
     weddingUrl ? QRCode.toString(`${weddingUrl}?lang=${locale}`, qrOptions) : Promise.resolve(null),
   ]);
   const responsiveQr = (svg: string) => svg.replace("<svg", '<svg class="block h-auto w-full max-w-full"');
+  const albumShares = await Promise.all(albums.map(async (album) => {
+    const url = `${origin}/gallery/${encodeURIComponent(event.code)}/albums/${encodeURIComponent(album.slug)}?source=qr`;
+    return { id: album.id, name: album.name, url, qrSvg: responsiveQr(await QRCode.toString(url, qrOptions)) };
+  }));
 
   return c.html(renderEventWorkspace({
     locale,
@@ -118,6 +124,8 @@ async function eventDashboard(
     guestQrSvg: responsiveQr(guestQrSvg),
     officialQrSvg: responsiveQr(officialQrSvg),
     weddingQrSvg: weddingQrSvg ? responsiveQr(weddingQrSvg) : null,
+    officialAlbumEnabled: eventOfficialAlbumEnabled(eventAccess),
+    albumShares,
     coverSourceMediaId: cover?.automatic ? null : cover?.source_media_id ?? null,
     coverUpdatedAt: cover?.updated_at ?? null,
     activeSection,

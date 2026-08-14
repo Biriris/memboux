@@ -2,7 +2,7 @@
 import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
-import { eventAccessAllows, getEventAccess } from "../event-access";
+import { eventAccessAllows, eventOfficialAlbumEnabled, getEventAccess } from "../event-access";
 import { eventBrandIdentity, eventBrandingStyle, getEventBranding } from "../event-branding";
 import { anonymousVisitor, listEventAlbums, recordEventActivity } from "../event-media-hub";
 import { hasEventSurfaceAccess, hasGalleryAccess } from "../gallery-access";
@@ -477,13 +477,14 @@ experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
     const user = await currentUser(c);
     if (!user) return c.redirect(`/${locale}/login`);
     if (!roleCan(await getEventRole(c.env.DB, event.id, user.id), "manage_event")) return c.text("Forbidden", 403);
-    const [weddingProfile, albums, savedDesigns] = await Promise.all([
+    const [weddingProfile, albums, savedDesigns, eventAccess] = await Promise.all([
       event.event_type === "wedding"
         ? c.env.DB.prepare("SELECT template_key,accent_color FROM event_wedding_profiles WHERE event_id=?")
           .bind(event.id).first<{ template_key: string; accent_color: string | null }>()
         : null,
       listEventAlbums(c.env.DB, event.id),
       listQrDesigns(c.env.DB, event.id),
+      getEventAccess(c.env.DB, event.id),
     ]);
     const weddingTheme = weddingProfile ? weddingThemeFor(weddingProfile.template_key) : null;
     const palette = weddingTheme?.palette ?? (["#2b174d", "#c8b7e8", "#f8f5ff"] as const);
@@ -491,7 +492,7 @@ experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
     const destinations = [
       { key: "guest_gallery", label: text(locale, "Gallery & uploads καλεσμένων", "Guest gallery & uploads"), url: `${origin}/gallery/${encodeURIComponent(event.code)}?source=qr` },
       { key: "event_website", label: text(locale, "Website εκδήλωσης", "Event website"), url: `${origin}/${event.event_type === "wedding" ? "wedding" : "event"}/${encodeURIComponent(event.code)}?lang=${locale}` },
-      { key: "official_album", label: text(locale, "Επίσημο άλμπουμ", "Official album"), url: `${origin}/gallery/${encodeURIComponent(event.code)}/official?lang=${locale}` },
+      ...(eventOfficialAlbumEnabled(eventAccess) ? [{ key: "official_album", label: text(locale, "Επίσημο άλμπουμ", "Official album"), url: `${origin}/gallery/${encodeURIComponent(event.code)}/official?lang=${locale}` }] : []),
       ...albums.map((album) => ({ key: `album_${album.id}`, label: album.name, url: `${origin}/gallery/${encodeURIComponent(event.code)}/albums/${encodeURIComponent(album.slug)}?source=qr` })),
     ];
     const studioDestinations: QrStudioDestination[] = await Promise.all(destinations.map(async (destination) => ({
@@ -506,6 +507,7 @@ experienceRoutes.get("/dashboard/:code/qr-templates", async (c) => {
       headerHtml: eventHeader(locale, { name: user.name ?? user.email, email: user.email }),
       backUrl: `/dashboard/${encodeURIComponent(event.code)}?lang=${locale}`,
       destinations: studioDestinations,
+      initialDestination: c.req.query("destination"),
       savedDesigns,
       defaultBackground: palette[2],
       defaultAccent: weddingProfile?.accent_color ?? weddingTheme?.defaultAccent ?? "#7c3aed",

@@ -122,6 +122,18 @@ segments. The response reads one R2 object at a time instead of buffering the
 complete archive. ZIP64 and individual objects of 4 GiB or larger are not
 supported. Interrupted archive downloads are not resumable background jobs.
 
+Custom album capacity is an event-package entitlement implemented by
+[`0075_event_album_entitlements.sql`](../../migrations/0075_event_album_entitlements.sql):
+Free includes one, Moments includes three, and Celebration includes five. The
+main Guest Gallery does not consume these slots. Official Album is unavailable
+on enforced Free events; paid packages include it without consuming a custom-album slot. Each custom
+album has its own guest URL and QR destination, appears in the event Share
+section, and can be opened directly in QR Template Studio. Deleting a custom
+album soft-deletes the album, returns its active media and incomplete multipart
+uploads to the main gallery, clears it as a slideshow filter, and immediately
+returns its package slot. Existing events above a newly introduced limit keep
+their albums but cannot create another until below their limit.
+
 Google Drive and Dropbox backup creation snapshots active ordinary `media` rows into `event_backup_items`. Workflow steps read each R2 `object_key`, upload it to the provider, and update item/backup progress. Wedding library, menus, covers, and support attachments are not included in that snapshot. See [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
 
 Original export is denied when enforced event access disables originals. The exact retention of completed provider backups is provider-side and **Unknown**.

@@ -82,17 +82,17 @@ describe("event workspace", () => {
     expect(clearScript).toBeTruthy();
     expect(() => new Function(clearScript!)).not.toThrow();
     expect(html).toContain('id="share"');
-    expect(html).toContain('id="settings"');
-    expect(html).toContain("Event details");
+    expect(html).not.toContain('id="settings"');
+    expect(html).not.toContain("Event details");
     expect(html).toContain('id="people"');
     expect(html).toContain("Co-owner — full control");
     expect(html).toContain("A co-owner gets full control");
-    expect(html).toContain('id="danger"');
+    expect(html).not.toContain('id="danger"');
     expect(html).toContain('data-test="guest-qr"');
     expect(html).toContain('data-test="official-qr"');
     expect(html).toContain("data.invitationQrSvg");
     expect(html).toContain("dataset.invitationQr");
-    expect(html).toContain(`/api/account/events/${event.code}/trash`);
+    expect(html).not.toContain(`/api/account/events/${event.code}/trash`);
     expect(html).toContain(`/gallery/${event.code}/official`);
     expect(html).toContain("data-inline-editor");
     expect(html).toContain('data-field="name"');
@@ -102,13 +102,13 @@ describe("event workspace", () => {
     expect(html).toContain('name="eventType"');
     expect(html).toContain(`/api/account/events/${event.code}/event-type`);
     expect(html).toContain("Trip &amp; vacation");
-    expect(html).toContain("Shared media and access stay intact");
+    expect(html).toContain("Shared media is preserved");
     expect(html).toContain('id="template"');
     expect(html).toContain('data-event-template="trip"');
     expect(html).toContain("Build the complete event page");
     expect(html).toContain(`/dashboard/${event.code}/setup?lang=en`);
     expect(html).toContain(`/event/${event.code}?lang=en&amp;preview=1`);
-    expect(html).toContain('data-event-metadata');
+    expect(html).toContain('data-event-type-editor');
     expect(html).toContain("Zanzibar, Tanzania");
     expect(html).toContain('data-gallery-sort="owner-gallery"');
     expect(html).toContain('data-gallery-grid="owner-gallery"');
@@ -135,9 +135,11 @@ describe("event workspace", () => {
     expect(html.indexOf('id="gallery"')).toBeLessThan(html.indexOf('id="engagement"'));
     expect(html.indexOf('id="engagement"')).toBeLessThan(html.indexOf('id="share"'));
     expect(html.indexOf('id="share"')).toBeLessThan(html.indexOf('id="people"'));
-    expect(html.indexOf('id="event-access"')).toBeLessThan(html.indexOf('id="gallery"'));
-    expect(html.indexOf('id="event-access"')).toBeLessThan(html.indexOf('id="settings"'));
-    expect(html.indexOf('id="settings"')).toBeLessThan(html.indexOf('id="danger"'));
+    expect(html.indexOf('id="overview"')).toBeLessThan(html.indexOf('id="gallery"'));
+    expect(html).toContain("Current package");
+    expect(html).not.toContain("Fully unlocked");
+    expect(html).not.toContain("Next step");
+    expect(html).not.toContain("Manage event media");
     const header = html.slice(0, html.indexOf("</header>"));
     expect(header).not.toContain("Preview album");
     expect(header).not.toContain("data-event-pin-toggle");
@@ -194,8 +196,8 @@ describe("event workspace", () => {
     expect(html).toContain("dashboard-video");
     expect(html).toContain("1 video");
     expect(html).toContain("1 photo");
-    expect(html).toContain("Perspectives collected");
-    expect(html).toContain("people who contributed");
+    expect(html).toContain("Perspectives");
+    expect(html).toContain("contributors");
     expect(html).toContain('data-gallery-photo-count="1"');
     expect(html).toContain("data-media-cover");
     expect(html).toContain("Set as cover");
@@ -293,6 +295,9 @@ describe("event workspace", () => {
 
     expect(html).toContain('id="owner-download-selected"');
     expect(html).toContain('id="owner-delete-selected"');
+    expect(html).not.toContain('data-test="official-qr"');
+    expect(html).not.toContain('data-surface-pin-control="official_album"');
+    expect(html).not.toContain(`/gallery/${event.code}/official`);
   });
 
   it("combines three-package selection and Free activation in the event overview", () => {

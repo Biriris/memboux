@@ -6,6 +6,7 @@ import type { Bindings, EventRow, MediaRow } from "../domain";
 import {
   eventAccessAllows,
   eventMediaCapacity,
+  eventOfficialAlbumEnabled,
   getEventAccess,
   isEventMediaLimitConstraint,
   isEventUploadWindowConstraint,
@@ -43,6 +44,9 @@ const mediaIdsFromBody = (value: unknown | unknown[]) =>
     .map(String)
     .filter((id) => /^[a-f0-9-]{36}$/i.test(id))
     .slice(0, 200);
+
+const officialAlbumAvailable = async (db: D1Database, eventId: string) =>
+  eventOfficialAlbumEnabled(await getEventAccess(db, eventId));
 
 studioRoutes.get("/studio", async (c) => {
   const locale = normalizeLocale(c.req.query("lang") ?? "en");
@@ -131,6 +135,8 @@ studioRoutes.get("/studio/media/:id", async (c) => {
   if (!media) return c.text("Media not found", 404);
   if (!(await canManageOfficialAlbum(c.env.DB, media.event_id, user.id)))
     return c.text("Forbidden", 403);
+  if (!(await officialAlbumAvailable(c.env.DB, media.event_id)))
+    return c.text("Official Album requires a paid event package", 403);
   const originalDownloadsAllowed = eventAccessAllows(
     await getEventAccess(c.env.DB, media.event_id),
     "original_downloads",
@@ -160,6 +166,8 @@ studioRoutes.get("/studio/events/:code", async (c) => {
   if (!event) return c.text("Event not found", 404);
   if (!(await canManageOfficialAlbum(c.env.DB, event.id, user.id)))
     return c.text("Forbidden", 403);
+  if (!(await officialAlbumAvailable(c.env.DB, event.id)))
+    return c.text("Official Album requires a paid event package", 403);
   const guest = await c.env.DB.prepare(
     "SELECT * FROM media WHERE event_id=? AND origin='guest' AND deleted_at IS NULL AND reported_at IS NULL ORDER BY COALESCE(captured_at,uploaded_at)",
   )
@@ -194,6 +202,8 @@ studioRoutes.post(
     if (!event) return c.text("Event not found", 404);
     if (!(await canManageOfficialAlbum(c.env.DB, event.id, user.id)))
       return c.text("Forbidden", 403);
+    if (!(await officialAlbumAvailable(c.env.DB, event.id)))
+      return c.text("Official Album requires a paid event package", 403);
     const body = await c.req.parseBody({ all: true });
     const ids = mediaIdsFromBody(body.ids);
     if (ids.length) {
@@ -228,6 +238,8 @@ studioRoutes.post("/studio/events/:code/media/trash", async (c) => {
   if (!event) return c.text("Event not found", 404);
   if (!(await canManageOfficialAlbum(c.env.DB, event.id, user.id)))
     return c.text("Forbidden", 403);
+  if (!(await officialAlbumAvailable(c.env.DB, event.id)))
+    return c.text("Official Album requires a paid event package", 403);
   const body = await c.req.parseBody({ all: true });
   const ids = mediaIdsFromBody(body.ids);
   const now = Date.now();
@@ -338,6 +350,8 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
   if (!event) return c.text("Event not found", 404);
   if (!(await canManageOfficialAlbum(c.env.DB, event.id, user.id)))
     return c.text("Forbidden", 403);
+  if (!(await officialAlbumAvailable(c.env.DB, event.id)))
+    return c.text("Official Album requires a paid event package", 403);
   const form = await c.req.formData();
   const locale = normalizeLocale(String(form.get("locale") ?? "en"));
   const files = form

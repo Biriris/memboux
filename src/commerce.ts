@@ -20,6 +20,7 @@ export type CommerceProduct = {
   amount_minor: number;
   currency: string;
   media_limit: number | null;
+  album_limit?: number | null;
   event_duration_days: number | null;
   upload_window_days?: number | null;
   guest_access_enabled: 0 | 1;
@@ -137,6 +138,11 @@ export function commerceUploadWindowDays(product: Pick<CommerceProduct, "product
   return product.product_key === "event_free" ? 14 : product.product_key === "event_plus" ? 90 : 45;
 }
 
+export function commerceAlbumLimit(product: Pick<CommerceProduct, "product_key" | "album_limit">) {
+  if (Number.isInteger(product.album_limit) && Number(product.album_limit) >= 0) return Number(product.album_limit);
+  return product.product_key === "event_plus" ? 5 : product.product_key === "event_pass" ? 3 : 1;
+}
+
 export async function eventProducts(db: D1Database) {
   const rows = await db.prepare(
     "SELECT * FROM commerce_products WHERE scope='event' AND active=1 ORDER BY sort_order,amount_minor",
@@ -159,6 +165,7 @@ export async function saveDraftEventOrder(
     mediaLimit: input.product.media_limit,
     eventDurationDays: input.product.event_duration_days,
     uploadWindowDays: commerceUploadWindowDays(input.product),
+    albumLimit: commerceAlbumLimit(input.product),
     guestAccessEnabled: Boolean(input.product.guest_access_enabled),
     guestUploadsEnabled: Boolean(input.product.guest_access_enabled),
     originalDownloadsEnabled: Boolean(input.product.original_downloads_enabled),
@@ -184,6 +191,7 @@ type EventEntitlementSnapshot = {
   mediaLimit: number | null;
   eventDurationDays: number | null;
   uploadWindowDays?: number | null;
+  albumLimit?: number | null;
   guestAccessEnabled: boolean;
   guestUploadsEnabled?: boolean;
   originalDownloadsEnabled: boolean;
@@ -209,6 +217,8 @@ function validEntitlement(value: unknown): value is EventEntitlementSnapshot {
       (Number.isInteger(item.uploadWindowDays) &&
         Number(item.uploadWindowDays) >= 1 &&
         Number(item.uploadWindowDays) <= 365)) &&
+    (item.albumLimit === undefined || item.albumLimit === null ||
+      (Number.isInteger(item.albumLimit) && Number(item.albumLimit) >= 0 && Number(item.albumLimit) <= 100)) &&
     typeof item.guestAccessEnabled === "boolean" &&
     (item.guestUploadsEnabled === undefined ||
       typeof item.guestUploadsEnabled === "boolean") &&
@@ -270,12 +280,13 @@ export async function activateComplimentaryEventOrder(
   }
 
   const current = await db.prepare(
-    `SELECT access_state,media_limit,guest_access_enabled,guest_uploads_enabled,
+    `SELECT access_state,media_limit,album_limit,guest_access_enabled,guest_uploads_enabled,
             original_downloads_enabled,expires_at
      FROM event_access WHERE event_id=?`,
   ).bind(input.eventId).first<{
     access_state: string;
     media_limit: number;
+    album_limit: number | null;
     guest_access_enabled: number;
     guest_uploads_enabled: number;
     original_downloads_enabled: number;
@@ -284,6 +295,10 @@ export async function activateComplimentaryEventOrder(
   const now = input.activatedAt ?? Date.now();
   const selectedLimit = entitlement.mediaLimit ?? 2_147_483_647;
   const mediaLimit = Math.max(current?.media_limit ?? 0, selectedLimit);
+  const albumLimit = Math.max(
+    current?.album_limit ?? 0,
+    entitlement.albumLimit ?? (order.product_key === "event_plus" ? 5 : order.product_key === "event_pass" ? 3 : 1),
+  );
   const selectedExpiresAt = entitlement.eventDurationDays === null
     ? null
     : now + entitlement.eventDurationDays * 86_400_000;
@@ -306,15 +321,16 @@ export async function activateComplimentaryEventOrder(
   await db.batch([
     db.prepare(
       `INSERT INTO event_access (
-         event_id,access_state,enforcement_state,plan_key,media_limit,
+         event_id,access_state,enforcement_state,plan_key,media_limit,album_limit,
          upload_window_days,upload_window_started_at,upload_window_ends_at,premium_activated_at,
          guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
          unlocked_at,expires_at,created_at,updated_at
-       ) VALUES (?,'unlocked','enforced',?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
+       ) VALUES (?,'unlocked','enforced',?,?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
        ON CONFLICT(event_id) DO UPDATE SET
          access_state='unlocked',enforcement_state='enforced',
          plan_key=excluded.plan_key,
          media_limit=excluded.media_limit,
+         album_limit=MAX(COALESCE(event_access.album_limit,0),excluded.album_limit),
          upload_window_days=MAX(COALESCE(event_access.upload_window_days,0),excluded.upload_window_days),
          upload_window_started_at=event_access.upload_window_started_at,
          upload_window_ends_at=CASE
@@ -332,6 +348,7 @@ export async function activateComplimentaryEventOrder(
       input.eventId,
       order.product_key,
       mediaLimit,
+      albumLimit,
       entitlement.uploadWindowDays ?? (order.product_key === "event_plus" ? 90 : 45),
       now,
       guestAccess,
@@ -423,6 +440,7 @@ export async function fulfillEventOrder(
     ? null
     : now + entitlement.eventDurationDays * 86_400_000;
   const mediaLimit = entitlement.mediaLimit ?? 2_147_483_647;
+  const albumLimit = entitlement.albumLimit ?? (order.product_key === "event_plus" ? 5 : order.product_key === "event_pass" ? 3 : 1);
   const guestAccess = entitlement.guestAccessEnabled ? 1 : 0;
   const guestUploads =
     (entitlement.guestUploadsEnabled ?? entitlement.guestAccessEnabled) ? 1 : 0;
@@ -444,15 +462,16 @@ export async function fulfillEventOrder(
     ),
     db.prepare(
       `INSERT INTO event_access (
-         event_id,access_state,enforcement_state,plan_key,media_limit,
+         event_id,access_state,enforcement_state,plan_key,media_limit,album_limit,
          upload_window_days,upload_window_started_at,upload_window_ends_at,premium_activated_at,
          guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
          unlocked_at,expires_at,created_at,updated_at
-       ) VALUES (?,'unlocked','enforced',?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
+       ) VALUES (?,'unlocked','enforced',?,?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
        ON CONFLICT(event_id) DO UPDATE SET
          access_state='unlocked',enforcement_state='enforced',
          plan_key=excluded.plan_key,
          media_limit=excluded.media_limit,
+         album_limit=MAX(COALESCE(event_access.album_limit,0),excluded.album_limit),
          upload_window_days=MAX(COALESCE(event_access.upload_window_days,0),excluded.upload_window_days),
          upload_window_started_at=event_access.upload_window_started_at,
          upload_window_ends_at=CASE
@@ -470,6 +489,7 @@ export async function fulfillEventOrder(
       order.event_id,
       order.product_key,
       mediaLimit,
+      albumLimit,
       entitlement.uploadWindowDays ?? (order.product_key === "event_plus" ? 90 : 45),
       now,
       guestAccess,

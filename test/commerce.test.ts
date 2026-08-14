@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commerceLaunchReady,
+  commerceAlbumLimit,
   complimentaryEventActivationAvailable,
   commerceProductDescription,
   commerceProductName,
@@ -40,6 +41,13 @@ const product: CommerceProduct = {
 };
 
 describe("provider-neutral commerce catalog", () => {
+  it("maps event packages to their custom album entitlement", () => {
+    expect(commerceAlbumLimit({ product_key: "event_free", album_limit: null })).toBe(1);
+    expect(commerceAlbumLimit({ product_key: "event_pass", album_limit: null })).toBe(3);
+    expect(commerceAlbumLimit({ product_key: "event_plus", album_limit: null })).toBe(5);
+    expect(commerceAlbumLimit({ product_key: "event_pass", album_limit: 7 })).toBe(7);
+  });
+
   it("localizes immutable product presentation", () => {
     expect(commerceProductName(product, "el")).toBe("Πακέτο Event");
     expect(commerceProductName(product, "en")).toBe("Event Pass");

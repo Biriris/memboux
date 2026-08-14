@@ -7,7 +7,7 @@ import { UPLOAD_ACCEPT } from "../config";
 import type { Bindings } from "../domain";
 import { resolveEventCover } from "../event-cover";
 import { anonymousVisitor, findEventAlbum, hasAlbumAccess, listEventAlbums, recordEventActivity } from "../event-media-hub";
-import { eventAccessAllows, eventMediaCapacity, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
+import { eventAccessAllows, eventMediaCapacity, eventOfficialAlbumEnabled, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { eventBrandIdentity, eventBrandingStyle, getEventBranding } from "../event-branding";
 import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
@@ -432,6 +432,8 @@ galleryRoutes.get("/gallery/:code/official", async (c) => {
   const locale = normalizeLocale(c.req.query("lang") ?? event.default_locale);
   if (Date.now() > event.expires_at) return c.text("Event expired", 410);
   const eventAccess = await getEventAccess(c.env.DB, event.id);
+  if (!eventOfficialAlbumEnabled(eventAccess))
+    return c.redirect(`/gallery/${event.code}?lang=${locale}`);
   if (!eventAccessAllows(eventAccess, "guest_access"))
     return c.redirect(`/gallery/${event.code}?lang=${locale}`);
   const originalDownloads = eventAccessAllows(eventAccess, "original_downloads");

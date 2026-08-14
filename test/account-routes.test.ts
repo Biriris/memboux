@@ -229,6 +229,7 @@ describe("account route boundaries", () => {
         enforcement_state TEXT NOT NULL,
         plan_key TEXT,
         media_limit INTEGER NOT NULL,
+        album_limit INTEGER DEFAULT 1,
         media_uploads_consumed INTEGER NOT NULL DEFAULT 0,
         upload_window_days INTEGER,
         upload_window_started_at INTEGER,
@@ -248,7 +249,7 @@ describe("account route boundaries", () => {
         product_key TEXT PRIMARY KEY,scope TEXT NOT NULL,billing_model TEXT NOT NULL,
         name_en TEXT NOT NULL,name_el TEXT NOT NULL,name_fr TEXT NOT NULL DEFAULT '',name_de TEXT NOT NULL DEFAULT '',name_es TEXT NOT NULL DEFAULT '',name_it TEXT NOT NULL DEFAULT '',
         description_en TEXT NOT NULL,description_el TEXT NOT NULL,description_fr TEXT NOT NULL DEFAULT '',description_de TEXT NOT NULL DEFAULT '',description_es TEXT NOT NULL DEFAULT '',description_it TEXT NOT NULL DEFAULT '',
-        amount_minor INTEGER NOT NULL,currency TEXT NOT NULL,media_limit INTEGER,event_duration_days INTEGER,
+        amount_minor INTEGER NOT NULL,currency TEXT NOT NULL,media_limit INTEGER,album_limit INTEGER,event_duration_days INTEGER,
         guest_access_enabled INTEGER NOT NULL,original_downloads_enabled INTEGER NOT NULL,
         active INTEGER NOT NULL,checkout_enabled INTEGER NOT NULL,sort_order INTEGER NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
       )`),

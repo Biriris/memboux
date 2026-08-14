@@ -296,6 +296,23 @@ An initial purchase is a direct checkout, not a shopping cart. A cart may be
 introduced later only when customers regularly combine independent products
 such as prints, albums and add-ons.
 
+### Custom album entitlement
+
+The implemented event-package limits are one custom album for Free, three for
+Moments and five for Celebration. Guest Gallery is a core surface and does not
+count. Official Album is excluded from Free; it is included with paid event
+packages and does not consume a custom-album slot. Every custom album has a dedicated link, QR code,
+QR Template Studio destination, PIN/privacy policy, upload/download policy and
+ZIP export. Package enforcement is server-side and repeated in D1 for race
+safety. Existing albums are never deleted when an entitlement changes; new
+creation pauses while an event is at or above its limit.
+
+A future paid `+2 custom albums` add-on may increase `event_access.album_limit`
+without changing the base plan. This add-on is not implemented. A future album
+created automatically by a contracted photobooth integration should use an
+explicit non-billable entitlement category and not consume the organizer's
+custom-album allowance; that integration and category are also not implemented.
+
 ### Subscription failure
 
 Candidate professional policy:

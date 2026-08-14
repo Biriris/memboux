@@ -47,6 +47,7 @@ describe("QR template studio", () => {
         { key: "guest_gallery", label: "Gallery καλεσμένων", url: "https://memboux.com/gallery/EVT901", qrSvg: '<svg viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>' },
         { key: "album_1", label: "Photobooth", url: "https://memboux.com/gallery/EVT901/albums/photobooth", qrSvg: '<svg viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>' },
       ],
+      initialDestination: "album_1",
       defaultBackground: "#fffdf8",
       defaultAccent: "#7c3aed",
       defaultInk: "#2b174d",
@@ -54,6 +55,7 @@ describe("QR template studio", () => {
 
     expect(html).toContain("216+ επεξεργάσιμοι συνδυασμοί");
     expect(html).toContain("Photobooth");
+    expect(html).toContain('value="album_1" selected');
     expect(html).toContain('id="qr-preview"');
     expect(html).toContain('id="qr-svg"');
     expect(html).toContain('id="qr-png"');

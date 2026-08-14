@@ -1,5 +1,5 @@
 import { eventTypeLabel, type EventType } from "../event-types";
-import { commerceProductName, commerceUploadWindowDays, formatCommerceMoney, type CommerceProduct } from "../commerce";
+import { commerceAlbumLimit, commerceProductName, commerceUploadWindowDays, formatCommerceMoney, type CommerceProduct } from "../commerce";
 import type { Locale } from "../i18n";
 import { esc } from "../utils";
 
@@ -91,7 +91,7 @@ export function homeCommercialSections(locale: Locale, products: CommerceProduct
       files: product.media_limit?.toLocaleString(locale) ?? "—",
       uploadDays: commerceUploadWindowDays(product),
       days: product.event_duration_days ? String(product.event_duration_days) : "",
-      original: product.original_downloads_enabled ? t.originals : t.noOriginals,
+      original: `${commerceAlbumLimit(product)} custom albums · ${product.product_key === "event_free" ? "No Official Album" : "Official Album"} · ${product.original_downloads_enabled ? t.originals : t.noOriginals}`,
       best: t.bestFor[index] ?? t.bestFor[0],
       featured: index === 1,
       free: product.amount_minor === 0,

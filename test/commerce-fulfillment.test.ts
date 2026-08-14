@@ -22,7 +22,7 @@ beforeEach(async () => {
     env.DB.prepare(`CREATE TABLE event_access (
       event_id TEXT PRIMARY KEY,access_state TEXT,enforcement_state TEXT,
       plan_key TEXT,
-      media_limit INTEGER,guest_access_enabled INTEGER,guest_uploads_enabled INTEGER,
+      media_limit INTEGER,album_limit INTEGER,guest_access_enabled INTEGER,guest_uploads_enabled INTEGER,
       original_downloads_enabled INTEGER,
       upload_window_days INTEGER,upload_window_started_at INTEGER,upload_window_ends_at INTEGER,
       premium_activated_at INTEGER,

@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import migration from "../migrations/0073_permanent_free_event_plan.sql?raw";
 import uploadWindowMigration from "../migrations/0074_event_upload_windows_and_no_downgrade.sql?raw";
+import albumEntitlementMigration from "../migrations/0075_event_album_entitlements.sql?raw";
 
 const sqlForD1Exec = (sql: string) => sql.replace(/--.*$/gm, "").replace(/\s+/g, " ").trim();
 
@@ -10,6 +11,7 @@ beforeEach(async () => {
     env.DB.prepare("DROP TABLE IF EXISTS multipart_upload_sessions"),
     env.DB.prepare("DROP TABLE IF EXISTS event_wedding_media"),
     env.DB.prepare("DROP TABLE IF EXISTS media"),
+    env.DB.prepare("DROP TABLE IF EXISTS event_albums"),
     env.DB.prepare("DROP TABLE IF EXISTS event_access"),
     env.DB.prepare("DROP TABLE IF EXISTS commerce_products"),
     env.DB.prepare("DROP TABLE IF EXISTS events"),
@@ -125,5 +127,29 @@ describe("0074 upload windows and premium downgrade protection", () => {
       WHERE event_id='preview-event'`).run()).rejects.toThrow("premium_event_cannot_downgrade_to_free");
     await expect(env.DB.prepare(`UPDATE event_access SET premium_activated_at=NULL
       WHERE event_id='preview-event'`).run()).rejects.toThrow("premium_event_cannot_downgrade_to_free");
+  });
+});
+
+describe("0075 custom album entitlements", () => {
+  it("sets the catalog limits and rejects only new over-limit albums", async () => {
+    await env.DB.exec(sqlForD1Exec(migration));
+    await env.DB.prepare(`CREATE TABLE event_albums (
+      id TEXT PRIMARY KEY,event_id TEXT NOT NULL,deleted_at INTEGER
+    )`).run();
+    await env.DB.exec(sqlForD1Exec(albumEntitlementMigration));
+
+    expect(await env.DB.prepare(
+      "SELECT product_key,album_limit FROM commerce_products ORDER BY sort_order",
+    ).all()).toMatchObject({ results: [{ product_key: "event_free", album_limit: 1 }] });
+    expect(await env.DB.prepare(
+      "SELECT album_limit FROM event_access WHERE event_id='trial-event'",
+    ).first()).toEqual({ album_limit: 1 });
+
+    await env.DB.prepare("INSERT INTO event_albums VALUES ('album-1','trial-event',NULL)").run();
+    await expect(env.DB.prepare(
+      "INSERT INTO event_albums VALUES ('album-2','trial-event',NULL)",
+    ).run()).rejects.toThrow("event_album_limit_reached");
+    await env.DB.prepare("UPDATE event_albums SET deleted_at=1 WHERE id='album-1'").run();
+    await env.DB.prepare("INSERT INTO event_albums VALUES ('album-2','trial-event',NULL)").run();
   });
 });

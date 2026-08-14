@@ -13,6 +13,7 @@ export type EventAccessRow = {
   enforcement_state: EventAccessEnforcement;
   plan_key: string | null;
   media_limit: number;
+  album_limit?: number | null;
   media_uploads_consumed: number;
   upload_window_days?: number | null;
   upload_window_started_at?: number | null;

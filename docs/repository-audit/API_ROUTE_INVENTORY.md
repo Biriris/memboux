@@ -416,12 +416,20 @@ Source: [`src/routes/webhooks.ts`](../../src/routes/webhooks.ts). This route is 
 POST  /api/webhooks/resend
 ```
 
-## Event media hub — `src/routes/event-albums.ts` (11)
+## Event media hub — `src/routes/event-albums.ts` (12)
 
 Source: [`src/routes/event-albums.ts`](../../src/routes/event-albums.ts).
 Dashboard routes require the event `manage_media` capability; album creation and
 configuration are owner-only. Protected-album PIN attempts use the shared D1
-rate limiter. Export additionally requires active original-export entitlement.
+rate limiter. Creation is checked against the event package in both the route
+and a D1 trigger. Deletion is a soft delete: active media and unfinished upload
+sessions return to the main gallery, so content is not destroyed. Export
+additionally requires active original-export entitlement.
+
+Official Album is not a custom album. Enforced Free events are redirected from
+its public route and denied access to Studio Official Album routes; paid and
+legacy observe-mode events retain the surface. QR Studio omits the Official
+Album destination when it is unavailable.
 
 ```text
 GET   /gallery/:code/albums/:slug
@@ -429,6 +437,7 @@ POST  /gallery/:code/albums/:slug/unlock
 GET   /dashboard/:code/albums
 POST  /api/account/events/:code/albums
 POST  /api/account/events/:code/albums/:albumId
+POST  /api/account/events/:code/albums/:albumId/delete
 POST  /api/account/events/:code/media/bulk-organize
 GET   /dashboard/:code/analytics
 GET   /dashboard/:code/branding

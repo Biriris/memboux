@@ -282,9 +282,11 @@ describe("gallery, upload, and media routes", () => {
     const original = await SELF.fetch("https://memboux.com/media/trial-stream-media?download=1");
     expect(original.status).toBe(200);
 
-    const official = await SELF.fetch(`https://memboux.com/gallery/${trialCode}/official?lang=en`);
-    expect(official.status).toBe(200);
-    expect(await official.text()).toContain('id="lightbox-download"');
+    const official = await SELF.fetch(`https://memboux.com/gallery/${trialCode}/official?lang=en`, {
+      redirect: "manual",
+    });
+    expect(official.status).toBe(302);
+    expect(official.headers.get("location")).toBe(`/gallery/${trialCode}?lang=en`);
   });
 
   it("does not expose media through a direct URL after guest access expires", async () => {

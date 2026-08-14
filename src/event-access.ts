@@ -1,6 +1,7 @@
 import type { EventAccessRow } from "./domain";
 
 export const EVENT_FREE_MEDIA_LIMIT = 50;
+export const EVENT_FREE_ALBUM_LIMIT = 1;
 export const EVENT_FREE_PRODUCT_KEY = "event_free";
 export const EVENT_FREE_UPLOAD_WINDOW_DAYS = 14;
 
@@ -9,6 +10,10 @@ export function isEventMediaLimitConstraint(error: unknown) {
     error.message.includes("event_media_limit_reached")
     || error.message.includes("trial_media_limit_reached")
   );
+}
+
+export function isEventAlbumLimitConstraint(error: unknown) {
+  return error instanceof Error && error.message.includes("event_album_limit_reached");
 }
 
 export function isEventUploadWindowConstraint(error: unknown) {
@@ -29,6 +34,7 @@ export async function getEventAccess(db: D1Database, eventId: string): Promise<E
     enforcement_state: "observe",
     plan_key: null,
     media_limit: 2_147_483_647,
+    album_limit: null,
     media_uploads_consumed: 0,
     upload_window_days: null,
     upload_window_started_at: null,
@@ -47,15 +53,33 @@ export async function getEventAccess(db: D1Database, eventId: string): Promise<E
 export async function activateEventFreePlan(db: D1Database, eventId: string, now = Date.now()) {
   const result = await db.prepare(`UPDATE event_access SET
       access_state='free',enforcement_state='enforced',plan_key=?,media_limit=?,
+      album_limit=?,
       upload_window_days=?,upload_window_started_at=NULL,upload_window_ends_at=NULL,
       guest_access_enabled=1,guest_uploads_enabled=1,original_downloads_enabled=1,
       unlocked_at=COALESCE(unlocked_at,?),expires_at=NULL,updated_at=?
     WHERE event_id=? AND premium_activated_at IS NULL
       AND access_state IN ('preview','free','expired')
     RETURNING *`)
-    .bind(EVENT_FREE_PRODUCT_KEY, EVENT_FREE_MEDIA_LIMIT, EVENT_FREE_UPLOAD_WINDOW_DAYS, now, now, eventId)
+    .bind(EVENT_FREE_PRODUCT_KEY, EVENT_FREE_MEDIA_LIMIT, EVENT_FREE_ALBUM_LIMIT, EVENT_FREE_UPLOAD_WINDOW_DAYS, now, now, eventId)
     .first<EventAccessRow>();
   return result ?? getEventAccess(db, eventId);
+}
+
+export async function eventAlbumCapacity(db: D1Database, eventId: string) {
+  const [access, count] = await Promise.all([
+    getEventAccess(db, eventId),
+    db.prepare("SELECT COUNT(*) total FROM event_albums WHERE event_id=? AND deleted_at IS NULL")
+      .bind(eventId).first<{ total: number }>(),
+  ]);
+  const used = Number(count?.total ?? 0);
+  const limit = access.enforcement_state === "observe" ? null : access.album_limit ?? EVENT_FREE_ALBUM_LIMIT;
+  return {
+    access,
+    used,
+    limit,
+    remaining: limit === null ? Number.POSITIVE_INFINITY : Math.max(0, limit - used),
+    allowed: limit === null || used < limit,
+  };
 }
 
 export function eventAccessAllows(access: EventAccessRow, capability: "guest_access" | "guest_uploads" | "original_downloads") {
@@ -73,6 +97,14 @@ export function eventOriginalExportsEnabled(
   if (access.enforcement_state === "observe" || access.access_state === "free" || access.access_state === "unlocked") return true;
   if (access.access_state === "expired") return false;
   return access.original_downloads_enabled === 1;
+}
+
+export function eventOfficialAlbumEnabled(
+  access: Pick<EventAccessRow, "access_state" | "enforcement_state" | "plan_key">,
+) {
+  if (access.enforcement_state === "observe") return true;
+  if (access.access_state !== "unlocked") return false;
+  return access.plan_key !== EVENT_FREE_PRODUCT_KEY;
 }
 
 export async function eventOriginalExportsAllowed(db: D1Database, eventId: string) {

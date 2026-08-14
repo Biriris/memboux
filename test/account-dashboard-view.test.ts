@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   eventAlbumPreviewHref,
+  dashboardEventTypeBadge,
   dashboardMediaSummary,
   dashboardVideoCoverMarkup,
   partitionDashboardEvents,
@@ -58,6 +59,12 @@ describe("account dashboard covers", () => {
 });
 
 describe("account dashboard media summary", () => {
+  it("shows the event type as a discreet badge beside each event name", () => {
+    const badge = dashboardEventTypeBadge("en", "trip");
+    expect(badge).toContain("Trip &amp; vacation");
+    expect(badge).toContain("rounded-full");
+  });
+
   it("shows image and video totals in both primary dashboard languages", () => {
     expect(dashboardMediaSummary("en", 12, 3)).toBe("12 images · 3 videos");
     expect(dashboardMediaSummary("el", 12, 3)).toBe("12 εικόνες · 3 βίντεο");

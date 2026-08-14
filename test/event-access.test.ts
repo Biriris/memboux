@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventAccessRow } from "../src/domain";
-import { EVENT_FREE_MEDIA_LIMIT, eventAccessAllows, eventMediaCapacity, eventMediaUsage } from "../src/event-access";
+import { EVENT_FREE_MEDIA_LIMIT, eventAccessAllows, eventMediaCapacity, eventMediaUsage, eventOfficialAlbumEnabled } from "../src/event-access";
 
 const access = (overrides: Partial<EventAccessRow> = {}): EventAccessRow => ({
   event_id: "event-1",
@@ -36,6 +36,13 @@ describe("event access lifecycle", () => {
     expect(eventAccessAllows(free, "guest_access")).toBe(true);
     expect(eventAccessAllows(free, "original_downloads")).toBe(true);
     expect(eventAccessAllows(access({ access_state: "unlocked" }), "original_downloads")).toBe(true);
+  });
+
+  it("keeps Official Album out of Free while preserving paid and legacy access", () => {
+    expect(eventOfficialAlbumEnabled(access({ access_state: "free", plan_key: "event_free" }))).toBe(false);
+    expect(eventOfficialAlbumEnabled(access({ access_state: "unlocked", plan_key: "event_pass" }))).toBe(true);
+    expect(eventOfficialAlbumEnabled(access({ access_state: "preview", plan_key: null }))).toBe(false);
+    expect(eventOfficialAlbumEnabled(access({ enforcement_state: "observe" }))).toBe(true);
   });
 
   it("counts gallery, Wedding and in-flight multipart media in one Free limit", async () => {

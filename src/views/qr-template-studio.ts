@@ -47,6 +47,7 @@ type QrStudioInput = {
   headerHtml: string;
   backUrl: string;
   destinations: QrStudioDestination[];
+  initialDestination?: string;
   savedDesigns?: Array<{ id: string; name: string; config: QrDesignConfig; updatedAt: number }>;
   defaultBackground: string;
   defaultAccent: string;
@@ -61,6 +62,9 @@ export function renderQrTemplateStudio(input: QrStudioInput) {
   const greek = input.locale === "el";
   const t = (el: string, en: string) => greek ? el : en;
   const combinationCount = qrTemplateFamilies.length * qrTemplateFormats.length * qrTemplateCopyPresets.length;
+  const initialDestination = input.destinations.some((item) => item.key === input.initialDestination)
+    ? input.initialDestination
+    : input.destinations[0]?.key;
   const data = {
     locale: input.locale,
     code: input.eventCode,
@@ -70,13 +74,14 @@ export function renderQrTemplateStudio(input: QrStudioInput) {
     formats: qrTemplateFormats,
     copies: qrTemplateCopyPresets,
     destinations: input.destinations,
+    initialDestination,
     savedDesigns: input.savedDesigns ?? [],
     defaults: { background: input.defaultBackground, accent: input.defaultAccent, ink: input.defaultInk },
   };
   const familyButtons = qrTemplateFamilies.map((family, index) => `<button type="button" data-family="${family.key}" class="qr-family flex min-h-20 flex-col justify-between rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm" aria-pressed="${index === 0}"><span class="h-7 rounded-lg border" style="background:linear-gradient(135deg,${family.bg} 0 64%,${family.accent} 64%)"></span><span class="mt-2 text-xs font-semibold text-[#382f43]">${family.name}</span></button>`).join("");
   const formatOptions = qrTemplateFormats.map((format) => `<option value="${format.key}">${format.label}</option>`).join("");
   const copyOptions = qrTemplateCopyPresets.map((copy) => `<option value="${copy.key}">${copy[greek ? "el" : "en"][0]}</option>`).join("");
-  const destinationOptions = input.destinations.map((destination) => `<option value="${esc(destination.key)}">${esc(destination.label)}</option>`).join("");
+  const destinationOptions = input.destinations.map((destination) => `<option value="${esc(destination.key)}" ${destination.key === initialDestination ? "selected" : ""}>${esc(destination.label)}</option>`).join("");
 
   return `${input.headerHtml}<main class="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
     <div class="flex flex-col gap-4 border-b border-[#e9e4ec] pb-6 sm:flex-row sm:items-end sm:justify-between">
@@ -102,7 +107,7 @@ export function renderQrTemplateStudio(input: QrStudioInput) {
   </main><script id="qr-studio-data" type="application/json">${safeJson(data)}</script><script>
   (()=>{
     const data=JSON.parse(document.getElementById('qr-studio-data').textContent); const by=id=>document.getElementById(id); const greek=data.locale==='el';
-    const state={family:data.families[0].key,format:data.formats[0].key,copy:data.copies[0].key,destination:data.destinations[0].key,activeDesign:null};
+    const state={family:data.families[0].key,format:data.formats[0].key,copy:data.copies[0].key,destination:data.initialDestination||data.destinations[0].key,activeDesign:null};
     const xml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
     const family=()=>data.families.find(item=>item.key===state.family); const format=()=>data.formats.find(item=>item.key===state.format); const destination=()=>data.destinations.find(item=>item.key===state.destination);
     const lines=(value,limit)=>{const words=String(value).trim().split(/\\s+/);const out=[];let line='';for(const word of words){if((line+' '+word).trim().length>limit&&line){out.push(line);line=word}else line=(line+' '+word).trim()}if(line)out.push(line);return out.slice(0,3)};
