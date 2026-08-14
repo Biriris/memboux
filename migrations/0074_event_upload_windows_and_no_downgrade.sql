@@ -56,20 +56,23 @@ WHEN EXISTS (
     AND (
       access.access_state='expired'
       OR access.media_uploads_consumed >= access.media_limit
-      OR (access.upload_window_ends_at IS NOT NULL
-          AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000)
     )
 )
 BEGIN
-  SELECT CASE
-    WHEN EXISTS (
-      SELECT 1 FROM event_access access
-      WHERE access.event_id=NEW.event_id
-        AND access.upload_window_ends_at IS NOT NULL
-        AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
-    ) THEN RAISE(ABORT, 'event_upload_window_closed')
-    ELSE RAISE(ABORT, 'event_media_limit_reached')
-  END;
+  SELECT RAISE(ABORT, 'event_media_limit_reached');
+END;
+
+CREATE TRIGGER media_event_window_before_insert
+BEFORE INSERT ON media
+WHEN EXISTS (
+  SELECT 1 FROM event_access access
+  WHERE access.event_id=NEW.event_id
+    AND access.enforcement_state='enforced'
+    AND access.upload_window_ends_at IS NOT NULL
+    AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
+)
+BEGIN
+  SELECT RAISE(ABORT, 'event_upload_window_closed');
 END;
 
 DROP TRIGGER IF EXISTS media_event_usage_after_insert;
@@ -109,20 +112,23 @@ WHEN EXISTS (
     AND (
       access.access_state='expired'
       OR access.media_uploads_consumed >= access.media_limit
-      OR (access.upload_window_ends_at IS NOT NULL
-          AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000)
     )
 )
 BEGIN
-  SELECT CASE
-    WHEN EXISTS (
-      SELECT 1 FROM event_access access
-      WHERE access.event_id=NEW.event_id
-        AND access.upload_window_ends_at IS NOT NULL
-        AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
-    ) THEN RAISE(ABORT, 'event_upload_window_closed')
-    ELSE RAISE(ABORT, 'event_media_limit_reached')
-  END;
+  SELECT RAISE(ABORT, 'event_media_limit_reached');
+END;
+
+CREATE TRIGGER wedding_media_event_window_before_insert
+BEFORE INSERT ON event_wedding_media
+WHEN EXISTS (
+  SELECT 1 FROM event_access access
+  WHERE access.event_id=NEW.event_id
+    AND access.enforcement_state='enforced'
+    AND access.upload_window_ends_at IS NOT NULL
+    AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
+)
+BEGIN
+  SELECT RAISE(ABORT, 'event_upload_window_closed');
 END;
 
 DROP TRIGGER IF EXISTS wedding_media_event_usage_after_insert;
@@ -162,8 +168,6 @@ WHEN NEW.status IN ('uploading','completing')
       AND access.enforcement_state='enforced'
       AND (
         access.access_state='expired'
-        OR (access.upload_window_ends_at IS NOT NULL
-            AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000)
         OR access.media_uploads_consumed
           + (SELECT COUNT(*) FROM multipart_upload_sessions session
              WHERE session.event_id=NEW.event_id
@@ -173,15 +177,21 @@ WHEN NEW.status IN ('uploading','completing')
       )
   )
 BEGIN
-  SELECT CASE
-    WHEN EXISTS (
-      SELECT 1 FROM event_access access
-      WHERE access.event_id=NEW.event_id
-        AND access.upload_window_ends_at IS NOT NULL
-        AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
-    ) THEN RAISE(ABORT, 'event_upload_window_closed')
-    ELSE RAISE(ABORT, 'event_media_limit_reached')
-  END;
+  SELECT RAISE(ABORT, 'event_media_limit_reached');
+END;
+
+CREATE TRIGGER multipart_event_window_before_insert
+BEFORE INSERT ON multipart_upload_sessions
+WHEN NEW.status IN ('uploading','completing')
+  AND EXISTS (
+    SELECT 1 FROM event_access access
+    WHERE access.event_id=NEW.event_id
+      AND access.enforcement_state='enforced'
+      AND access.upload_window_ends_at IS NOT NULL
+      AND access.upload_window_ends_at <= CAST(strftime('%s','now') AS INTEGER) * 1000
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'event_upload_window_closed');
 END;
 
 CREATE TRIGGER multipart_event_window_after_insert

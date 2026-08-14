@@ -114,10 +114,10 @@ Refresh tokens are AES-GCM encrypted in [`google-drive.ts`](../../src/google-dri
 
 Final trigger inventory:
 
-- `media_event_limit_before_insert`, `media_event_usage_after_insert`
-- `wedding_media_event_limit_before_insert`, `wedding_media_event_usage_after_insert`
+- `media_event_limit_before_insert`, `media_event_window_before_insert`, `media_event_usage_after_insert`
+- `wedding_media_event_limit_before_insert`, `wedding_media_event_window_before_insert`, `wedding_media_event_usage_after_insert`
 - `media_event_limit_before_restore`
-- `multipart_event_limit_before_insert`, `multipart_event_window_after_insert`
+- `multipart_event_limit_before_insert`, `multipart_event_window_before_insert`, `multipart_event_window_after_insert`
 - `event_access_no_premium_to_free`
 - `commerce_orders_block_payment_insert`, `commerce_orders_block_payment_transition`
 
