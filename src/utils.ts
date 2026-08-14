@@ -66,7 +66,7 @@ export const validEventDate = (value: unknown) => {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? date : null;
 };
 
-const formatIsoDate = (value: string) => `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(2, 4)}`;
+const formatIsoDate = (value: string) => `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}`;
 
 export const formatEventDates = (
   event: Pick<EventRow, "event_start_date" | "event_end_date">,

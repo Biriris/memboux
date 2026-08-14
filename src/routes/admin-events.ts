@@ -228,9 +228,8 @@ adminEventRoutes.post("/admin/events/:code/update", async (c) => {
     .trim()
     .slice(0, 2000);
   const eventStartDate = validEventDate(body.eventStartDate);
-  const eventEndDate = body.eventEndDate
-    ? validEventDate(body.eventEndDate)
-    : eventStartDate;
+  const eventEndDateInput = String(body.eventEndDate ?? "").trim();
+  const eventEndDate = eventEndDateInput ? validEventDate(eventEndDateInput) : null;
   const newGalleryPin = String(body.galleryPin ?? "").trim();
   let galleryPinHash = event.gallery_pin_hash;
   if (body.removeGalleryPin === "on") galleryPinHash = null;
@@ -245,8 +244,8 @@ adminEventRoutes.post("/admin/events/:code/update", async (c) => {
   if (
     !eventName ||
     !eventStartDate ||
-    !eventEndDate ||
-    eventEndDate < eventStartDate ||
+    (eventEndDateInput && !eventEndDate) ||
+    (eventEndDate && eventEndDate < eventStartDate) ||
     !Number.isFinite(expiresAt)
   )
     return c.text("Μη έγκυρα στοιχεία.", 400);

@@ -621,6 +621,26 @@ describe("account route boundaries", () => {
     expect(await env.DB.prepare("SELECT event_type,location FROM events WHERE code=?").bind(event!.code).first())
       .toEqual({ event_type: "trip", location: "Nungwi, Zanzibar" });
 
+    const clearEndDate = await SELF.fetch(`https://memboux.com/api/account/events/${event!.code}/details`, {
+      method: "POST",
+      headers: {
+        Origin: "https://memboux.com",
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: cookieHeader,
+      },
+      body: new URLSearchParams({
+        locale: "en",
+        eventName: "Island trip",
+        eventStartDate: "2026-06-15",
+        eventEndDate: "",
+      }),
+    });
+    expect(clearEndDate.status).toBe(200);
+    expect(await clearEndDate.json()).toMatchObject({ eventDates: "15/06/2026" });
+    expect(await env.DB.prepare("SELECT event_start_date,event_end_date FROM events WHERE code=?").bind(event!.code).first())
+      .toEqual({ event_start_date: "2026-06-15", event_end_date: null });
+
     const pinHeaders = {
       Origin: "https://memboux.com",
       Accept: "application/json",

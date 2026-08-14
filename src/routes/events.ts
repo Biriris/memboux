@@ -369,8 +369,9 @@ eventRoutes.post("/api/account/events/:code/details", async (c) => {
   }
   const eventName = String(body.eventName ?? "").trim().slice(0, 100);
   const eventStartDate = validEventDate(body.eventStartDate);
-  const eventEndDate = body.eventEndDate ? validEventDate(body.eventEndDate) : eventStartDate;
-  if (!eventName || !eventStartDate || !eventEndDate || eventEndDate < eventStartDate) {
+  const eventEndDateInput = String(body.eventEndDate ?? "").trim();
+  const eventEndDate = eventEndDateInput ? validEventDate(eventEndDateInput) : null;
+  if (!eventName || !eventStartDate || (eventEndDateInput && !eventEndDate) || (eventEndDate && eventEndDate < eventStartDate)) {
     const message = locale === "el" ? "Έλεγξε το όνομα και τις ημερομηνίες του event." : "Check the event name and dates.";
     return c.req.header("Accept")?.includes("application/json") ? c.json({ message }, 400) : c.text(message, 400);
   }

@@ -73,6 +73,14 @@ describe("event workspace", () => {
     expect(html).not.toContain('href="#gallery"');
     expect(html).not.toContain('href="#share"');
     expect(html).toContain('id="gallery"');
+    expect(html).toContain("data-clear-event-end-date");
+    expect(html).toContain("input.value=''");
+    expect(html).toContain("15/06/2026 – 28/06/2026");
+    const clearScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+      .map((match) => match[1])
+      .find((source) => source.includes("data-clear-event-end-date"));
+    expect(clearScript).toBeTruthy();
+    expect(() => new Function(clearScript!)).not.toThrow();
     expect(html).toContain('id="share"');
     expect(html).toContain('id="settings"');
     expect(html).toContain("Event details");

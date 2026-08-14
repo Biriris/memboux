@@ -68,9 +68,9 @@ describe("event dates", () => {
     expect(validEventDate("2026-13-01")).toBeNull();
   });
 
-  it("formats single dates and date ranges as dd/mm/yy", () => {
-    expect(formatEventDates(event(), "en")).toBe("15/06/26 – 28/06/26");
-    expect(formatEventDates(event({ event_end_date: "2026-06-15" }), "el")).toBe("15/06/26");
+  it("formats single dates and date ranges as dd/mm/yyyy", () => {
+    expect(formatEventDates(event(), "en")).toBe("15/06/2026 – 28/06/2026");
+    expect(formatEventDates(event({ event_end_date: "2026-06-15" }), "el")).toBe("15/06/2026");
   });
 
   it("shows a localized missing-date message", () => {
