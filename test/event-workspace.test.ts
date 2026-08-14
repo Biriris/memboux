@@ -67,7 +67,9 @@ describe("event workspace", () => {
     expect(html).toContain(`/dashboard/${event.code}/website?lang=en`);
     expect(html).toContain('data-workspace-section-link="guests"');
     expect(html).toContain(`/dashboard/${event.code}/media?lang=en`);
+    expect(html).toContain('data-workspace-section-link="experience"');
     expect(html).toContain('data-workspace-section-link="share"');
+    expect(html).toContain('data-workspace-section-link="archive"');
     expect(html).toContain('data-workspace-section-link="team"');
     expect(html).not.toContain('data-workspace-section-link="manage"');
     expect(html).not.toContain('href="#gallery"');
@@ -132,8 +134,13 @@ describe("event workspace", () => {
     expect(html).not.toContain("actions.before(editor)");
     expect(html).not.toContain("Guest gallery protection");
     expect(html).toContain(`/api/account/events/${event.code}/privacy`);
-    expect(html.indexOf('id="gallery"')).toBeLessThan(html.indexOf('id="engagement"'));
-    expect(html.indexOf('id="engagement"')).toBeLessThan(html.indexOf('id="share"'));
+    expect(html).toContain('data-workspace-journey');
+    expect(html).toContain('data-workspace-journey-step="1"');
+    expect(html).toContain('data-workspace-journey-step="6"');
+    expect(html).toContain("recommended_action");
+    expect(html).toContain("journey_step");
+    expect(html.indexOf('id="gallery"')).toBeLessThan(html.indexOf('id="guest-workspace"'));
+    expect(html.indexOf('id="guest-workspace"')).toBeLessThan(html.indexOf('id="share"'));
     expect(html.indexOf('id="share"')).toBeLessThan(html.indexOf('id="people"'));
     expect(html.indexOf('id="overview"')).toBeLessThan(html.indexOf('id="gallery"'));
     expect(html).not.toContain("Current package");
@@ -237,6 +244,8 @@ describe("event workspace", () => {
     expect(html).toContain('data-workspace-section-link="share"');
     expect(html).not.toContain('data-workspace-section-link="website"');
     expect(html).not.toContain('data-workspace-section-link="guests"');
+    expect(html).not.toContain('data-workspace-section-link="experience"');
+    expect(html).not.toContain('data-workspace-section-link="archive"');
     expect(html).not.toContain('data-workspace-section-link="team"');
     expect(html).not.toContain('data-workspace-section-link="manage"');
     expect(html).toContain('id="gallery"');
@@ -260,9 +269,9 @@ describe("event workspace", () => {
     });
 
     expect(html).toContain(`/dashboard/${event.code}/wedding/guests?lang=en`);
-    expect(html).toContain("Guests · Invitations · RSVP");
-    expect(html).toContain("Contacts, groups, delivery and seating.");
-    expect(html).toContain("directory → invitations → responses → live experience");
+    expect(html).toContain("Guests without the busywork");
+    expect(html).toContain("Directory & invitations");
+    expect(html).toContain("Build the directory first");
     expect(html).not.toContain('data-workspace-section-link="menu"');
   });
 
@@ -274,6 +283,8 @@ describe("event workspace", () => {
     expect(html).toContain('data-workspace-section-link="media"');
     expect(html).toContain('data-workspace-section-link="share"');
     expect(html).not.toContain('data-workspace-section-link="website"');
+    expect(html).not.toContain('data-workspace-section-link="experience"');
+    expect(html).not.toContain('data-workspace-section-link="archive"');
     expect(html).not.toContain('data-workspace-section-link="team"');
     expect(html).not.toContain('data-workspace-section-link="manage"');
     expect(html).toContain('id="owner-delete-selected"');
@@ -304,6 +315,22 @@ describe("event workspace", () => {
     expect(html).not.toContain('data-test="official-qr"');
     expect(html).not.toContain('data-surface-pin-control="official_album"');
     expect(html).not.toContain(`/gallery/${event.code}/official`);
+  });
+
+  it("separates live experience and lifecycle tools into focused owner panels", () => {
+    const experienceHtml = renderEventWorkspace({ ...baseInput, membership: "owner", activeSection: "experience" });
+    expect(experienceHtml).toContain('data-active-section="experience"');
+    expect(experienceHtml).toContain('[data-workspace-panel]:not([data-workspace-panel="experience"])');
+    expect(experienceHtml).toContain('id="experience-workspace" data-workspace-panel="experience"');
+    expect(experienceHtml).toContain("The live event experience");
+    expect(experienceHtml).toContain(`/gallery/${event.code}/slideshow?lang=en`);
+
+    const archiveHtml = renderEventWorkspace({ ...baseInput, membership: "owner", activeSection: "archive" });
+    expect(archiveHtml).toContain('data-active-section="archive"');
+    expect(archiveHtml).toContain('[data-workspace-panel]:not([data-workspace-panel="archive"])');
+    expect(archiveHtml).toContain('id="archive-workspace" data-workspace-panel="archive"');
+    expect(archiveHtml).toContain("Package, backups, and recovery");
+    expect(archiveHtml).toContain('id="package-access-title"');
   });
 
   it("combines three-package selection and Free activation in the event overview", () => {

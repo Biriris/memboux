@@ -51,7 +51,7 @@ async function eventDashboard(
   if (!user) return c.redirect(`/${locale}/login`);
   const membership = await getEventRole(c.env.DB, event.id, user.id);
   if (!membership) return c.text("Forbidden", 403);
-  const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "menu", "team"]);
+  const ownerOnlySections = new Set<EventWorkspaceSection>(["website", "guests", "experience", "menu", "archive", "team"]);
   if (ownerOnlySections.has(activeSection) && membership !== "owner") return c.text("Forbidden", 403);
   if (activeSection === "menu" && event.event_type !== "wedding")
     return c.text(locale === "el" ? "Το μενού δεν είναι διαθέσιμο για αυτό το event." : "Menu tools are not available for this event.", 404);
@@ -160,8 +160,10 @@ eventRoutes.get("/dashboard/:code", (c) => eventDashboard(c));
 eventRoutes.get("/dashboard/:code/website", (c) => eventDashboard(c, "website"));
 eventRoutes.get("/dashboard/:code/guests", (c) => eventDashboard(c, "guests"));
 eventRoutes.get("/dashboard/:code/media", (c) => eventDashboard(c, "media"));
+eventRoutes.get("/dashboard/:code/experience", (c) => eventDashboard(c, "experience"));
 eventRoutes.get("/dashboard/:code/menu", (c) => eventDashboard(c, "menu"));
 eventRoutes.get("/dashboard/:code/share", (c) => eventDashboard(c, "share"));
+eventRoutes.get("/dashboard/:code/lifecycle", (c) => eventDashboard(c, "archive"));
 eventRoutes.get("/dashboard/:code/team", (c) => eventDashboard(c, "team"));
 eventRoutes.get("/dashboard/:code/manage", (c) => eventDashboard(c));
 
