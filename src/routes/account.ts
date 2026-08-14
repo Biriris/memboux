@@ -919,7 +919,7 @@ accountRoutes.post("/api/account/events", async (c) => {
           event_id,access_state,enforcement_state,media_limit,
           guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
           created_at,updated_at
-        ) VALUES (?,'preview','enforced',20,0,0,0,?,?)`).bind(id,now,now)
+        ) VALUES (?,'preview','enforced',50,0,0,0,?,?)`).bind(id,now,now)
       ]);
         const templateQuery = selectedTemplate ? `&template=${encodeURIComponent(selectedTemplate)}` : "";
         const redirect = eventType === "wedding"

@@ -9,7 +9,7 @@ import { accountMenu, brandMark, logoutScript, page } from "../views/shared";
 import { cards, lightboxMarkup } from "../views/media";
 import { constantTimeEqual, esc, formatDateTime, formatEventDates, sha256 } from "../utils";
 import { getEventRole, roleCan } from "../access";
-import { eventAccessAllows, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventAccessAllows, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 
 export const eventMediaRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -67,8 +67,10 @@ eventMediaRoutes.post("/api/account/events/:code/media/:id/restore", async(c)=>{
   try {
     await c.env.DB.prepare("UPDATE media SET deleted_at=NULL,purge_at=NULL WHERE id=? AND event_id=?").bind(c.req.param("id"),event.id).run();
   } catch (error) {
-    if (isTrialMediaLimitConstraint(error))
-      return c.text(locale==="el"?"Το trial έχει φτάσει το όριο αρχείων. Διέγραψε άλλο αρχείο ή αναβάθμισε το event πριν από την επαναφορά.":"The trial media limit has been reached. Remove another file or upgrade the event before restoring.",409);
+    if (isEventUploadWindowConstraint(error))
+      return c.json({ ok: false, error: "This event's upload period has ended." }, 409);
+    if (isEventMediaLimitConstraint(error))
+      return c.text(locale==="el"?"Το event έχει φτάσει το όριο αρχείων του πακέτου. Αναβάθμισέ το πριν από την επαναφορά.":"The event has reached its package media limit. Upgrade it before restoring.",409);
     throw error;
   }
   return c.redirect(`/${locale}/trash`,303);

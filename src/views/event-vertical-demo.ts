@@ -81,7 +81,7 @@ export function eventVerticalDemoFrame(locale: Locale, vertical: EventVertical, 
 }
 
 export function eventVerticalDemoPage(locale: Locale, vertical: EventVertical, initialTheme: DemoTheme = "signature") {
-  const ui = eventUiCopy[locale];
+  const ui = { ...eventUiCopy[locale], trialSummary: eventUiCopy[locale].freeSummary };
   const registration = `/${locale}/register?redirect=${encodeURIComponent(`/${locale}/account?create=${vertical.type}&template=${initialTheme}`)}`;
   const frameBase = `/${locale}/events/${vertical.type}/demo-frame`;
   const languageLinks = supportedLocales.map((language) =>

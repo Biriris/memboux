@@ -33,7 +33,7 @@ describe("event vertical landing framework", () => {
     const html = eventVerticalLandingPage("el", birthday!);
     expect(html).toContain('<link rel="canonical" href="https://memboux.com/el/events/birthday">');
     expect(html).toContain("create%3Dbirthday");
-    expect(html).toContain("37 ημέρες");
+    expect(html).toContain("50 φωτογραφίες ή βίντεο");
     expect(html).toContain('hreflang="x-default"');
     expect(html).toContain("/el/events/birthday/preview");
   });
@@ -297,7 +297,7 @@ describe("event vertical landing framework", () => {
   it("localizes the shared landing, demo, preview, and wizard interface", () => {
     const uiKeys = [
       "guidedSetup", "createEvent", "startFreePreview", "viewDemo", "privatePreview",
-      "experienceTitle", "wizardTitle", "trialTitle", "demoTitle", "appearance",
+      "experienceTitle", "wizardTitle", "pricingTitle", "demoTitle", "appearance",
       "device", "responsivePreview", "ownerPreview", "dateTba", "story", "forGuests",
     ] as const;
     const wizardKeys = [
@@ -319,10 +319,10 @@ describe("event vertical landing framework", () => {
       const landing = eventVerticalLandingPage(locale, birthday);
       const demo = eventVerticalDemoPage(locale, birthday);
       expect(landing).toContain(eventUiCopy[locale].startFreePreview);
-      expect(landing).toContain(eventUiCopy[locale].trialTitle);
+      expect(landing).toContain(eventUiCopy[locale].pricingTitle);
       expect(landing).not.toContain(eventUiCopy.en.startFreePreview);
       expect(demo).toContain(eventUiCopy[locale].demoTitle);
-      expect(demo).toContain(eventUiCopy[locale].trialSummary);
+      expect(demo).toContain(eventUiCopy[locale].freeSummary);
       expect(demo).not.toContain(eventUiCopy.en.demoTitle);
     }
   });

@@ -8,7 +8,7 @@ import { currentUser } from "../session";
 import { esc, formatDateTime } from "../utils";
 import { lightboxMarkup } from "../views/media";
 import { accountMenu, brandMark, logoutScript, page } from "../views/shared";
-import { eventAccessAllows, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventAccessAllows, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { getOrCreateMediaVariant } from "../media-variants";
 
 export const accountTrashRoutes = new Hono<{ Bindings: Bindings }>();
@@ -56,7 +56,7 @@ accountTrashRoutes.post("/api/account/trash/media/:action{restore|delete}", asyn
   if (!user) return c.text("Unauthorized", 401);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? "en"));
-  let trialLimitReached = false;
+  let planLimitReached = false;
   for (const id of selectedIds(body.ids)) {
     const media = await c.env.DB.prepare(`SELECT m.id FROM media m
       JOIN event_members em ON em.event_id=m.event_id
@@ -69,13 +69,13 @@ accountTrashRoutes.post("/api/account/trash/media/:action{restore|delete}", asyn
       try {
         await restoreDeletedMedia(c.env.DB, media.id);
       } catch (error) {
-        if (!isTrialMediaLimitConstraint(error)) throw error;
-        trialLimitReached = true;
+        if (!isEventMediaLimitConstraint(error) && !isEventUploadWindowConstraint(error)) throw error;
+        planLimitReached = true;
         break;
       }
     }
   }
-  return c.redirect(`/${locale}/trash${trialLimitReached ? "?restore=trial-limit" : ""}`, 303);
+  return c.redirect(`/${locale}/trash${planLimitReached ? "?restore=plan-limit" : ""}`, 303);
 });
 
 accountTrashRoutes.post("/api/account/trash/events/:action{restore|delete}", async (c) => {
@@ -116,8 +116,8 @@ accountTrashRoutes.get("/:locale{el|en|fr|de|es|it}/trash", async (c) => {
   const locale = normalizeLocale(c.req.param("locale"));
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
-  const restoreNotice = c.req.query("restore") === "trial-limit"
-    ? `<div role="alert" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>${label(locale, "Some files were not restored", "Ορισμένα αρχεία δεν επαναφέρθηκαν")}</strong><p class="mt-1">${label(locale, "The trial media limit has been reached. Remove another active file or upgrade the event, then try again.", "Το trial έχει φτάσει το όριο αρχείων. Αφαίρεσε άλλο ενεργό αρχείο ή αναβάθμισε το event και δοκίμασε ξανά.")}</p></div>`
+  const restoreNotice = c.req.query("restore") === "plan-limit"
+    ? `<div role="alert" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>${label(locale, "Some files were not restored", "Ορισμένα αρχεία δεν επαναφέρθηκαν")}</strong><p class="mt-1">${label(locale, "This event has reached its package media limit. Upgrade it, then try again.", "Το event έχει φτάσει το όριο αρχείων του πακέτου. Αναβάθμισέ το και δοκίμασε ξανά.")}</p></div>`
     : "";
   const events = await c.env.DB.prepare(`SELECT e.* FROM events e
     JOIN event_members em ON em.event_id=e.id

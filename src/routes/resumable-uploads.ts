@@ -8,7 +8,7 @@ import {
   MULTIPART_UPLOAD_TTL_MS,
 } from "../config";
 import type { Bindings, EventRow } from "../domain";
-import { eventMediaCapacity, eventMediaUsage, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventMediaCapacity, eventMediaUsage, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { anonymousVisitor, findEventAlbum, hasAlbumAccess, recordEventActivity } from "../event-media-hub";
 import { hasGalleryAccess } from "../gallery-access";
 import { normalizeLocale } from "../i18n";
@@ -130,7 +130,9 @@ async function authorizeUpload(
   const uploader = await currentUser(c);
   const capacity = await eventMediaCapacity(c.env.DB, event.id, 1, input.origin === "official");
   if (!capacity.allowed)
-    return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+    return jsonError(capacity.reason === "upload_window_closed"
+      ? "The upload period for this event has closed."
+      : `This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
   if (input.origin === "official") {
     if (!uploader) return jsonError("Sign in to upload official media.", 401);
     if (!(await canManageOfficialAlbum(c.env.DB, event.id, uploader.id)))
@@ -253,16 +255,21 @@ resumableUploadRoutes.get("/api/upload/:code/capacity", async (c) => {
   const event = await getEvent(c.env.DB, c.req.param("code"));
   if (!event) return jsonError("Event not found.", 404);
   const access = await getEventAccess(c.env.DB, event.id);
-  if (access.access_state !== "trial" || access.enforcement_state !== "enforced")
-    return c.json({ trial: false });
+  if (!(access.access_state === "free" || access.access_state === "unlocked") || access.enforcement_state !== "enforced")
+    return c.json({ limited: false });
   if (!(await hasGalleryAccess(c.req.raw, event))) return jsonError("Gallery access required.", 401);
   const usage = await eventMediaUsage(c.env.DB, event.id);
   const used = Math.max(0, usage.total);
   return c.json({
-    trial: true,
+    limited: true,
+    planKey: access.plan_key,
     used,
     limit: access.media_limit,
     remaining: Math.max(0, access.media_limit - used),
+    uploadWindowDays: access.upload_window_days ?? null,
+    uploadWindowStartedAt: access.upload_window_started_at ?? null,
+    uploadWindowEndsAt: access.upload_window_ends_at ?? null,
+    uploadWindowClosed: typeof access.upload_window_ends_at === "number" && access.upload_window_ends_at <= Date.now(),
   });
 });
 
@@ -428,8 +435,10 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   } catch (error) {
     await c.env.MEDIA.delete(mediaObjectKeys(objectKey));
     await releaseStorage(c.env.DB, reservation.ownerId, size);
-    if (isTrialMediaLimitConstraint(error))
-      return jsonError("This trial event has no remaining media slots.", 409);
+    if (isEventUploadWindowConstraint(error))
+      return jsonError("This event's upload period has ended.", 409);
+    if (isEventMediaLimitConstraint(error))
+      return jsonError("This event package has no remaining media slots.", 409);
     if (isCanonicalDuplicateConstraint(error))
       return c.json({ ok: true, duplicate: true, uploaded: 0 });
     console.error(JSON.stringify({
@@ -646,8 +655,10 @@ resumableUploadRoutes.post("/api/upload/:code/multipart", async (c) => {
   } catch (error) {
     if (multipart) await multipart.abort().catch(() => undefined);
     await releaseStorage(c.env.DB, reservation.ownerId, size);
-    if (isTrialMediaLimitConstraint(error))
-      return jsonError("This trial event has no remaining media slots.", 409);
+    if (isEventUploadWindowConstraint(error))
+      return jsonError("This event's upload period has ended.", 409);
+    if (isEventMediaLimitConstraint(error))
+      return jsonError("This event package has no remaining media slots.", 409);
     console.error(JSON.stringify({
       event: "multipart_upload_create_failed",
       eventId: context.event.id,
@@ -803,7 +814,9 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
   const capacity = await eventMediaCapacity(c.env.DB, session.event_id, 0, session.origin === "official");
   if (!capacity.allowed) {
     await abortSession(c.env, session);
-    return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+    return jsonError(capacity.reason === "upload_window_closed"
+      ? "The upload period for this event has closed."
+      : `This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
   }
 
   const parts = await c.env.DB.prepare(
@@ -913,9 +926,13 @@ resumableUploadRoutes.post("/api/upload/:code/multipart/:sessionId/complete", as
     await c.env.DB.batch(statements);
     c.executionCtx.waitUntil(recordEventActivity(c.env.DB, { eventId: session.event_id, type: "upload_completed", albumId: session.album_id, mediaId: session.media_id }));
   } catch (error) {
-    if (isTrialMediaLimitConstraint(error)) {
+    if (isEventUploadWindowConstraint(error)) {
       await abortSession(c.env, session);
-      return jsonError(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+      return jsonError("This event's upload period has ended.", 409);
+    }
+    if (isEventMediaLimitConstraint(error)) {
+      await abortSession(c.env, session);
+      return jsonError(`This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
     }
     if (!isCanonicalDuplicateConstraint(error)) throw error;
     await c.env.MEDIA.delete(mediaObjectKeys(session.object_key));

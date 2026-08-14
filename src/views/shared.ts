@@ -1,7 +1,7 @@
 import type { Locale } from "../i18n";
 import { esc } from "../utils";
 import { brickwallScript, mediaPreviewFallbackScript, mediaUploaderOverlay } from "./media";
-import { additiveFileSelectionScript, multiUploadScript, trialUploadGuardScript, uploadQueueScript } from "./upload";
+import { additiveFileSelectionScript, freeUploadGuardScript, multiUploadScript, uploadQueueScript } from "./upload";
 import { privacySupportWidgets } from "./privacy-support";
 
 export type PageOptions = {
@@ -44,7 +44,7 @@ export function page(title: string, body: string, options: PageOptions = {}) {
   const creationBehavior = body.includes('action="/api/account/events"') ? eventCreationBehavior : "";
   const invitationBehavior = body.includes('action="/api/account/events/') && body.includes('/invite"') ? albumInvitationBehavior : "";
   const uploadBehavior = body.includes('enctype="multipart/form-data"')
-    ? multiUploadScript(locale) + additiveFileSelectionScript(locale) + trialUploadGuardScript(locale) + uploadQueueScript(locale)
+    ? multiUploadScript(locale) + additiveFileSelectionScript(locale) + freeUploadGuardScript(locale) + uploadQueueScript(locale)
     : "";
   const brickwallBehavior = body.includes("memboux-media-card") ? brickwallScript() : "";
   const mediaFallbackBehavior = body.includes("memboux-media-preview") ? mediaPreviewFallbackScript(locale) : "";

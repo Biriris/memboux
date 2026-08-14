@@ -227,7 +227,13 @@ describe("account route boundaries", () => {
         event_id TEXT PRIMARY KEY,
         access_state TEXT NOT NULL,
         enforcement_state TEXT NOT NULL,
+        plan_key TEXT,
         media_limit INTEGER NOT NULL,
+        media_uploads_consumed INTEGER NOT NULL DEFAULT 0,
+        upload_window_days INTEGER,
+        upload_window_started_at INTEGER,
+        upload_window_ends_at INTEGER,
+        premium_activated_at INTEGER,
         guest_access_enabled INTEGER NOT NULL,
         guest_uploads_enabled INTEGER NOT NULL,
         original_downloads_enabled INTEGER NOT NULL,
@@ -256,10 +262,27 @@ describe("account route boundaries", () => {
         unit_amount_minor INTEGER NOT NULL,quantity INTEGER NOT NULL,line_total_minor INTEGER NOT NULL,currency TEXT NOT NULL,
         entitlement_snapshot TEXT NOT NULL,created_at INTEGER NOT NULL
       )`),
+      env.DB.prepare(`CREATE TABLE commerce_launch_settings (
+        id TEXT PRIMARY KEY,payments_enabled INTEGER NOT NULL,legal_entity_ready INTEGER NOT NULL,
+        tax_registration_ready INTEGER NOT NULL,invoicing_ready INTEGER NOT NULL,
+        refund_policy_ready INTEGER NOT NULL,sales_terms_ready INTEGER NOT NULL,
+        stripe_account_ready INTEGER NOT NULL,updated_at INTEGER NOT NULL,updated_by_user_id TEXT
+      )`),
+      env.DB.prepare(`INSERT INTO commerce_launch_settings VALUES ('global',0,0,0,0,0,0,0,1,NULL)`),
+      env.DB.prepare(`CREATE TABLE complimentary_event_activations (
+        id TEXT PRIMARY KEY,event_id TEXT NOT NULL,order_id TEXT NOT NULL,product_key TEXT NOT NULL,
+        activated_by_user_id TEXT NOT NULL,entitlement_snapshot TEXT NOT NULL,granted_media_limit INTEGER NOT NULL,
+        granted_expires_at INTEGER,activation_reason TEXT NOT NULL,created_at INTEGER NOT NULL,
+        UNIQUE(event_id,order_id,entitlement_snapshot,activation_reason)
+      )`),
       env.DB.prepare(`INSERT INTO commerce_products (
         product_key,scope,billing_model,name_en,name_el,description_en,description_el,amount_minor,currency,
         media_limit,event_duration_days,guest_access_enabled,original_downloads_enabled,active,checkout_enabled,sort_order,created_at,updated_at
       ) VALUES ('event_pass','event','one_time','Event Pass','Event Pass','Event access','Πρόσβαση event',1900,'EUR',500,365,1,1,1,0,10,1,1)`),
+      env.DB.prepare(`INSERT INTO commerce_products (
+        product_key,scope,billing_model,name_en,name_el,description_en,description_el,amount_minor,currency,
+        media_limit,event_duration_days,guest_access_enabled,original_downloads_enabled,active,checkout_enabled,sort_order,created_at,updated_at
+      ) VALUES ('event_free','event','one_time','Free','Free','Complete Free event','Πλήρες Free event',0,'EUR',50,NULL,1,1,1,0,0,1,1)`),
       env.DB.prepare(`CREATE TABLE media (
         id TEXT PRIMARY KEY,event_id TEXT NOT NULL,object_key TEXT NOT NULL,
         media_type TEXT NOT NULL DEFAULT 'image',content_type TEXT NOT NULL DEFAULT 'image/jpeg',
@@ -492,7 +515,7 @@ describe("account route boundaries", () => {
     const ownerPreviewHtml = await ownerPreview.text();
     expect(ownerPreviewHtml).toContain('data-event-preview="trip"');
     expect(ownerPreviewHtml).toContain("Zanzibar together");
-    expect(ownerPreviewHtml).toContain("Start the trial to open guest access and uploads.");
+    expect(ownerPreviewHtml).toContain("Choose an event package to open guest access and uploads.");
     expect(ownerPreviewHtml).toContain("Zanzibar");
     expect(ownerPreviewHtml).toContain('id="guest-album"');
     expect(ownerPreviewHtml).toContain('data-gallery-grid="event-guest-gallery"');
@@ -574,7 +597,7 @@ describe("account route boundaries", () => {
     expect(access).toMatchObject({
       access_state: "preview",
       enforcement_state: "enforced",
-      media_limit: 20,
+      media_limit: 50,
       guest_access_enabled: 0,
     });
 
@@ -1040,10 +1063,10 @@ describe("account route boundaries", () => {
     expect(trialReview.status).toBe(302);
     expect(trialReview.headers.get("location")).toBe(`/dashboard/${weddingBody.code}?lang=en#package-access-title`);
 
-    const overCapacityTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
+    const overCapacityTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/select`, {
       method: "POST",
       headers: wizardHeaders,
-      body: new URLSearchParams({ locale: "en", productKey: "event_pass" }),
+      body: new URLSearchParams({ locale: "en", productKey: "event_free" }),
       redirect: "manual",
     });
     expect(overCapacityTrial.status).toBe(409);
@@ -1052,7 +1075,7 @@ describe("account route boundaries", () => {
     await env.DB.prepare("DELETE FROM media WHERE event_id=?").bind(weddingEvent!.id).run();
     await env.DB.prepare("DELETE FROM event_wedding_media WHERE event_id=?").bind(weddingEvent!.id).run();
 
-    const invalidProductTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
+    const invalidProductTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/select`, {
       method: "POST",
       headers: wizardHeaders,
       body: new URLSearchParams({ locale: "en", productKey: "missing" }),
@@ -1062,17 +1085,36 @@ describe("account route boundaries", () => {
     expect(await env.DB.prepare("SELECT access_state FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
       .toEqual({ access_state: "preview" });
 
-    const confirmedTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/start-trial`, {
+    const confirmedTrial = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/select`, {
+      method: "POST",
+      headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", productKey: "event_free" }),
+      redirect: "manual",
+    });
+    expect(confirmedTrial.status).toBe(303);
+    expect(await env.DB.prepare("SELECT status,total_minor FROM commerce_orders WHERE event_id=?").bind(weddingEvent!.id).first()).toBeNull();
+    expect(await env.DB.prepare("SELECT access_state,plan_key,media_limit,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,expires_at FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toEqual({ access_state: "free", plan_key: "event_free", media_limit: 50, guest_access_enabled: 1, guest_uploads_enabled: 1, original_downloads_enabled: 1, expires_at: null });
+
+    const activatePremium = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/select`, {
       method: "POST",
       headers: wizardHeaders,
       body: new URLSearchParams({ locale: "en", productKey: "event_pass" }),
       redirect: "manual",
     });
-    expect(confirmedTrial.status).toBe(303);
-    expect(await env.DB.prepare("SELECT status,total_minor FROM commerce_orders WHERE event_id=?").bind(weddingEvent!.id).first())
-      .toEqual({ status: "draft", total_minor: 1900 });
-    expect(await env.DB.prepare("SELECT access_state,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
-      .toEqual({ access_state: "trial", guest_access_enabled: 1, guest_uploads_enabled: 1, original_downloads_enabled: 0 });
+    expect(activatePremium.status).toBe(303);
+    expect(await env.DB.prepare("SELECT access_state,plan_key,premium_activated_at,upload_window_days FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toMatchObject({ access_state: "unlocked", plan_key: "event_pass", upload_window_days: 45 });
+
+    const downgradePremium = await SELF.fetch(`https://memboux.com/api/account/events/${weddingBody.code}/checkout/select`, {
+      method: "POST",
+      headers: wizardHeaders,
+      body: new URLSearchParams({ locale: "en", productKey: "event_free" }),
+      redirect: "manual",
+    });
+    expect(downgradePremium.status).toBe(409);
+    expect(await env.DB.prepare("SELECT access_state,plan_key FROM event_access WHERE event_id=?").bind(weddingEvent!.id).first())
+      .toEqual({ access_state: "unlocked", plan_key: "event_pass" });
 
     const draftRsvp = await SELF.fetch(`https://memboux.com/api/gallery/${weddingBody.code}/rsvp`, {
       method: "POST", headers: { Origin: "https://memboux.com" },

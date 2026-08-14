@@ -46,7 +46,7 @@ type BackupEventRow = {
   backup_created_at: number | null;
   provider_folder_id: string | null;
   error_message: string | null;
-  access_state: "preview" | "trial" | "unlocked" | "expired";
+  access_state: "preview" | "free" | "unlocked" | "expired";
   enforcement_state: "observe" | "enforced";
   original_downloads_enabled: 0 | 1;
 };

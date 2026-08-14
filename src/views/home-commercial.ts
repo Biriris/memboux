@@ -1,6 +1,5 @@
 import { eventTypeLabel, type EventType } from "../event-types";
-import { EVENT_FREE_ACCESS_DAYS, EVENT_FREE_MEDIA_LIMIT } from "../event-access";
-import { commerceProductName, formatCommerceMoney, type CommerceProduct } from "../commerce";
+import { commerceProductName, commerceUploadWindowDays, formatCommerceMoney, type CommerceProduct } from "../commerce";
 import type { Locale } from "../i18n";
 import { esc } from "../utils";
 
@@ -59,6 +58,15 @@ const copy: Record<Locale, MarketingCopy> = {
   },
 };
 
+const uploadDaysLabel: Record<Locale, string> = {
+  en: "upload days",
+  el: "ημέρες uploads",
+  fr: "jours de dépôt",
+  de: "Upload-Tage",
+  es: "días de subida",
+  it: "giorni di caricamento",
+};
+
 const featuredEvents: Array<{ type: EventType; symbol: string; color: string }> = [
   { type: "wedding", symbol: "♡", color: "#ff5f7e" },
   { type: "bachelor", symbol: "✦", color: "#7152f3" },
@@ -75,21 +83,20 @@ export function homeCommercialSections(locale: Locale, products: CommerceProduct
     return `<article class="home-event-card mbx-card group flex min-h-52 flex-col p-5 sm:p-6"><span class="flex h-11 w-11 items-center justify-center rounded-2xl text-xl font-bold" style="background:${color}18;color:${color}">${symbol}</span><h3 class="mt-7 text-xl">${esc(eventTypeLabel(type, locale))}</h3><div class="mt-auto flex items-center justify-between gap-3 pt-6"><a data-marketing-action="event-${type}" href="${base}" class="text-sm font-bold text-[#4d2fbd]">${esc(t.exploreAction)} →</a><a href="${base}/preview" class="rounded-full border border-[#e5e0f0] px-3 py-1.5 text-xs font-semibold text-[#70667d]">Demo</a></div></article>`;
   }).join("");
 
-  const plans = [
-    { key: "free", name: t.free, price: "€0", badge: t.included, files: EVENT_FREE_MEDIA_LIMIT.toLocaleString(locale), days: String(EVENT_FREE_ACCESS_DAYS), original: t.noOriginals, best: t.bestFor[0], featured: false },
-    ...products.slice(0, 2).map((product, index) => ({
+  const plans = products.slice(0, 3).map((product, index) => ({
       key: product.product_key,
       name: commerceProductName(product, locale),
       price: formatCommerceMoney(product.amount_minor, product.currency, locale),
-      badge: index === 0 ? t.popular : t.extended,
+      badge: product.amount_minor === 0 ? t.included : index === 1 ? t.popular : t.extended,
       files: product.media_limit?.toLocaleString(locale) ?? "—",
-      days: String(product.event_duration_days ?? "—"),
+      uploadDays: commerceUploadWindowDays(product),
+      days: product.event_duration_days ? String(product.event_duration_days) : "",
       original: product.original_downloads_enabled ? t.originals : t.noOriginals,
-      best: t.bestFor[index + 1],
-      featured: index === 0,
-    })),
-  ];
-  const planCards = plans.map((plan) => `<article class="home-plan-card relative flex flex-col rounded-[1.25rem] border ${plan.featured ? "border-[#cfc7df] bg-[#f0edf5] text-[#302b38] shadow-[0_16px_42px_rgba(57,48,69,.09)]" : "border-[#e5e1e9] bg-white text-[#302b38]"} p-6 sm:p-8"><span class="w-fit rounded-full ${plan.featured ? "bg-[#ded7ec] text-[#57468e]" : "bg-[#f4f1f7] text-[#675885]"} px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[.13em]">${esc(plan.badge)}</span><h3 class="mt-6 text-2xl">${esc(plan.name)}</h3><div class="mt-3 flex items-end gap-2"><strong class="text-5xl tracking-[-.06em]">${plan.price}</strong>${plan.price !== "€0" ? `<span class="pb-1 text-sm opacity-65">${esc(t.oneTime)}</span>` : ""}</div><p class="mt-5 text-sm font-semibold opacity-70">${esc(plan.best)}</p><ul class="mt-7 space-y-3 text-sm"><li>✓ ${plan.files} ${esc(t.files)}</li><li>✓ ${plan.days} ${esc(t.days)}</li><li>✓ ${esc(plan.original)}</li><li>✓ Gallery · Guestbook · Slideshow</li></ul><a data-marketing-action="plan-${esc(plan.key)}" href="/${locale}/register" class="mbx-button mbx-button--primary mt-8">${plan.price === "€0" ? esc(t.startFree) : esc(t.createEvent)}</a></article>`).join("");
+      best: t.bestFor[index] ?? t.bestFor[0],
+      featured: index === 1,
+      free: product.amount_minor === 0,
+    }));
+  const planCards = plans.map((plan) => `<article class="home-plan-card relative flex flex-col rounded-[1.25rem] border ${plan.featured ? "border-[#cfc7df] bg-[#f0edf5] text-[#302b38] shadow-[0_16px_42px_rgba(57,48,69,.09)]" : "border-[#e5e1e9] bg-white text-[#302b38]"} p-6 sm:p-8"><span class="w-fit rounded-full ${plan.featured ? "bg-[#ded7ec] text-[#57468e]" : "bg-[#f4f1f7] text-[#675885]"} px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[.13em]">${esc(plan.badge)}</span><h3 class="mt-6 text-2xl">${esc(plan.name)}</h3><div class="mt-3 flex items-end gap-2"><strong class="text-5xl tracking-[-.06em]">${plan.price}</strong>${!plan.free ? `<span class="pb-1 text-sm opacity-65">${esc(t.oneTime)}</span>` : ""}</div><p class="mt-5 text-sm font-semibold opacity-70">${esc(plan.best)}</p><ul class="mt-7 space-y-3 text-sm"><li>✓ ${plan.files} ${esc(t.files)}</li><li>✓ ${plan.uploadDays} ${esc(uploadDaysLabel[locale])}</li>${plan.days ? `<li>✓ ${plan.days} ${esc(t.days)}</li>` : ""}<li>✓ ${esc(plan.original)}</li><li>✓ Gallery · Guestbook · Slideshow</li></ul><a data-marketing-action="plan-${esc(plan.key)}" href="/${locale}/register" class="mbx-button mbx-button--primary mt-8">${plan.free ? esc(t.startFree) : esc(t.createEvent)}</a></article>`).join("");
   const faqItems = t.faqs.map(([question, answer], index) => `<details class="group border-b border-[#e5e0f0] py-5" ${index === 0 ? "open" : ""}><summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-5 text-left font-bold text-[#20152f]"><span>${esc(question)}</span><span aria-hidden="true" class="text-xl text-[#7152f3] transition group-open:rotate-45">+</span></summary><p class="max-w-3xl pb-2 pr-10 text-sm leading-7 text-[#70667d]">${esc(answer)}</p></details>`).join("");
 
   return `<section id="event-types" class="mbx-section scroll-mt-24 bg-[#f8f7fc]"><div class="mbx-container"><div class="max-w-3xl"><p class="mbx-eyebrow">${esc(t.exploreEyebrow)}</p><h2 class="mbx-title mt-4">${esc(t.exploreTitle)}</h2><p class="mbx-lead mt-5">${esc(t.exploreText)}</p></div><div class="home-event-grid mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">${eventCards}</div><a href="/${locale}/register" class="mbx-button mbx-button--secondary mt-8">${esc(t.allEvents)} →</a></div></section>

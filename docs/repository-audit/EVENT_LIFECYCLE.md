@@ -11,7 +11,7 @@ New-event access defaults are enforced by the current code/migrations:
 - `access_state = preview`
 - `enforcement_state = enforced`
 - media limit 50
-- guest access/uploads and original downloads disabled until the trial starts
+- guest access/uploads and original downloads disabled until an event package is selected
 
 Legacy events inserted into `event_access` by [`0041_event_access_lifecycle.sql`](../../migrations/0041_event_access_lifecycle.sql) are preserved as `unlocked` in `observe` mode.
 
@@ -22,32 +22,34 @@ Supported event types are defined in [`src/event-types.ts`](../../src/event-type
 - Generic event setup uses `/dashboard/:code/setup` and `POST /api/account/events/:code/setup/:step` (plus autosave) in [`src/routes/event-setup.ts`](../../src/routes/event-setup.ts), persisting `event_vertical_profiles`.
 - Wedding setup uses `/dashboard/:code/wedding/setup` and its wedding API routes, persisting wedding profile/features/media/menu/portraits. Completing step 6 records `wizard_completed_at` but leaves `publish_status = draft`.
 - Owners can preview unpublished specialized pages because the page routes check event-management permission. Guests cannot see unpublished wedding pages.
-- Wedding publication is explicit: `POST /api/account/events/:code/wedding/publish` requires completed/readiness-valid setup plus active guest access from trial or unlock. `POST /api/account/events/:code/wedding/unpublish` returns the site to draft without deleting its data.
+- Wedding publication is explicit: `POST /api/account/events/:code/wedding/publish` requires completed/readiness-valid setup plus active guest access from Free or an unlocked package. `POST /api/account/events/:code/wedding/unpublish` returns the site to draft without deleting its data.
 - Wedding step 5 snapshots the current base and feature prices in `event_wedding_price_snapshots`; revisiting the feature step uses the active event snapshot rather than silently adopting current catalog prices.
 - Public landing-page previews under `/:locale/events/:type/preview` and wedding preview routes are product demos, not previews of a user's persisted event.
 
 The exact product rule for when a generic vertical page should be considered “published” is encoded in `event_vertical_profiles.publish_status`; no separate publication audit/history table exists.
 
-## Trial transition
+## Package selection
 
-An owner now selects an event package and starts the Memboux Free access period in the same event-overview flow with `POST /api/account/events/:code/checkout/start-trial` in [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The route and persisted `trial` state remain compatibility identifiers. [`startEventTrial`](../../src/event-access.ts) transitions only `preview` rows to `trial`, sets a 37-day end timestamp, enables guest access and guest uploads, keeps original downloads disabled, and applies a lifetime media limit of 50. Migration [`0068_free_plan_and_event_packages.sql`](../../migrations/0068_free_plan_and_event_packages.sql) raises existing enforced preview/trial capacity and establishes the inactive-checkout `Moments` and `Celebration` catalog entries.
+An owner selects one of three event packages through `POST /api/account/events/:code/checkout/select` in [`src/routes/commerce.ts`](../../src/routes/commerce.ts). [`activateEventFreePlan`](../../src/event-access.ts) changes eligible rows to `free`, records `plan_key = event_free`, enables guest access, uploads, and original downloads, applies 50 lifetime media slots, and sets no package expiry. `Moments` and `Celebration` retain their catalog limits and durations. Migration [`0073_permanent_free_event_plan.sql`](../../migrations/0073_permanent_free_event_plan.sql) creates the Free catalog product, rebuilds `event_access` without trial timestamp columns, and migrates enforced trial/expired rows to active Free. Migration [`0074_event_upload_windows_and_no_downgrade.sql`](../../migrations/0074_event_upload_windows_and_no_downgrade.sql) assigns contribution windows of 14/45/90 days to Free/Moments/Celebration. The window begins with the first real media upload or multipart reservation, not package selection or event creation. The old start-trial endpoints remain compatibility aliases; the rendered selector uses the unified route.
 
-The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql) means deleting a file does not return a trial slot. D1 triggers enforce limits for ordinary media, wedding media, restores after expiry, and active multipart reservations. [`event-access.test.ts`](../../test/event-access.test.ts) and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts) cover this behavior.
+The `media_uploads_consumed` counter introduced by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql) means deleting a file does not return a consumed package slot. Replacement D1 triggers in [`0073_permanent_free_event_plan.sql`](../../migrations/0073_permanent_free_event_plan.sql) enforce limits for ordinary media, wedding media, restores, and active multipart reservations. [`event-access.test.ts`](../../test/event-access.test.ts) and [`free-event-plan-migration.test.ts`](../../test/free-event-plan-migration.test.ts) cover this behavior.
+
+After a premium package has been activated, both the owner route and the `event_access_no_premium_to_free` D1 trigger reject a return to Free. Existing premium events may renew or move to another premium package. Legacy observe-mode rows without a recognized package are deliberately not backfilled with an arbitrary contribution window.
 
 ## Active event behavior
 
 `event_access` is independent from `events.status`:
 
 - `events.status` is `active` or `archived` and is editable in admin routes.
-- `event_access.access_state` controls preview/trial/unlocked/expired product access.
+- `event_access.access_state` controls preview/free/unlocked/expired product access, while `plan_key` identifies the selected catalog product.
 - `events.deleted_at`/`purge_at` control trash retention.
 - `events.expires_at` is legacy/general event access metadata and is still read by media delivery; its precise relationship to paid `event_access.expires_at` is not centralized and is therefore **ambiguous**.
 
-During `trial`, guests can access/upload, owners can manage the event, and original exports remain disabled. `unlocked` or `observe` mode allows all lifecycle capabilities. See [`eventAccessAllows`](../../src/event-access.ts).
+During `free` and `unlocked`, guests can access and owners can manage the event. New owner and guest uploads stop after the package contribution window; existing gallery/media access remains available. Observe-mode legacy events remain non-blocking. See [`eventAccessAllows`](../../src/event-access.ts) and [`eventMediaCapacity`](../../src/event-access.ts).
 
 An owner can change the event type through `POST /api/account/events/:code/event-type`. [`changeEventType`](../../src/event-type-transitions.ts) records the transition, snapshots an active generic vertical profile, keeps Wedding-specific rows dormant instead of deleting them, and restores the latest saved generic profile when returning to that type. Shared event media, membership, access and commerce rows remain event-scoped and are not replaced. Migration [`0067_event_type_transitions.sql`](../../migrations/0067_event_type_transitions.sql) adds the audit/restore history.
 
-For weddings, lifecycle access and publication are separate gates: trial/unlock makes guest capabilities eligible, while `event_wedding_profiles.publish_status` controls whether the wedding site and personalized invitations are publicly available.
+For weddings, lifecycle access and publication are separate gates: Free/unlocked access makes guest capabilities eligible, while `event_wedding_profiles.publish_status` controls whether the wedding site and personalized invitations are publicly available.
 
 ## Wedding guest planning and RSVP
 
@@ -67,17 +69,13 @@ Direct SMS delivery, a drag-and-drop room canvas and venue-owned reusable layout
 
 ## Expiry and notification
 
-[`reconcileEventTrials`](../../src/trial-lifecycle.ts), run daily, selects enforced trials ending within three days. It creates at-most-once owner notifications for three days, one day, and expiry. At expiry it changes the access state to `expired`, disables guest access/uploads/original downloads, and records `expires_at`.
-
-[`getEventAccess`](../../src/event-access.ts) also lazily performs the expiry transition when an expired trial is read, so access does not depend exclusively on the cron.
-
-The scheduled job uses D1 notifications only; no trial-expiry email is sent by this code.
+Memboux Free has no event-access expiry transition or scheduled expiry notification. Its upload window closes independently without hiding existing media. The former trial reconciler is no longer registered in [`src/index.ts`](../../src/index.ts), and its source module has been removed. Paid package access can still carry `event_access.expires_at`; the production ZIP delivery, original-to-preview compaction, paid recovery month, renewal notifications, and final-original deletion workflow described in product direction are **not implemented** in the current routes.
 
 ## Unlock/payment
 
 Commerce product and draft-order infrastructure exists in [`src/commerce.ts`](../../src/commerce.ts) and [`src/routes/commerce.ts`](../../src/routes/commerce.ts). The checkout page can create/update a draft order, and the catalog includes entitlement snapshots. Database triggers in [`0055_commerce_launch_guard.sql`](../../migrations/0055_commerce_launch_guard.sql) block paid transitions until all launch-readiness fields are true.
 
-Before payment launch is ready, an event owner can submit `POST /api/account/events/:code/checkout/activate-beta` during an active trial or after expiry. The handler persists the selected draft snapshot, applies only monotonic access improvements, transitions `event_access` to `unlocked`, and writes a separate [`complimentary_event_activations`](../../migrations/0065_complimentary_event_activations.sql) audit row. It deliberately leaves the order in `draft` with no billing provider, payment ID, or paid timestamp; this path is not evidence of payment. Managers who are not owners cannot use it, and it is refused once [`commerceLaunchReady`](../../src/commerce.ts) becomes true. Coverage is in [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
+Before payment launch is ready, an event owner can select a paid product through the unified package route or submit the compatibility `POST /api/account/events/:code/checkout/activate-beta`. The handler persists the selected draft snapshot, applies only monotonic access improvements, transitions `event_access` to `unlocked`, and writes a separate [`complimentary_event_activations`](../../migrations/0065_complimentary_event_activations.sql) audit row. It deliberately leaves the order in `draft` with no billing provider, payment ID, or paid timestamp; this path is not evidence of payment. Managers who are not owners cannot use it, and it is refused once [`commerceLaunchReady`](../../src/commerce.ts) becomes true. Coverage is in [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
 
 No route in the current inventory starts a Stripe checkout or consumes a payment-provider webhook. The provider-neutral paid fulfillment function and tests exist, but the production payment integration and who will invoke it remain **unknown/not implemented in the registered routes**.
 
@@ -98,4 +96,4 @@ The daily [`purgeExpiredTrash`](../../src/repositories.ts) permanently deletes e
 
 ## Lifecycle tests
 
-Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`account-routes.test.ts`](../../test/account-routes.test.ts), [`wedding-guests-csv.test.ts`](../../test/wedding-guests-csv.test.ts), [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`trial-lifecycle.test.ts`](../../test/trial-lifecycle.test.ts), [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).
+Primary coverage includes [`event-routes.test.ts`](../../test/event-routes.test.ts), [`account-routes.test.ts`](../../test/account-routes.test.ts), [`wedding-guests-csv.test.ts`](../../test/wedding-guests-csv.test.ts), [`wedding-guest-planning-migration.test.ts`](../../test/wedding-guest-planning-migration.test.ts), [`event-access.test.ts`](../../test/event-access.test.ts), [`free-event-plan-migration.test.ts`](../../test/free-event-plan-migration.test.ts), [`retention.test.ts`](../../test/retention.test.ts), [`invitations.test.ts`](../../test/invitations.test.ts), and [`commerce-fulfillment.test.ts`](../../test/commerce-fulfillment.test.ts).

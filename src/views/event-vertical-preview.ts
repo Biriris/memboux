@@ -174,20 +174,20 @@ export function eventVerticalPreviewPage(
     minimal: { bg: "#ffffff", ink: "#1c2925", card: "#f5f7f6", accent: vertical.accent },
   }[profile.theme_key];
   const ownerActions = {
-    en: { workspace: "Workspace", trial: "Review trial" },
-    el: { workspace: "Χώρος εργασίας", trial: "Έλεγχος trial" },
-    fr: { workspace: "Espace de travail", trial: "Voir l’essai" },
-    de: { workspace: "Arbeitsbereich", trial: "Testphase prüfen" },
-    es: { workspace: "Espacio de trabajo", trial: "Revisar prueba" },
-    it: { workspace: "Area di lavoro", trial: "Rivedi la prova" },
+    en: { workspace: "Workspace", trial: "Choose package" },
+    el: { workspace: "Χώρος εργασίας", trial: "Επιλογή πακέτου" },
+    fr: { workspace: "Espace de travail", trial: "Choisir le forfait" },
+    de: { workspace: "Arbeitsbereich", trial: "Paket wählen" },
+    es: { workspace: "Espacio de trabajo", trial: "Elegir paquete" },
+    it: { workspace: "Area di lavoro", trial: "Scegli pacchetto" },
   }[locale];
   const experience = {
-    en: { kicker: "One event. Every perspective.", title: "The moments on everyone’s phones belong together.", text: "Guests open one private link—no app and no account—to add the photos and videos that might otherwise never be seen.", album: "Open shared album", add: "Add my moments", locked: "Start the trial to open guest access and uploads.", trial: "Start or review trial" },
-    el: { kicker: "Ένα event. Κάθε οπτική.", title: "Οι στιγμές από τα κινητά όλων αξίζει να μείνουν μαζί.", text: "Οι καλεσμένοι ανοίγουν ένα ιδιωτικό link — χωρίς app και χωρίς λογαριασμό — και προσθέτουν φωτογραφίες και βίντεο που διαφορετικά ίσως να μη δει ποτέ κανείς.", album: "Άνοιγμα κοινού album", add: "Πρόσθεσε τις στιγμές σου", locked: "Ξεκίνα το trial για να ανοίξεις την πρόσβαση και τα uploads των καλεσμένων.", trial: "Έναρξη ή έλεγχος trial" },
-    fr: { kicker: "Un événement. Tous les regards.", title: "Les moments présents sur tous les téléphones méritent d’être réunis.", text: "Les invités ouvrent un lien privé, sans application ni compte, et ajoutent les photos et vidéos qui risqueraient de ne jamais être vues.", album: "Ouvrir l’album partagé", add: "Ajouter mes moments", locked: "Démarrez l’essai pour ouvrir l’accès et les ajouts des invités.", trial: "Démarrer ou voir l’essai" },
-    de: { kicker: "Ein Event. Alle Perspektiven.", title: "Die Momente auf allen Handys gehören zusammen.", text: "Gäste öffnen einen privaten Link – ohne App und Konto – und fügen Fotos und Videos hinzu, die sonst vielleicht nie gesehen würden.", album: "Gemeinsames Album öffnen", add: "Meine Momente hinzufügen", locked: "Starte die Testphase, um Gastzugriff und Uploads zu öffnen.", trial: "Testphase starten oder prüfen" },
-    es: { kicker: "Un evento. Todas las perspectivas.", title: "Los momentos de todos los móviles merecen estar juntos.", text: "Los invitados abren un enlace privado, sin aplicación ni cuenta, y añaden fotos y vídeos que quizá nunca llegarían a verse.", album: "Abrir álbum compartido", add: "Añadir mis momentos", locked: "Inicia la prueba para habilitar el acceso y las subidas de invitados.", trial: "Iniciar o revisar prueba" },
-    it: { kicker: "Un evento. Ogni prospettiva.", title: "I momenti su tutti i telefoni meritano di stare insieme.", text: "Gli invitati aprono un link privato, senza app né account, e aggiungono foto e video che altrimenti potrebbero non essere mai visti.", album: "Apri l’album condiviso", add: "Aggiungi i miei momenti", locked: "Avvia la prova per aprire l’accesso e i caricamenti degli invitati.", trial: "Avvia o controlla la prova" },
+    en: { kicker: "One event. Every perspective.", title: "The moments on everyone’s phones belong together.", text: "Guests open one private link—no app and no account—to add the photos and videos that might otherwise never be seen.", album: "Open shared album", add: "Add my moments", locked: "Choose an event package to open guest access and uploads.", trial: "Choose package" },
+    el: { kicker: "Ένα event. Κάθε οπτική.", title: "Οι στιγμές από τα κινητά όλων αξίζει να μείνουν μαζί.", text: "Οι καλεσμένοι ανοίγουν ένα ιδιωτικό link — χωρίς app και χωρίς λογαριασμό — και προσθέτουν φωτογραφίες και βίντεο που διαφορετικά ίσως να μη δει ποτέ κανείς.", album: "Άνοιγμα κοινού album", add: "Πρόσθεσε τις στιγμές σου", locked: "Επίλεξε πακέτο event για να ανοίξεις την πρόσβαση και τα uploads των καλεσμένων.", trial: "Επιλογή πακέτου" },
+    fr: { kicker: "Un événement. Tous les regards.", title: "Les moments présents sur tous les téléphones méritent d’être réunis.", text: "Les invités ouvrent un lien privé, sans application ni compte, et ajoutent les photos et vidéos qui risqueraient de ne jamais être vues.", album: "Ouvrir l’album partagé", add: "Ajouter mes moments", locked: "Choisissez un forfait pour ouvrir l’accès et les ajouts des invités.", trial: "Choisir le forfait" },
+    de: { kicker: "Ein Event. Alle Perspektiven.", title: "Die Momente auf allen Handys gehören zusammen.", text: "Gäste öffnen einen privaten Link – ohne App und Konto – und fügen Fotos und Videos hinzu, die sonst vielleicht nie gesehen würden.", album: "Gemeinsames Album öffnen", add: "Meine Momente hinzufügen", locked: "Wähle ein Event-Paket, um Gastzugriff und Uploads zu öffnen.", trial: "Paket wählen" },
+    es: { kicker: "Un evento. Todas las perspectivas.", title: "Los momentos de todos los móviles merecen estar juntos.", text: "Los invitados abren un enlace privado, sin aplicación ni cuenta, y añaden fotos y vídeos que quizá nunca llegarían a verse.", album: "Abrir álbum compartido", add: "Añadir mis momentos", locked: "Elige un paquete para habilitar el acceso y las subidas de invitados.", trial: "Elegir paquete" },
+    it: { kicker: "Un evento. Ogni prospettiva.", title: "I momenti su tutti i telefoni meritano di stare insieme.", text: "Gli invitati aprono un link privato, senza app né account, e aggiungono foto e video che altrimenti potrebbero non essere mai visti.", album: "Apri l’album condiviso", add: "Aggiungi i miei momenti", locked: "Scegli un pacchetto per aprire l’accesso e i caricamenti degli invitati.", trial: "Scegli pacchetto" },
   }[locale];
   const guestAlbumCopy = ({
     en: { kicker: "Guest album", title: "The event through everyone’s eyes.", empty: "The first shared moments will appear here.", count: (value: number) => `${value} shared moments`, open: "Open full album", add: "Add photos or videos" },

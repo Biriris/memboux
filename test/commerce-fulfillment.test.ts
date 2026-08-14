@@ -21,8 +21,11 @@ beforeEach(async () => {
     )`),
     env.DB.prepare(`CREATE TABLE event_access (
       event_id TEXT PRIMARY KEY,access_state TEXT,enforcement_state TEXT,
+      plan_key TEXT,
       media_limit INTEGER,guest_access_enabled INTEGER,guest_uploads_enabled INTEGER,
-      original_downloads_enabled INTEGER,trial_started_at INTEGER,trial_ends_at INTEGER,
+      original_downloads_enabled INTEGER,
+      upload_window_days INTEGER,upload_window_started_at INTEGER,upload_window_ends_at INTEGER,
+      premium_activated_at INTEGER,
       unlocked_at INTEGER,expires_at INTEGER,created_at INTEGER,updated_at INTEGER,
       media_uploads_consumed INTEGER NOT NULL DEFAULT 0
     )`),
@@ -173,14 +176,14 @@ describe("provider-neutral event order fulfillment", () => {
 });
 
 describe("complimentary beta event activation", () => {
-  it("upgrades an active trial immediately instead of waiting for expiry", async () => {
+  it("upgrades an active Free event immediately", async () => {
     const orderId = await seedOrder({ status: "draft" });
     await env.DB.prepare(
       `INSERT INTO event_access
-       (event_id,access_state,enforcement_state,media_limit,guest_access_enabled,
-        guest_uploads_enabled,original_downloads_enabled,trial_started_at,trial_ends_at,
+       (event_id,access_state,enforcement_state,plan_key,media_limit,guest_access_enabled,
+        guest_uploads_enabled,original_downloads_enabled,
         unlocked_at,expires_at,created_at,updated_at)
-       VALUES ('event-order-1','trial','enforced',50,1,1,0,100,200,NULL,NULL,100,100)`,
+       VALUES ('event-order-1','free','enforced','event_free',50,1,1,1,NULL,NULL,100,100)`,
     ).run();
 
     const result = await activateComplimentaryEventOrder(env.DB, {
@@ -254,9 +257,9 @@ describe("complimentary beta event activation", () => {
     const orderId = await seedOrder({ status: "draft" });
     await env.DB.prepare(
       `INSERT INTO event_access
-       (event_id,access_state,enforcement_state,media_limit,guest_access_enabled,
+       (event_id,access_state,enforcement_state,plan_key,media_limit,guest_access_enabled,
         guest_uploads_enabled,original_downloads_enabled,unlocked_at,expires_at,created_at,updated_at)
-       VALUES ('event-order-1','unlocked','enforced',2000,1,1,1,1,NULL,1,1)`,
+       VALUES ('event-order-1','unlocked','enforced','event_plus',2000,1,1,1,1,NULL,1,1)`,
     ).run();
     const input = { orderId, userId: "user-1", eventId: "event-order-1", activatedAt: 10_000 };
 

@@ -10,26 +10,26 @@ describe("grounded support answers", () => {
     expect(answer?.escalate).toBe(false);
     expect(answer?.body).toContain("Νέο event");
     expect(answer?.body).toContain("δεν απαιτούν πληρωμή ή κάρτα");
-    expect(answer?.body).toContain("37 ημέρες");
+    expect(answer?.body).toContain("δεν έχει αντίστροφη μέτρηση");
     expect(answer?.body).toContain("50");
     expect(answer?.body).not.toMatch(/\bπλήρωσε\b|\bπληρώστε\b|απαιτείται συνδρομή/i);
   });
 
-  it("keeps trial and payment facts consistent in all supported languages", () => {
+  it("keeps Free and payment facts consistent in all supported languages", () => {
     const cases = [
-      ["How does the free trial and payment work?", "37 days", "50"],
-      ["Comment fonctionne l’essai et le paiement ?", "37 jours", "50"],
-      ["Wie funktionieren Test und Zahlung?", "37 Tage", "50"],
-      ["¿Cómo funcionan la prueba y el pago?", "37 días", "50"],
-      ["Come funzionano la prova e il pagamento?", "37 giorni", "50"],
-      ["Πώς λειτουργεί το trial και η πληρωμή;", "37 ημέρες", "50"],
+      "How does the free plan and payment work?",
+      "Comment fonctionne le forfait gratuit et le paiement ?",
+      "Wie funktionieren Free-Paket und Zahlung?",
+      "¿Cómo funcionan el paquete gratuito y el pago?",
+      "Come funzionano il pacchetto gratuito e il pagamento?",
+      "Πώς λειτουργεί το Free και η πληρωμή;",
     ] as const;
 
-    for (const [question, duration, limit] of cases) {
+    for (const question of cases) {
       const answer = groundedSupportAnswer(question);
       expect(answer?.escalate).toBe(false);
-      expect(answer?.body).toContain(duration);
-      expect(answer?.body).toContain(limit);
+      expect(answer?.body).toContain("50");
+      expect(answer?.body).not.toMatch(/37\s+(?:days|jours|Tage|días|giorni|ημέρες)/i);
     }
   });
 

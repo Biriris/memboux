@@ -32,7 +32,6 @@ import {
   resumableUploadRoutes,
 } from "./routes/resumable-uploads";
 import { adminCan, adminHomeForRole, currentAdmin, permissionForAdminRequest, recordAdminAudit, type AdminIdentity } from "./admin-rbac";
-import { reconcileEventTrials } from "./trial-lifecycle";
 import { reconcileSupportSlaReminders } from "./support-sla-reminders";
 import { handleSupportEmailMessage } from "./inbound-support-email";
 
@@ -129,7 +128,6 @@ export default {
           purgeExpiredTrash(env),
           reconcileAutomaticCloudBackups(env),
           reconcileResumableUploads(env),
-          reconcileEventTrials(env),
         ]
       : [reconcileSupportSlaReminders(env, controller.scheduledTime)];
     ctx.waitUntil(Promise.allSettled(jobs).then((results) => {
@@ -140,7 +138,6 @@ export default {
               "trash_reconciliation_failed",
               "drive_reconciliation_failed",
               "multipart_upload_reconciliation_failed",
-              "trial_lifecycle_reconciliation_failed",
             ][index] ?? "scheduled_reconciliation_failed") : "support_sla_reconciliation_failed",
             error: result.reason instanceof Error ? result.reason.message.slice(0, 300) : "unknown",
           }));

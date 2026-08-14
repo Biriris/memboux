@@ -228,9 +228,9 @@ POST  /api/account/events/:code/professional/revoke
 
 ## Gallery and direct upload — `src/routes/gallery.ts` (9)
 
-Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Guest-gallery, official-album, and media reads combine event lifecycle, their surface-specific PIN cookie, and authorized-member preview rules. The wedding guest gallery remains a distinct URL from the wedding website. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, and trial capacity.
+Source: [`src/routes/gallery.ts`](../../src/routes/gallery.ts). Guest-gallery, official-album, and media reads combine event lifecycle, their surface-specific PIN cookie, and authorized-member preview rules. The wedding guest gallery remains a distinct URL from the wedding website. Upload combines guest-upload lifecycle access or member access, consent, policy, quota, package capacity, and contribution-window state.
 
-`GET /api/upload/:code/capacity` in [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) returns the active Memboux Free usage and remaining lifetime slots to an authorized gallery visitor so the guest uploader can show and enforce the event's persisted media limit before transfer. The current default established by migration [`0068_free_plan_and_event_packages.sql`](../../migrations/0068_free_plan_and_event_packages.sql) is 50 files.
+`GET /api/upload/:code/capacity` in [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) returns active package usage, remaining slots, package key, upload-window timestamps, and closed state to an authorized gallery visitor so the uploader can block transfer before bytes are sent. The Free limit is 50 combined photos/videos and its upload window is 14 days from first upload; paid products use their persisted catalog limits and windows.
 
 ```text
 POST  /gallery/:code/unlock
@@ -375,13 +375,14 @@ POST  /api/account/events/:code/backups/dropbox
 GET   /api/backups/:id
 ```
 
-## Commerce — `src/routes/commerce.ts` (4)
+## Commerce — `src/routes/commerce.ts` (5)
 
-Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. Draft selection requires an authenticated event manager, while Memboux Free activation and complimentary beta activation require an owner. Activation saves the selected package as a draft order before opening the current 37-day free-access period. While payment launch is not ready, complimentary activation updates event access without recording the draft order as paid. No card-provider checkout route is registered.
+Source: [`src/routes/commerce.ts`](../../src/routes/commerce.ts). Package selection is rendered in the event overview; the legacy checkout page redirects there. The unified selection route requires an owner. Choosing `event_free` activates Free access with 50 lifetime media slots, a 14-day contribution window starting at first upload, and no event-access expiry; choosing a paid catalog product creates a draft and, while payment launch is disabled, uses the audited complimentary-beta activation path. Once premium has been activated, selecting Free returns `409`, with a second invariant enforced by D1. The older draft, start-trial, and activate-beta routes remain registered for compatibility. No card-provider checkout route is registered.
 
 ```text
 GET   /dashboard/:code/checkout
 POST  /api/account/events/:code/checkout/draft
+POST  /api/account/events/:code/checkout/select
 POST  /api/account/events/:code/checkout/start-trial
 POST  /api/account/events/:code/checkout/activate-beta
 ```

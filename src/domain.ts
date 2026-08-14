@@ -4,20 +4,23 @@ import type { Locale } from "./i18n";
 
 export type EventRole = "owner" | "editor" | "viewer";
 export type CloudProvider = "google_drive" | "dropbox";
-export type EventAccessState = "preview" | "trial" | "unlocked" | "expired";
+export type EventAccessState = "preview" | "free" | "unlocked" | "expired";
 export type EventAccessEnforcement = "observe" | "enforced";
 
 export type EventAccessRow = {
   event_id: string;
   access_state: EventAccessState;
   enforcement_state: EventAccessEnforcement;
+  plan_key: string | null;
   media_limit: number;
   media_uploads_consumed: number;
+  upload_window_days?: number | null;
+  upload_window_started_at?: number | null;
+  upload_window_ends_at?: number | null;
+  premium_activated_at?: number | null;
   guest_access_enabled: 0 | 1;
   guest_uploads_enabled: 0 | 1;
   original_downloads_enabled: 0 | 1;
-  trial_started_at: number | null;
-  trial_ends_at: number | null;
   unlocked_at: number | null;
   expires_at: number | null;
   created_at: number;

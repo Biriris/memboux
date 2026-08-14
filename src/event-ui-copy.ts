@@ -11,9 +11,9 @@ type EventUiCopy = {
   tailoredWizard: string;
   wizardTitle: string;
   wizardText: string;
-  trialEyebrow: string;
-  trialTitle: string;
-  trialText: string;
+  pricingEyebrow: string;
+  pricingTitle: string;
+  pricingText: string;
   createPreview: string;
   previewLanguage: string;
   createYours: string;
@@ -30,7 +30,7 @@ type EventUiCopy = {
   vividDescription: string;
   editorialDescription: string;
   minimalDescription: string;
-  trialSummary: string;
+  freeSummary: string;
   eventPreview: string;
   responsivePreview: string;
   mobile: string;
@@ -57,15 +57,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Everything your event needs, in one place.", tailoredWizard: "Tailored wizard",
     wizardTitle: "From idea to full preview, step by step.",
     wizardText: "The wizard adapts to this event type and saves your progress automatically.",
-    trialEyebrow: "Risk-free trial", trialTitle: "See your complete event before deciding.",
-    trialText: "Memboux Free gives you 37 days and up to 50 files. Upgrade unlocks a larger collection, originals and long-term access.",
+    pricingEyebrow: "Start free", pricingTitle: "See your complete event before deciding.",
+    pricingText: "Memboux Free includes up to 50 photos or videos with the complete event experience. Upgrade only when you need more capacity.",
     createPreview: "Create your preview", previewLanguage: "Preview language", createYours: "Create yours",
     themes: "Styles", signature: "Signature", vivid: "Vivid", editorial: "Editorial", minimal: "Minimal",
     demoTitle: "See the complete experience before you start.",
     demoText: "Change the appearance and screen size. This is a real preview of the page you will create, not a static image.",
     appearance: "Appearance", device: "Device", signatureDescription: "Elegant & timeless",
     vividDescription: "Bold & social", editorialDescription: "Premium storytelling",
-    minimalDescription: "Clean & contemporary", trialSummary: "No card · 37 days · 50 files", eventPreview: "Event preview",
+    minimalDescription: "Clean & contemporary", freeSummary: "No card · Free · 50 files", eventPreview: "Event preview",
     responsivePreview: "Responsive preview", mobile: "Mobile", tablet: "Tablet", desktop: "Desktop", close: "Close",
     ownerPreview: "Private owner preview", edit: "Edit", dateTba: "Date to be announced",
     locationTba: "Location to be announced", story: "The story", storyFallback: "The event story will appear here.",
@@ -79,15 +79,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Όλα όσα χρειάζεται η εκδήλωσή σου, σε ένα μέρος.", tailoredWizard: "Οδηγός στα μέτρα της εκδήλωσης",
     wizardTitle: "Από την ιδέα στην πλήρη προεπισκόπηση, βήμα-βήμα.",
     wizardText: "Ο οδηγός προσαρμόζεται στο είδος της εκδήλωσης και αποθηκεύει αυτόματα την πρόοδό σου.",
-    trialEyebrow: "Δοκιμή χωρίς ρίσκο", trialTitle: "Δες ολόκληρη την εκδήλωσή σου πριν αποφασίσεις.",
-    trialText: "Το Memboux Free προσφέρει 37 ημέρες και έως 50 αρχεία. Η αναβάθμιση ξεκλειδώνει μεγαλύτερη συλλογή, πρωτότυπα και μακροχρόνια πρόσβαση.",
+    pricingEyebrow: "Ξεκίνα δωρεάν", pricingTitle: "Δες ολόκληρη την εκδήλωσή σου πριν αποφασίσεις.",
+    pricingText: "Το Memboux Free περιλαμβάνει έως 50 φωτογραφίες ή βίντεο και ολόκληρη την εμπειρία του event. Αναβάθμισε μόνο όταν χρειάζεσαι μεγαλύτερη χωρητικότητα.",
     createPreview: "Δημιούργησε την προεπισκόπηση", previewLanguage: "Γλώσσα προεπισκόπησης", createYours: "Δημιούργησε τη δική σου",
     themes: "Στυλ", signature: "Υπογραφή", vivid: "Ζωντανό", editorial: "Αφηγηματικό", minimal: "Λιτό",
     demoTitle: "Δες ολόκληρη την εμπειρία πριν ξεκινήσεις.",
     demoText: "Άλλαξε εμφάνιση και μέγεθος οθόνης. Αυτή είναι πραγματική προεπισκόπηση της σελίδας που θα δημιουργήσεις, όχι στατική εικόνα.",
     appearance: "Εμφάνιση", device: "Συσκευή", signatureDescription: "Κομψό & διαχρονικό",
     vividDescription: "Έντονο & κοινωνικό", editorialDescription: "Premium αφήγηση",
-    minimalDescription: "Καθαρό & σύγχρονο", trialSummary: "Χωρίς κάρτα · 37 ημέρες · 50 αρχεία", eventPreview: "Προεπισκόπηση εκδήλωσης",
+    minimalDescription: "Καθαρό & σύγχρονο", freeSummary: "Χωρίς κάρτα · Free · 50 αρχεία", eventPreview: "Προεπισκόπηση εκδήλωσης",
     responsivePreview: "Προσαρμοζόμενη προεπισκόπηση", mobile: "Κινητό", tablet: "Tablet", desktop: "Υπολογιστής", close: "Κλείσιμο",
     ownerPreview: "Ιδιωτική προεπισκόπηση δημιουργού", edit: "Επεξεργασία", dateTba: "Η ημερομηνία θα ανακοινωθεί",
     locationTba: "Η τοποθεσία θα ανακοινωθεί", story: "Η ιστορία", storyFallback: "Η ιστορία της εκδήλωσης θα προστεθεί εδώ.",
@@ -101,15 +101,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Tout ce dont votre événement a besoin, au même endroit.", tailoredWizard: "Assistant personnalisé",
     wizardTitle: "De l’idée à l’aperçu complet, étape par étape.",
     wizardText: "L’assistant s’adapte à ce type d’événement et enregistre automatiquement votre progression.",
-    trialEyebrow: "Essai sans risque", trialTitle: "Découvrez votre événement complet avant de décider.",
-    trialText: "Memboux Free offre 37 jours et jusqu’à 50 fichiers. La mise à niveau débloque une collection plus grande, les originaux et un accès durable.",
+    pricingEyebrow: "Commencez gratuitement", pricingTitle: "Découvrez votre événement complet avant de décider.",
+    pricingText: "Memboux Free comprend jusqu’à 50 photos ou vidéos et l’expérience complète. Passez à un forfait supérieur seulement pour plus de capacité.",
     createPreview: "Créer votre aperçu", previewLanguage: "Langue de l’aperçu", createYours: "Créer le vôtre",
     themes: "Styles", signature: "Signature", vivid: "Vif", editorial: "Éditorial", minimal: "Minimal",
     demoTitle: "Découvrez l’expérience complète avant de commencer.",
     demoText: "Changez le style et la taille de l’écran. Il s’agit d’un véritable aperçu de la page que vous créerez, pas d’une image statique.",
     appearance: "Apparence", device: "Appareil", signatureDescription: "Élégant et intemporel",
     vividDescription: "Vif et convivial", editorialDescription: "Récit premium",
-    minimalDescription: "Épuré et contemporain", trialSummary: "Sans carte · 37 jours · 50 fichiers", eventPreview: "Aperçu de l’événement",
+    minimalDescription: "Épuré et contemporain", freeSummary: "Sans carte · Free · 50 fichiers", eventPreview: "Aperçu de l’événement",
     responsivePreview: "Aperçu adaptatif", mobile: "Mobile", tablet: "Tablette", desktop: "Ordinateur", close: "Fermer",
     ownerPreview: "Aperçu privé de l’organisateur", edit: "Modifier", dateTba: "Date à venir",
     locationTba: "Lieu à venir", story: "L’histoire", storyFallback: "L’histoire de l’événement apparaîtra ici.",
@@ -123,15 +123,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Alles, was dein Event braucht, an einem Ort.", tailoredWizard: "Passender Assistent",
     wizardTitle: "Von der Idee zur vollständigen Vorschau – Schritt für Schritt.",
     wizardText: "Der Assistent passt sich diesem Eventtyp an und speichert deinen Fortschritt automatisch.",
-    trialEyebrow: "Risikofrei testen", trialTitle: "Sieh dir dein vollständiges Event an, bevor du dich entscheidest.",
-    trialText: "Memboux Free bietet 37 Tage und bis zu 50 Dateien. Ein Upgrade schaltet eine größere Sammlung, Originale und langfristigen Zugriff frei.",
+    pricingEyebrow: "Kostenlos starten", pricingTitle: "Sieh dir dein vollständiges Event an, bevor du dich entscheidest.",
+    pricingText: "Memboux Free umfasst bis zu 50 Fotos oder Videos und das vollständige Event-Erlebnis. Ein Upgrade ist nur für mehr Kapazität nötig.",
     createPreview: "Vorschau erstellen", previewLanguage: "Vorschausprache", createYours: "Eigenes erstellen",
     themes: "Stile", signature: "Signature", vivid: "Lebendig", editorial: "Editorial", minimal: "Minimal",
     demoTitle: "Erlebe alles vollständig, bevor du beginnst.",
     demoText: "Ändere Stil und Bildschirmgröße. Dies ist eine echte Vorschau deiner späteren Seite, kein statisches Bild.",
     appearance: "Erscheinungsbild", device: "Gerät", signatureDescription: "Elegant und zeitlos",
     vividDescription: "Lebendig und gesellig", editorialDescription: "Hochwertiges Storytelling",
-    minimalDescription: "Klar und modern", trialSummary: "Keine Karte · 37 Tage · 50 Dateien", eventPreview: "Eventvorschau",
+    minimalDescription: "Klar und modern", freeSummary: "Keine Karte · Free · 50 Dateien", eventPreview: "Eventvorschau",
     responsivePreview: "Responsive Vorschau", mobile: "Mobil", tablet: "Tablet", desktop: "Desktop", close: "Schließen",
     ownerPreview: "Private Veranstaltervorschau", edit: "Bearbeiten", dateTba: "Datum wird noch bekannt gegeben",
     locationTba: "Ort wird noch bekannt gegeben", story: "Die Geschichte", storyFallback: "Die Geschichte des Events erscheint hier.",
@@ -145,15 +145,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Todo lo que necesita tu evento, en un solo lugar.", tailoredWizard: "Asistente personalizado",
     wizardTitle: "De la idea a la vista previa completa, paso a paso.",
     wizardText: "El asistente se adapta a este tipo de evento y guarda tu progreso automáticamente.",
-    trialEyebrow: "Prueba sin riesgo", trialTitle: "Mira tu evento completo antes de decidir.",
-    trialText: "Memboux Free ofrece 37 días y hasta 50 archivos. La mejora desbloquea una colección mayor, originales y acceso prolongado.",
+    pricingEyebrow: "Empieza gratis", pricingTitle: "Mira tu evento completo antes de decidir.",
+    pricingText: "Memboux Free incluye hasta 50 fotos o vídeos y la experiencia completa. Mejora solo cuando necesites más capacidad.",
     createPreview: "Crear tu vista previa", previewLanguage: "Idioma de la vista previa", createYours: "Crear el tuyo",
     themes: "Estilos", signature: "Signature", vivid: "Vibrante", editorial: "Editorial", minimal: "Minimal",
     demoTitle: "Descubre la experiencia completa antes de empezar.",
     demoText: "Cambia el estilo y el tamaño de pantalla. Esta es una vista previa real de la página que crearás, no una imagen estática.",
     appearance: "Apariencia", device: "Dispositivo", signatureDescription: "Elegante y atemporal",
     vividDescription: "Vibrante y social", editorialDescription: "Narrativa premium",
-    minimalDescription: "Limpio y contemporáneo", trialSummary: "Sin tarjeta · 37 días · 50 archivos", eventPreview: "Vista previa del evento",
+    minimalDescription: "Limpio y contemporáneo", freeSummary: "Sin tarjeta · Free · 50 archivos", eventPreview: "Vista previa del evento",
     responsivePreview: "Vista previa adaptable", mobile: "Móvil", tablet: "Tableta", desktop: "Ordenador", close: "Cerrar",
     ownerPreview: "Vista previa privada del organizador", edit: "Editar", dateTba: "Fecha por anunciar",
     locationTba: "Lugar por anunciar", story: "La historia", storyFallback: "La historia del evento aparecerá aquí.",
@@ -167,15 +167,15 @@ export const eventUiCopy: Record<Locale, EventUiCopy> = {
     experienceTitle: "Tutto ciò che serve al tuo evento, in un unico posto.", tailoredWizard: "Procedura personalizzata",
     wizardTitle: "Dall’idea all’anteprima completa, passo dopo passo.",
     wizardText: "La procedura si adatta a questo tipo di evento e salva automaticamente i tuoi progressi.",
-    trialEyebrow: "Prova senza rischi", trialTitle: "Guarda il tuo evento completo prima di decidere.",
-    trialText: "Memboux Free offre 37 giorni e fino a 50 file. L’upgrade sblocca una raccolta più grande, gli originali e un accesso prolungato.",
+    pricingEyebrow: "Inizia gratis", pricingTitle: "Guarda il tuo evento completo prima di decidere.",
+    pricingText: "Memboux Free include fino a 50 foto o video e l’esperienza completa. Fai l’upgrade solo quando ti serve più capacità.",
     createPreview: "Crea la tua anteprima", previewLanguage: "Lingua dell’anteprima", createYours: "Crea il tuo",
     themes: "Stili", signature: "Signature", vivid: "Vivace", editorial: "Editoriale", minimal: "Minimal",
     demoTitle: "Scopri l’esperienza completa prima di iniziare.",
     demoText: "Cambia stile e dimensione dello schermo. Questa è un’anteprima reale della pagina che creerai, non un’immagine statica.",
     appearance: "Aspetto", device: "Dispositivo", signatureDescription: "Elegante e senza tempo",
     vividDescription: "Vivace e sociale", editorialDescription: "Narrazione premium",
-    minimalDescription: "Pulito e contemporaneo", trialSummary: "Nessuna carta · 37 giorni · 50 file", eventPreview: "Anteprima dell’evento",
+    minimalDescription: "Pulito e contemporaneo", freeSummary: "Nessuna carta · Free · 50 file", eventPreview: "Anteprima dell’evento",
     responsivePreview: "Anteprima adattiva", mobile: "Mobile", tablet: "Tablet", desktop: "Computer", close: "Chiudi",
     ownerPreview: "Anteprima privata dell’organizzatore", edit: "Modifica", dateTba: "Data da annunciare",
     locationTba: "Luogo da annunciare", story: "La storia", storyFallback: "La storia dell’evento apparirà qui.",
@@ -199,7 +199,7 @@ const wizardEnglish: EventWizardCopy = {
   artTitle: "Choose the art direction and story", visualStyle: "Visual style", storyLabel: "The event story", storyPlaceholder: "Share what makes this event special…",
   reviewTitle: "Review the guest experience", reviewText: "The event remains a private preview. Publishing here completes setup without enabling payment.",
   guestInfo: "Useful guest information", guestPlaceholder: "Access, dress code, what to bring, or other instructions…", contactEmail: "Contact email",
-  completeWizard: "Complete the wizard", completeText: "The preview will be marked ready. Guest access remains controlled by the trial or plan.",
+  completeWizard: "Complete the wizard", completeText: "The preview will be marked ready. Guest access remains controlled by the selected package.",
   back: "Back", finishPreview: "Finish & preview", saveContinue: "Save & continue", autosave: "Changes are saved automatically.",
   restored: "Your latest changes were restored.", saving: "Saving…", saved: "Saved.",
   protected: "Changes are protected on this device and will save when you continue.",
@@ -215,7 +215,7 @@ export const eventWizardCopy: Record<Locale, EventWizardCopy> = {
     artTitle: "Διάλεξε κατεύθυνση και αφήγηση", visualStyle: "Οπτικό ύφος", storyLabel: "Η ιστορία της εκδήλωσης", storyPlaceholder: "Πες τι κάνει αυτή την εκδήλωση ξεχωριστή…",
     reviewTitle: "Έλεγξε την εμπειρία των καλεσμένων", reviewText: "Η εκδήλωση παραμένει ιδιωτική προεπισκόπηση. Η δημοσίευση ολοκληρώνει τη ρύθμιση χωρίς να ενεργοποιεί πληρωμή.",
     guestInfo: "Χρήσιμες πληροφορίες για καλεσμένους", guestPlaceholder: "Πρόσβαση, ενδυματολογικός κώδικας, τι να φέρουν ή άλλες οδηγίες…", contactEmail: "Email επικοινωνίας",
-    completeWizard: "Ολοκλήρωση του οδηγού", completeText: "Η προεπισκόπηση θα σημειωθεί ως έτοιμη. Η πρόσβαση των καλεσμένων παραμένει ελεγχόμενη από τη δοκιμή ή το πακέτο.",
+    completeWizard: "Ολοκλήρωση του οδηγού", completeText: "Η προεπισκόπηση θα σημειωθεί ως έτοιμη. Η πρόσβαση των καλεσμένων ενεργοποιείται με το πακέτο που θα επιλέξεις.",
     back: "Πίσω", finishPreview: "Ολοκλήρωση & προεπισκόπηση", saveContinue: "Αποθήκευση & συνέχεια", autosave: "Οι αλλαγές αποθηκεύονται αυτόματα.",
     restored: "Επαναφέρθηκαν οι τελευταίες αλλαγές σου.", saving: "Αποθήκευση…", saved: "Αποθηκεύτηκε.",
     protected: "Οι αλλαγές προστατεύονται σε αυτή τη συσκευή και θα αποθηκευτούν όταν συνεχίσεις.",

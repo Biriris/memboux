@@ -32,7 +32,7 @@ Notation in this document lists logical current columns. Full defaults, checks, 
 | `events` | Event identity/code, current and legacy names/types/locales, dates, location, status, expiry, independent website/guest-gallery/official-album PIN hashes, the retained legacy PIN hash, and soft-delete timestamps. | Created by [`0001`](../../migrations/0001_initial.sql); evolved by `0002`, `0003`, `0004`, `0006`-`0011`, `0025`, `0026`, `0028`, [`0060`](../../migrations/0060_expand_event_types_and_locales.sql), and [`0064`](../../migrations/0064_event_surface_pins.sql) |
 | `event_members` | Composite event/user membership with `owner`, `editor`, or `viewer` role. | [`0003`](../../migrations/0003_accounts_and_event_members.sql) |
 | `event_invitations` | Hashed invitation token, email, event role (including co-owner), inviter, kind, expiry, accepted/declined timestamps. | [`0005`](../../migrations/0005_event_invitations.sql), [`0021`](../../migrations/0021_explicit_album_invitations.sql), [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql), [`0066`](../../migrations/0066_event_co_owner_invitations.sql) |
-| `event_access` | `preview`/`trial`/`unlocked`/`expired`, observe/enforced mode, feature flags, trial dates, media limit, lifetime consumed-upload counter. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0044`](../../migrations/0044_enforce_new_event_trials.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql) |
+| `event_access` | `preview`/`free`/`unlocked`/`expired`, selected `plan_key`, observe/enforced mode, feature flags, optional package expiry, media limit, lifetime consumed-upload counter, upload-window duration/start/end, and an irreversible premium-activation marker. | [`0041`](../../migrations/0041_event_access_lifecycle.sql), [`0058`](../../migrations/0058_lifetime_trial_media_slots.sql), rebuilt by [`0073`](../../migrations/0073_permanent_free_event_plan.sql), extended by [`0074`](../../migrations/0074_event_upload_windows_and_no_downgrade.sql) |
 | `event_type_transitions` | Auditable event-type changes and generic vertical-profile snapshots used for reversible restoration. | [`0067`](../../migrations/0067_event_type_transitions.sql) |
 | `event_covers` | Event cover R2 key, source media, updater, content type, timestamp. | [`0023`](../../migrations/0023_notifications_professional_invites_and_covers.sql) |
 | `event_qr_designs` | Up to 50 named event-scoped QR Studio design configurations with creator/updater audit fields and timestamps. | [`0070`](../../migrations/0070_event_qr_designs.sql) |
@@ -114,13 +114,14 @@ Refresh tokens are AES-GCM encrypted in [`google-drive.ts`](../../src/google-dri
 
 Final trigger inventory:
 
-- `media_trial_limit_before_insert`, `media_trial_usage_after_insert`
-- `wedding_media_trial_limit_before_insert`, `wedding_media_trial_usage_after_insert`
-- `media_trial_limit_before_restore`
-- `multipart_trial_limit_before_insert`
+- `media_event_limit_before_insert`, `media_event_usage_after_insert`
+- `wedding_media_event_limit_before_insert`, `wedding_media_event_usage_after_insert`
+- `media_event_limit_before_restore`
+- `multipart_event_limit_before_insert`, `multipart_event_window_after_insert`
+- `event_access_no_premium_to_free`
 - `commerce_orders_block_payment_insert`, `commerce_orders_block_payment_transition`
 
-The trial triggers are finalized by [`0058_lifetime_trial_media_slots.sql`](../../migrations/0058_lifetime_trial_media_slots.sql); earlier trigger versions in `0051` and `0056` are replaced.
+The package-limit triggers are introduced in their current names by [`0073_permanent_free_event_plan.sql`](../../migrations/0073_permanent_free_event_plan.sql), which replaces the trial-named triggers from `0058`. Migration [`0074_event_upload_windows_and_no_downgrade.sql`](../../migrations/0074_event_upload_windows_and_no_downgrade.sql) replaces the insert triggers again to enforce contribution-window closure, starts the window on the first ordinary, wedding, or multipart upload, and adds a database-level premium-to-Free downgrade guard.
 
 ## Event media hub additions
 

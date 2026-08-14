@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { getEventRole, roleCan } from "../access";
 import type { Bindings, EventRow } from "../domain";
 import { resolveEventCover } from "../event-cover";
-import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventAccessAllows, eventMediaCapacity, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import {
   existingMediaLikeVisitor,
@@ -592,13 +592,20 @@ weddingRoutes.post("/api/account/events/:code/wedding/media/upload", async (c) =
   }
   const capacity = await eventMediaCapacity(c.env.DB, event.id, files.length, true);
   if (!capacity.allowed)
-    return c.text(localized(locale,
-      `This trial event reached its ${capacity.access.media_limit}-media limit.`,
-      `Το δοκιμαστικό event έφτασε το όριο των ${capacity.access.media_limit} αρχείων.`,
-      `Cet événement d’essai a atteint sa limite de ${capacity.access.media_limit} fichiers.`,
-      `Dieses Testevent hat sein Limit von ${capacity.access.media_limit} Dateien erreicht.`,
-      `Este evento de prueba alcanzó el límite de ${capacity.access.media_limit} archivos.`,
-      `Questo evento di prova ha raggiunto il limite di ${capacity.access.media_limit} file.`,
+    return c.text(capacity.reason === "upload_window_closed" ? localized(locale,
+      "The upload period for this event has closed.",
+      "Η περίοδος uploads αυτού του event έχει ολοκληρωθεί.",
+      "La période d’ajout de cet événement est terminée.",
+      "Der Upload-Zeitraum für dieses Event ist beendet.",
+      "El periodo de subidas de este evento ha terminado.",
+      "Il periodo di upload di questo evento è terminato.",
+    ) : localized(locale,
+      `This event reached its package limit of ${capacity.access.media_limit} media files.`,
+      `Το event έφτασε το όριο των ${capacity.access.media_limit} αρχείων του πακέτου.`,
+      `Cet événement a atteint la limite de ${capacity.access.media_limit} fichiers de son forfait.`,
+      `Dieses Event hat sein Paketlimit von ${capacity.access.media_limit} Dateien erreicht.`,
+      `Este evento alcanzó el límite de ${capacity.access.media_limit} archivos de su paquete.`,
+      `Questo evento ha raggiunto il limite di ${capacity.access.media_limit} file del pacchetto.`,
     ), 409);
   let assignedRequestedSlot = false;
   for (const file of files) {
@@ -621,8 +628,10 @@ weddingRoutes.post("/api/account/events/:code/wedding/media/upload", async (c) =
     } catch (error) {
       await c.env.MEDIA.delete(objectKey);
       await releaseStorage(c.env.DB, reservation.ownerId, file.size);
-      if (isTrialMediaLimitConstraint(error))
-        return c.text(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+      if (isEventUploadWindowConstraint(error))
+        return c.text("This event's upload period has ended.", 409);
+      if (isEventMediaLimitConstraint(error))
+        return c.text(`This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
       throw error;
     }
   }
@@ -1013,7 +1022,7 @@ weddingRoutes.post("/api/account/events/:code/wedding/publish", async (c) => {
   if (!profile?.wizard_completed_at || weddingReadiness(profile, locale).some((item) => !item.complete))
     return c.text(localized(locale, "Finish the wedding setup first.", "Ολοκλήρωσε πρώτα το setup του γάμου.", "Terminez d'abord la configuration.", "Schließe zuerst die Einrichtung ab.", "Completa primero la configuración.", "Completa prima la configurazione."), 409);
   if (!eventAccessAllows(access, "guest_access"))
-    return c.text(localized(locale, "Start the trial or unlock the event before publishing.", "Ξεκίνα το trial ή ξεκλείδωσε το event πριν τη δημοσίευση.", "Activez l'essai ou débloquez l'événement.", "Starte die Testphase oder schalte das Event frei.", "Inicia la prueba o desbloquea el evento.", "Avvia la prova o sblocca l'evento."), 409);
+    return c.text(localized(locale, "Select an event package before publishing.", "Επίλεξε πακέτο event πριν τη δημοσίευση.", "Choisissez un forfait avant de publier.", "Wähle vor der Veröffentlichung ein Event-Paket.", "Elige un paquete antes de publicar.", "Scegli un pacchetto prima di pubblicare."), 409);
   await c.env.DB.prepare("UPDATE event_wedding_profiles SET publish_status='published',updated_at=? WHERE event_id=?")
     .bind(Date.now(), event.id).run();
   return c.redirect(`/dashboard/${event.code}?lang=${locale}#event-access`, 303);

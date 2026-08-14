@@ -1,13 +1,18 @@
 import type { EventAccessRow } from "./domain";
 
-export const EVENT_FREE_ACCESS_DAYS = 37;
 export const EVENT_FREE_MEDIA_LIMIT = 50;
-// Compatibility exports while the persisted lifecycle state remains `trial`.
-export const EVENT_TRIAL_DAYS = EVENT_FREE_ACCESS_DAYS;
-export const EVENT_TRIAL_MEDIA_LIMIT = EVENT_FREE_MEDIA_LIMIT;
+export const EVENT_FREE_PRODUCT_KEY = "event_free";
+export const EVENT_FREE_UPLOAD_WINDOW_DAYS = 14;
 
-export function isTrialMediaLimitConstraint(error: unknown) {
-  return error instanceof Error && error.message.includes("trial_media_limit_reached");
+export function isEventMediaLimitConstraint(error: unknown) {
+  return error instanceof Error && (
+    error.message.includes("event_media_limit_reached")
+    || error.message.includes("trial_media_limit_reached")
+  );
+}
+
+export function isEventUploadWindowConstraint(error: unknown) {
+  return error instanceof Error && error.message.includes("event_upload_window_closed");
 }
 
 export async function getEventAccess(db: D1Database, eventId: string): Promise<EventAccessRow> {
@@ -15,39 +20,23 @@ export async function getEventAccess(db: D1Database, eventId: string): Promise<E
     .bind(eventId)
     .first<EventAccessRow>()
     .catch(() => null);
-  if (row) {
-    const now = Date.now();
-    if (
-      row.enforcement_state === "enforced"
-      && row.access_state === "trial"
-      && row.trial_ends_at !== null
-      && row.trial_ends_at <= now
-    ) {
-      const expired = await db.prepare(`UPDATE event_access SET
-          access_state='expired',guest_access_enabled=0,guest_uploads_enabled=0,
-          original_downloads_enabled=0,expires_at=COALESCE(expires_at,trial_ends_at),updated_at=?
-        WHERE event_id=? AND access_state='trial' AND enforcement_state='enforced'
-        RETURNING *`)
-        .bind(now, eventId)
-        .first<EventAccessRow>()
-        .catch(() => null);
-      if (expired) return expired;
-    }
-    return row;
-  }
+  if (row) return row;
 
   const now = Date.now();
   return {
     event_id: eventId,
     access_state: "unlocked",
     enforcement_state: "observe",
+    plan_key: null,
     media_limit: 2_147_483_647,
     media_uploads_consumed: 0,
+    upload_window_days: null,
+    upload_window_started_at: null,
+    upload_window_ends_at: null,
+    premium_activated_at: null,
     guest_access_enabled: 1,
     guest_uploads_enabled: 1,
     original_downloads_enabled: 1,
-    trial_started_at: null,
-    trial_ends_at: null,
     unlocked_at: now,
     expires_at: null,
     created_at: now,
@@ -55,23 +44,23 @@ export async function getEventAccess(db: D1Database, eventId: string): Promise<E
   };
 }
 
-export async function startEventTrial(db: D1Database, eventId: string, now = Date.now()) {
-  const trialEndsAt = now + EVENT_TRIAL_DAYS * 86_400_000;
+export async function activateEventFreePlan(db: D1Database, eventId: string, now = Date.now()) {
   const result = await db.prepare(`UPDATE event_access SET
-      access_state='trial',enforcement_state='enforced',media_limit=?,guest_access_enabled=1,
-      guest_uploads_enabled=1,original_downloads_enabled=0,
-      trial_started_at=COALESCE(trial_started_at,?),trial_ends_at=COALESCE(trial_ends_at,?),
-      updated_at=?
-    WHERE event_id=? AND access_state='preview'
+      access_state='free',enforcement_state='enforced',plan_key=?,media_limit=?,
+      upload_window_days=?,upload_window_started_at=NULL,upload_window_ends_at=NULL,
+      guest_access_enabled=1,guest_uploads_enabled=1,original_downloads_enabled=1,
+      unlocked_at=COALESCE(unlocked_at,?),expires_at=NULL,updated_at=?
+    WHERE event_id=? AND premium_activated_at IS NULL
+      AND access_state IN ('preview','free','expired')
     RETURNING *`)
-    .bind(EVENT_TRIAL_MEDIA_LIMIT, now, trialEndsAt, now, eventId)
+    .bind(EVENT_FREE_PRODUCT_KEY, EVENT_FREE_MEDIA_LIMIT, EVENT_FREE_UPLOAD_WINDOW_DAYS, now, now, eventId)
     .first<EventAccessRow>();
   return result ?? getEventAccess(db, eventId);
 }
 
 export function eventAccessAllows(access: EventAccessRow, capability: "guest_access" | "guest_uploads" | "original_downloads") {
   if (access.enforcement_state === "observe") return true;
-  if (access.access_state === "unlocked") return true;
+  if (access.access_state === "free" || access.access_state === "unlocked") return true;
   if (access.access_state === "expired") return false;
   if (capability === "guest_access") return access.guest_access_enabled === 1;
   if (capability === "guest_uploads") return access.guest_uploads_enabled === 1;
@@ -81,7 +70,7 @@ export function eventAccessAllows(access: EventAccessRow, capability: "guest_acc
 export function eventOriginalExportsEnabled(
   access: Pick<EventAccessRow, "access_state" | "enforcement_state" | "original_downloads_enabled">,
 ) {
-  if (access.enforcement_state === "observe" || access.access_state === "unlocked") return true;
+  if (access.enforcement_state === "observe" || access.access_state === "free" || access.access_state === "unlocked") return true;
   if (access.access_state === "expired") return false;
   return access.original_downloads_enabled === 1;
 }
@@ -123,11 +112,25 @@ export async function eventMediaCapacity(
   ownerUpload = false,
 ) {
   const access = await getEventAccess(db, eventId);
-  if (access.enforcement_state === "observe" || access.access_state === "unlocked")
-    return { allowed: true, access, used: 0, remaining: Number.POSITIVE_INFINITY };
+  if (access.enforcement_state === "observe")
+    return { allowed: true, reason: null, access, used: 0, remaining: Number.POSITIVE_INFINITY };
   if (ownerUpload ? access.access_state === "expired" : !eventAccessAllows(access, "guest_uploads"))
-    return { allowed: false, access, used: 0, remaining: 0 };
+    return { allowed: false, reason: "access_closed" as const, access, used: 0, remaining: 0 };
+  if (
+    (access.access_state === "free" || access.access_state === "unlocked")
+    && typeof access.upload_window_ends_at === "number"
+    && access.upload_window_ends_at <= Date.now()
+  ) {
+    console.warn(JSON.stringify({
+      event: "event_upload_window_blocked",
+      eventId,
+      planKey: access.plan_key,
+      uploadWindowEndsAt: access.upload_window_ends_at,
+    }));
+    return { allowed: false, reason: "upload_window_closed" as const, access, used: 0, remaining: 0 };
+  }
   const used = (await eventMediaUsage(db, eventId)).total;
   const remaining = Math.max(0, access.media_limit - used);
-  return { allowed: used <= access.media_limit && requested <= remaining, access, used, remaining };
+  const allowed = used <= access.media_limit && requested <= remaining;
+  return { allowed, reason: allowed ? null : "media_limit" as const, access, used, remaining };
 }

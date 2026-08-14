@@ -132,8 +132,8 @@ beforeAll(async () => {
     insertEvent.bind(previewEventId, previewCode, "Preview gallery", "Preview gallery", "", now, now + 86_400_000, now, null),
     env.DB.prepare("UPDATE events SET event_type='wedding' WHERE id='gallery-wedding-event'"),
     env.DB.prepare(`INSERT INTO event_access VALUES (
-      ?,'trial','enforced',20,1,1,0,?,?,NULL,NULL,?,?
-    )`).bind(trialEventId, now, now + 86_400_000, now, now),
+      ?,'free','enforced',20,1,1,1,NULL,NULL,?,NULL,?,?
+    )`).bind(trialEventId, now, now, now),
     env.DB.prepare(`INSERT INTO event_access VALUES (
       ?,'preview','enforced',20,0,0,0,NULL,NULL,NULL,NULL,?,?
     )`).bind(previewEventId, now, now),
@@ -245,42 +245,46 @@ describe("gallery, upload, and media routes", () => {
     expect(html).toContain('src="/media/sole-album-video#t=0.1"');
   });
 
-  it("exposes the trial upload usage needed for the guest quota notice", async () => {
+  it("exposes Free upload usage needed for the guest quota notice", async () => {
     const response = await SELF.fetch(`https://memboux.com/api/upload/${trialCode}/capacity`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ trial: true, used: 2, limit: 20, remaining: 18 });
+    expect(await response.json()).toEqual({
+      limited: true,
+      used: 2,
+      limit: 20,
+      remaining: 18,
+      uploadWindowDays: null,
+      uploadWindowStartedAt: null,
+      uploadWindowEndsAt: null,
+      uploadWindowClosed: false,
+    });
 
     const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
     const html = await gallery.text();
-    expect(html).toContain("This event’s Memboux Free allowance has reached {limit} photos and videos.");
-    expect(html).toContain("form.dataset.trialUploadRemaining");
+    expect(html).toContain("This event has reached its {limit}-media package limit. Existing memories remain available.");
+    expect(html).toContain("form.dataset.freeUploadRemaining");
   });
 
-  it("keeps trial previews usable while hiding and enforcing original downloads", async () => {
+  it("gives an active Free event its original-download entitlement", async () => {
     const gallery = await SELF.fetch(`https://memboux.com/gallery/${trialCode}?lang=en`);
     const html = await gallery.text();
     expect(gallery.status).toBe(200);
-    expect(html).toContain("Originals unlock with upgrade");
-    expect(html).not.toContain('id="lightbox-download"');
-    expect(html).toContain("#select-media,#download-selected{display:none!important}");
+    expect(html).not.toContain("Originals unlock with upgrade");
+    expect(html).toContain('id="lightbox-download"');
 
     const preview = await SELF.fetch("https://memboux.com/media/trial-stream-media?variant=preview");
     expect(preview.status).toBe(200);
-    expect(preview.headers.get("x-memboux-media-access")).toBe("preview-only");
-    expect(new TextDecoder().decode(await preview.arrayBuffer())).not.toBe("trial-image");
 
     const constructedOriginalUrl = await SELF.fetch("https://memboux.com/media/trial-stream-media");
     expect(constructedOriginalUrl.status).toBe(200);
-    expect(constructedOriginalUrl.headers.get("x-memboux-media-access")).toBe("preview-only");
-    expect(constructedOriginalUrl.headers.get("content-type")).toBe("image/webp");
-    expect(new TextDecoder().decode(await constructedOriginalUrl.arrayBuffer())).not.toBe("trial-image");
+    expect(new TextDecoder().decode(await constructedOriginalUrl.arrayBuffer())).toBe("trial-image");
 
     const original = await SELF.fetch("https://memboux.com/media/trial-stream-media?download=1");
-    expect(original.status).toBe(403);
+    expect(original.status).toBe(200);
 
     const official = await SELF.fetch(`https://memboux.com/gallery/${trialCode}/official?lang=en`);
     expect(official.status).toBe(200);
-    expect(await official.text()).not.toContain('id="lightbox-download"');
+    expect(await official.text()).toContain('id="lightbox-download"');
   });
 
   it("does not expose media through a direct URL after guest access expires", async () => {

@@ -7,7 +7,7 @@ import { UPLOAD_ACCEPT } from "../config";
 import type { Bindings } from "../domain";
 import { resolveEventCover } from "../event-cover";
 import { anonymousVisitor, findEventAlbum, hasAlbumAccess, listEventAlbums, recordEventActivity } from "../event-media-hub";
-import { eventAccessAllows, eventMediaCapacity, getEventAccess, isTrialMediaLimitConstraint } from "../event-access";
+import { eventAccessAllows, eventMediaCapacity, getEventAccess, isEventMediaLimitConstraint, isEventUploadWindowConstraint } from "../event-access";
 import { eventBrandIdentity, eventBrandingStyle, getEventBranding } from "../event-branding";
 import { eventSurfaceAccessToken, eventSurfaceCookieName, eventSurfacePinHash, hasEventSurfaceAccess, hasGalleryAccess, type EventSurface } from "../gallery-access";
 import { localeNames, normalizeLocale, supportedLocales, type Locale } from "../i18n";
@@ -117,18 +117,36 @@ const galleryGuestCopy: Record<Locale, GalleryGuestCopy> = {
   },
 };
 
+function guestGalleryCopy(locale: Locale): GalleryGuestCopy {
+  const copy = galleryGuestCopy[locale];
+  return {
+    ...copy,
+    previewText: locale === "el"
+      ? "Ο δημιουργός το προετοιμάζει σε ιδιωτική προεπισκόπηση. Ζήτησέ του να ενεργοποιήσει ένα πακέτο event."
+      : locale === "fr"
+        ? "L’organisateur le prépare en aperçu privé. Demandez-lui d’activer un forfait."
+        : locale === "de"
+          ? "Der Gastgeber bereitet es in einer privaten Vorschau vor. Bitte ihn, ein Paket zu aktivieren."
+          : locale === "es"
+            ? "El anfitrión lo prepara en una vista privada. Pídele que active un paquete."
+            : locale === "it"
+              ? "L’organizzatore lo prepara in anteprima privata. Chiedigli di attivare un pacchetto."
+              : "The owner is preparing it in private preview. Ask them to activate an event package.",
+  };
+}
+
 const galleryUploadCopy: Record<Locale, {
   confirmationRequired: string;
   anonymous: string;
-  trialLimit: (count: number) => string;
+  planLimit: (count: number) => string;
   storageQuota: string;
 }> = {
-  en: { confirmationRequired: "Confirmation is required before uploading.", anonymous: "Anonymous", trialLimit: (count) => `This trial event reached its ${count}-media limit.`, storageQuota: "The event storage quota was reached." },
-  el: { confirmationRequired: "Απαιτείται επιβεβαίωση πριν από το ανέβασμα.", anonymous: "Ανώνυμος", trialLimit: (count) => `Το δοκιμαστικό event έφτασε το όριο των ${count} αρχείων.`, storageQuota: "Το όριο χώρου του event συμπληρώθηκε." },
-  fr: { confirmationRequired: "Une confirmation est requise avant l’ajout.", anonymous: "Anonyme", trialLimit: (count) => `Cet événement d’essai a atteint sa limite de ${count} fichiers.`, storageQuota: "L’espace de stockage de l’événement est saturé." },
-  de: { confirmationRequired: "Vor dem Upload ist eine Bestätigung erforderlich.", anonymous: "Anonym", trialLimit: (count) => `Dieses Testevent hat sein Limit von ${count} Dateien erreicht.`, storageQuota: "Das Speicherlimit des Events wurde erreicht." },
-  es: { confirmationRequired: "Debes confirmar antes de subir contenido.", anonymous: "Anónimo", trialLimit: (count) => `Este evento de prueba ha alcanzado su límite de ${count} archivos.`, storageQuota: "Se ha alcanzado el límite de almacenamiento del evento." },
-  it: { confirmationRequired: "È necessaria una conferma prima del caricamento.", anonymous: "Anonimo", trialLimit: (count) => `Questo evento di prova ha raggiunto il limite di ${count} file.`, storageQuota: "È stato raggiunto il limite di spazio dell’evento." },
+  en: { confirmationRequired: "Confirmation is required before uploading.", anonymous: "Anonymous", planLimit: (count) => `This event reached its package limit of ${count} media files.`, storageQuota: "The event storage quota was reached." },
+  el: { confirmationRequired: "Απαιτείται επιβεβαίωση πριν από το ανέβασμα.", anonymous: "Ανώνυμος", planLimit: (count) => `Το event έφτασε το όριο των ${count} αρχείων του πακέτου.`, storageQuota: "Το όριο χώρου του event συμπληρώθηκε." },
+  fr: { confirmationRequired: "Une confirmation est requise avant l’ajout.", anonymous: "Anonyme", planLimit: (count) => `Cet événement a atteint la limite de ${count} fichiers de son forfait.`, storageQuota: "L’espace de stockage de l’événement est saturé." },
+  de: { confirmationRequired: "Vor dem Upload ist eine Bestätigung erforderlich.", anonymous: "Anonym", planLimit: (count) => `Dieses Event hat sein Paketlimit von ${count} Dateien erreicht.`, storageQuota: "Das Speicherlimit des Events wurde erreicht." },
+  es: { confirmationRequired: "Debes confirmar antes de subir contenido.", anonymous: "Anónimo", planLimit: (count) => `Este evento ha alcanzado el límite de ${count} archivos de su paquete.`, storageQuota: "Se ha alcanzado el límite de almacenamiento del evento." },
+  it: { confirmationRequired: "È necessaria una conferma prima del caricamento.", anonymous: "Anonimo", planLimit: (count) => `Questo evento ha raggiunto il limite di ${count} file del pacchetto.`, storageQuota: "È stato raggiunto il limite di spazio dell’evento." },
 };
 
 galleryRoutes.post("/gallery/:code/unlock", async (c) => {
@@ -137,7 +155,7 @@ galleryRoutes.post("/gallery/:code/unlock", async (c) => {
 
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const copy = galleryGuestCopy[locale];
+  const copy = guestGalleryCopy(locale);
   const requestedSurface = String(body.surface ?? "guest_gallery");
   const surface: EventSurface | null = requestedSurface === "website" || requestedSurface === "guest_gallery" || requestedSurface === "official_album"
     ? requestedSurface
@@ -230,7 +248,7 @@ galleryRoutes.get("/gallery/:code", async (c) => {
     return c.redirect(`/gallery/${event.code}/albums/${selectedAlbum.slug}?lang=${locale}`);
   const guestUrl = `${new URL(c.req.url).origin}/gallery/${event.code}${selectedAlbum ? `/albums/${selectedAlbum.slug}` : ""}`;
   const qrGuestUrl = `${guestUrl}${guestUrl.includes("?") ? "&" : "?"}source=qr`;
-  const g = galleryGuestCopy[locale];
+  const g = guestGalleryCopy(locale);
 
   if (Date.now() > event.expires_at) return c.text(g.expired, 410);
   const eventAccess = await getEventAccess(c.env.DB, event.id);
@@ -419,10 +437,10 @@ galleryRoutes.get("/gallery/:code/official", async (c) => {
   const originalDownloads = eventAccessAllows(eventAccess, "original_downloads");
   if (!(await hasEventSurfaceAccess(c.req.raw, event, "official_album"))) {
     const next = `/gallery/${event.code}/official?lang=${locale}`;
-    const g = galleryGuestCopy[locale];
+    const g = guestGalleryCopy(locale);
     return c.html(page(event.eventName, `<main class="flex min-h-screen items-center justify-center p-5"><section class="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><div class="flex items-center justify-between">${brandMark("/", true)}${galleryLanguagePicker(event.code, locale, true)}</div><h1 class="mt-7 text-4xl">${esc(g.officialAlbum)}</h1><p class="mt-2 text-[#6f657c]">${esc(g.pinPrompt)}</p><form action="/gallery/${encodeURIComponent(event.code)}/unlock" method="post" class="mt-6 space-y-3"><input type="hidden" name="locale" value="${locale}"><input type="hidden" name="surface" value="official_album"><input type="hidden" name="next" value="${esc(next)}"><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus aria-label="PIN" placeholder="PIN" class="w-full rounded-xl border px-4 py-3 text-center text-xl tracking-[.3em]"><button class="w-full rounded-xl bg-[#7c3aed] px-5 py-3 text-white">${esc(g.openGallery)}</button></form></section></main>`, { locale }), 401);
   }
-  const g = galleryGuestCopy[locale];
+  const g = guestGalleryCopy(locale);
   const likeVisitor = existingMediaLikeVisitor(c.req.raw);
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
@@ -544,7 +562,9 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
   }
   const capacity = await eventMediaCapacity(c.env.DB, event.id, files.length);
   if (!capacity.allowed)
-    return c.text(uploadCopy.trialLimit(capacity.access.media_limit), 409);
+    return c.text(capacity.reason === "upload_window_closed"
+      ? (locale === "el" ? "Η περίοδος uploads αυτού του event έχει ολοκληρωθεί." : "The upload period for this event has closed.")
+      : uploadCopy.planLimit(capacity.access.media_limit), 409);
 
   const uploadedKeys: string[] = [];
   let reservedBytes = 0;
@@ -622,8 +642,10 @@ galleryRoutes.post("/api/upload/:code", async (c) => {
     await releaseStorage(c.env.DB, reservationOwner, reservedBytes);
     if (error instanceof Error && error.message.includes("storage_quota_exceeded"))
       return c.text(uploadCopy.storageQuota, 413);
-    if (isTrialMediaLimitConstraint(error))
-      return c.text(uploadCopy.trialLimit(capacity.access.media_limit), 409);
+    if (isEventUploadWindowConstraint(error))
+      return c.text("This event's upload period has ended.", 409);
+    if (isEventMediaLimitConstraint(error))
+      return c.text(uploadCopy.planLimit(capacity.access.media_limit), 409);
     throw error;
   }
 

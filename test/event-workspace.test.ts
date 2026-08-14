@@ -271,20 +271,19 @@ describe("event workspace", () => {
     expect(html).toContain('id="owner-delete-selected"');
   });
 
-  it("replaces original-download actions with an upgrade path during an enforced trial", () => {
+  it("keeps original-download actions available on Free", () => {
     const html = renderEventWorkspace({
       ...baseInput,
       membership: "owner",
       eventAccess: {
         event_id: event.id,
-        access_state: "trial",
+        access_state: "free",
         enforcement_state: "enforced",
+        plan_key: "event_free",
         media_limit: 20,
         guest_access_enabled: 1,
         guest_uploads_enabled: 1,
-        original_downloads_enabled: 0,
-        trial_started_at: 1,
-        trial_ends_at: Date.now() + 86_400_000,
+        original_downloads_enabled: 1,
         unlocked_at: null,
         expires_at: null,
         created_at: 1,
@@ -292,14 +291,11 @@ describe("event workspace", () => {
       },
     });
 
-    expect(html).toContain("Originals unlock with upgrade");
-    expect(html).toContain(`/dashboard/${event.code}/checkout?lang=en`);
-    expect(html).not.toContain('id="owner-download-selected"');
-    expect(html).not.toContain('id="lightbox-download"');
+    expect(html).toContain('id="owner-download-selected"');
     expect(html).toContain('id="owner-delete-selected"');
   });
 
-  it("combines package selection and trial activation in the event overview", () => {
+  it("combines three-package selection and Free activation in the event overview", () => {
     const html = renderEventWorkspace({
       ...baseInput,
       membership: "owner",
@@ -307,12 +303,11 @@ describe("event workspace", () => {
         event_id: event.id,
         access_state: "preview",
         enforcement_state: "enforced",
-        media_limit: 20,
+        plan_key: null,
+        media_limit: 50,
         guest_access_enabled: 0,
         guest_uploads_enabled: 0,
         original_downloads_enabled: 0,
-        trial_started_at: null,
-        trial_ends_at: null,
         unlocked_at: null,
         expires_at: null,
         created_at: 1,
@@ -320,26 +315,32 @@ describe("event workspace", () => {
       },
     });
     expect(html).toContain('id="package-access-title"');
-    expect(html).toContain(`/api/account/events/${event.code}/checkout/start-trial`);
-    expect(html).toContain("Choose package & start Memboux Free");
-    expect(html).toContain("No card is requested and there is no automatic charge");
+    expect(html).toContain(`/api/account/events/${event.code}/checkout/select`);
+    expect(html).toContain("Continue with selected package");
+    expect(html).toContain('data-workspace-product');
+    expect(html).toContain('background:#6d28d9!important');
     expect(html).not.toContain(`/api/account/events/${event.code}/access/start-trial`);
   });
 
-  it("activates the selected complimentary package immediately during an active trial", () => {
+  it("uses the unified selector during an active Free event", () => {
+    const paidProduct = baseInput.commerceProducts[0];
     const html = renderEventWorkspace({
       ...baseInput,
       membership: "owner",
+      commerceProducts: [
+        { ...paidProduct, product_key: "event_free", amount_minor: 0, media_limit: 50, event_duration_days: null, sort_order: 0 },
+        paidProduct,
+        { ...paidProduct, product_key: "event_celebration", amount_minor: 7900, media_limit: 20_000, event_duration_days: 730, sort_order: 2 },
+      ],
       eventAccess: {
         event_id: event.id,
-        access_state: "trial",
+        access_state: "free",
         enforcement_state: "enforced",
+        plan_key: "event_free",
         media_limit: 50,
         guest_access_enabled: 1,
         guest_uploads_enabled: 1,
-        original_downloads_enabled: 0,
-        trial_started_at: 1,
-        trial_ends_at: Date.now() + 86_400_000,
+        original_downloads_enabled: 1,
         unlocked_at: null,
         expires_at: null,
         created_at: 1,
@@ -347,9 +348,14 @@ describe("event workspace", () => {
       },
     });
 
-    expect(html).toContain(`/api/account/events/${event.code}/checkout/activate-beta`);
+    expect(html).toContain(`/api/account/events/${event.code}/checkout/select`);
     expect(html).toContain("Activate beta package");
     expect(html).not.toContain(`/api/account/events/${event.code}/checkout/draft`);
+    expect(html.match(/<label data-workspace-product/g)).toHaveLength(3);
+    expect(html.match(/data-selected="true"/g)).toHaveLength(1);
+    expect(html.match(/data-selected="false"/g)).toHaveLength(2);
+    expect(html).toContain('value="event_free" checked');
+    expect(html).toContain("radio===active&&radio.checked");
   });
 
   it("uses the specialized wedding management workspace without changing the gallery", () => {

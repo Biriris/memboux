@@ -79,12 +79,13 @@ describe("provider-neutral commerce catalog", () => {
     })).toBe(true);
   });
 
-  it("offers complimentary activation during trial or after expiry, but not after unlock", () => {
-    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: false, owner: true })).toBe(true);
+  it("offers complimentary activation from preview, Free or expiry, but not after unlock", () => {
+    expect(complimentaryEventActivationAvailable({ accessState: "preview", launchReady: false, owner: true })).toBe(true);
+    expect(complimentaryEventActivationAvailable({ accessState: "free", launchReady: false, owner: true })).toBe(true);
     expect(complimentaryEventActivationAvailable({ accessState: "expired", launchReady: false, owner: true })).toBe(true);
     expect(complimentaryEventActivationAvailable({ accessState: "unlocked", launchReady: false, owner: true })).toBe(false);
-    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: true, owner: true })).toBe(false);
-    expect(complimentaryEventActivationAvailable({ accessState: "trial", launchReady: false, owner: false })).toBe(false);
+    expect(complimentaryEventActivationAvailable({ accessState: "free", launchReady: true, owner: true })).toBe(false);
+    expect(complimentaryEventActivationAvailable({ accessState: "free", launchReady: false, owner: false })).toBe(false);
   });
 
   it("presents the direct event unlock journey in every supported language", () => {
@@ -93,7 +94,7 @@ describe("provider-neutral commerce catalog", () => {
       expect(localized.title.length).toBeGreaterThan(20);
       expect(localized.noCart.length).toBeGreaterThan(20);
       expect(localized.trialFiles).toContain("50");
-      expect(localized.trialDays).toContain("37");
+      expect(localized.trialDays).not.toContain("37");
       expect(localized.savedNotice.length).toBeGreaterThan(35);
       expect(localized.noChargeLabel).toContain("0");
       expect(localized.draftReference.length).toBeGreaterThan(5);

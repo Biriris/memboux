@@ -7,7 +7,8 @@ import {
   eventAccessAllows,
   eventMediaCapacity,
   getEventAccess,
-  isTrialMediaLimitConstraint,
+  isEventMediaLimitConstraint,
+  isEventUploadWindowConstraint,
 } from "../event-access";
 import { eventAnalyticsSummary } from "../event-media-hub";
 import { normalizeLocale, type Locale } from "../i18n";
@@ -349,7 +350,9 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
   }
   const capacity = await eventMediaCapacity(c.env.DB, event.id, files.length, true);
   if (!capacity.allowed)
-    return c.text(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+    return c.text(capacity.reason === "upload_window_closed"
+      ? "The upload period for this event has closed."
+      : `This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
   const uploadedKeys: string[] = [];
   let reservedBytes = 0;
   let reservationOwner: string | null = null;
@@ -455,8 +458,10 @@ studioRoutes.post("/studio/events/:code/upload", async (c) => {
       error.message.includes("storage_quota_exceeded")
     )
       return c.text("Event storage quota exceeded", 413);
-    if (isTrialMediaLimitConstraint(error))
-      return c.text(`This trial event reached its ${capacity.access.media_limit}-media limit.`, 409);
+    if (isEventUploadWindowConstraint(error))
+      return c.text("This event's upload period has ended.", 409);
+    if (isEventMediaLimitConstraint(error))
+      return c.text(`This event reached its package limit of ${capacity.access.media_limit} media files.`, 409);
     throw error;
   }
   if (uploadedKeys.length) {

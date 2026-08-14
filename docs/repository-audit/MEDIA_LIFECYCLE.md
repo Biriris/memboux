@@ -27,6 +27,8 @@ Verified key conventions:
 5. Put the original object into R2.
 6. Insert D1 `media` metadata with consent policy/version and uploader identity.
 7. Roll back R2 objects, D1 rows, and quota reservations when the batch fails.
+
+For recognized enforced packages, [`eventMediaCapacity`](../../src/event-access.ts) checks both remaining lifetime slots and the contribution window before transfer. Migration [`0074_event_upload_windows_and_no_downgrade.sql`](../../migrations/0074_event_upload_windows_and_no_downgrade.sql) repeats this invariant in D1 triggers for race safety. The first ordinary/wedding media insert or multipart reservation starts the 14/45/90-day package window. When it closes, new owner and guest uploads are rejected while existing media remains readable under the normal access and download policies.
 8. Schedule upload notifications.
 
 Exact and metadata-insensitive JPEG/PNG/WebP canonical hashes are implemented in [`src/media-fingerprint.ts`](../../src/media-fingerprint.ts); uniqueness comes from indexes introduced by migrations [`0010`](../../migrations/0010_media_content_hash.sql) and [`0029`](../../migrations/0029_media_canonical_hash.sql).
@@ -38,7 +40,7 @@ Admin and studio uploads follow similar R2-then-D1 compensation patterns, but us
 [`src/routes/resumable-uploads.ts`](../../src/routes/resumable-uploads.ts) implements:
 
 1. `PUT /api/upload/:code/fast` for a single streamed browser-to-Worker-to-R2 request for common files up to 64 MB. This stays below the lowest verified Cloudflare request-body ceiling with operational headroom. The route preserves authorization, quotas, exact SHA-256 duplicate detection, storage compensation, official-album insertion, and the batch notification/finalization contract. Its `Server-Timing` response and structured completion log separate authorization, duplicate-check, R2-write, and D1-persistence duration.
-2. `POST /api/upload/:code/multipart` to authorize, validate, reserve trial/storage capacity, create an R2 multipart upload, and store a session.
+2. `POST /api/upload/:code/multipart` to authorize, validate, reserve package/storage capacity, create an R2 multipart upload, and store a session.
 3. `PUT .../parts/:partNumber` to upload and record parts together with the required SHA-256 part fingerprint.
 4. Optional `PUT .../variants/:variant` for client-produced image thumbnail/preview objects and video poster thumbnails. A video thumbnail may also be attached immediately after the fast path has completed its session.
 5. `POST .../complete` to validate every part manifest, derive a deterministic content hash from the ordered SHA-256 part fingerprints, complete R2 multipart state, insert the `media` row, and mark the session complete. A matching active media row causes the new R2 original and its variants to be deleted and its storage reservation to be released.
@@ -47,7 +49,7 @@ Admin and studio uploads follow similar R2-then-D1 compensation patterns, but us
 
 Before a new multipart session reserves storage, completed sessions are checked by client fingerprint plus size/type, with a conservative filename/size/type/timestamp fallback. Filename alone is never treated as proof of duplication. The deterministic manifest helper is in [`src/media-fingerprint.ts`](../../src/media-fingerprint.ts).
 
-The session/token authorization, duplicate cleanup, and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts), [`media-fingerprint.test.ts`](../../test/media-fingerprint.test.ts), and [`trial-media-slots.test.ts`](../../test/trial-media-slots.test.ts). No Queue is involved.
+The session/token authorization, duplicate cleanup, and state machine are tested by [`gallery-routes.test.ts`](../../test/gallery-routes.test.ts), [`media-fingerprint.test.ts`](../../test/media-fingerprint.test.ts), and [`free-event-plan-migration.test.ts`](../../test/free-event-plan-migration.test.ts). No Queue is involved.
 
 The browser client in [`src/views/upload.ts`](../../src/views/upload.ts) uses the single-request fast path for files up to 64 MB and resumable multipart uploads for larger files. Adaptive file concurrency allows up to eight files on an unconstrained desktop connection, five on coarse-pointer/mobile devices, and two when data-saver or a 2G-class connection is reported. A single large file can use up to six R2 part workers on desktop, three on coarse-pointer/mobile devices, or two on a constrained connection; batches use one part worker per active file. Each fast-path payload is read once into an `ArrayBuffer`, exact hashing and sample fingerprinting run concurrently, and the same bytes are uploaded. The upload critical path does not create or transfer client-side image variants; thumbnails and previews are produced and cached by the existing Cloudflare Images read path when requested. For video files, browser poster extraction runs in parallel and stores a small WebP thumbnail when the browser can decode the selected format. Payload transfer uses progress-aware `XMLHttpRequest` while control/finalization calls retain `fetch`: aggregate bytes and the percentage now update from live transmitted-byte events, including in-flight multipart parts, and display tenths of a percent rather than advancing only at part boundaries. The UI continues to show completed/selected file counts rather than a per-file queue. Its cancel action aborts active browser requests and calls the existing authenticated session-abort route for every known multipart session. Resumability, per-part fingerprints, retries, local session state, early duplicate responses, and the finalization contract are preserved. [`upload-view.test.ts`](../../test/upload-view.test.ts) validates the assembled browser script and these progress/concurrency/cancellation markers.
 
@@ -78,7 +80,7 @@ Wedding, account-trash, and studio serving routes reuse the same helper. Video o
 
 ## Soft deletion, reporting, and permanent deletion
 
-Ordinary media soft deletion sets `deleted_at` and `purge_at`; the object remains in R2 and can be restored unless it would duplicate active media or the event trial has expired. Reported media uses `reported_at` and disappears from ordinary gallery queries until admin action.
+Ordinary media soft deletion sets `deleted_at` and `purge_at`; the object remains in R2 and can be restored unless it would duplicate active media or exceed the event package limit. Reported media uses `reported_at` and disappears from ordinary gallery queries until admin action.
 
 [`purgeExpiredTrash`](../../src/repositories.ts) runs daily and deletes up to 100 expired media records per run, removing the original and both derived variant keys and releasing account storage. [`permanentlyDeleteMedia`](../../src/media-trash.ts) performs the same object cleanup for explicit permanent deletion.
 

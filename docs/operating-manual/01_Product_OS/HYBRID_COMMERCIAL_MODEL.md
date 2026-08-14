@@ -79,14 +79,20 @@ The following statements are repository facts as of 2026-08-01:
   [`0020_account_subscriptions_and_payments.sql`](../../../migrations/0020_account_subscriptions_and_payments.sql).
 - The commerce catalog, immutable order snapshots and provider-neutral
   fulfillment infrastructure exist. The registered routes in
-  [`src/routes/commerce.ts`](../../../src/routes/commerce.ts) currently stop at
-  checkout display and draft creation.
+  [`src/routes/commerce.ts`](../../../src/routes/commerce.ts) support unified
+  per-event selection of Free, Moments, or Celebration; paid selections use the
+  complimentary beta path until production checkout is enabled.
 - No production Stripe checkout or payment-provider webhook route is registered.
-- Event access currently uses preview, trial, unlocked and expired states. The
+- Event access currently uses preview, free, unlocked and expired states. Free
+  has 50 lifetime media slots, full guest features, original downloads, and no
+  activation countdown. New contributions are accepted for 14 days from the
+  first upload. Moments accepts uploads for 45 days and Celebration for 90 days
+  from the first upload. Existing media remains available when that contribution
+  window closes. A premium-activated event cannot be downgraded to Free. The
   exact current behavior is documented in the
   [Event lifecycle audit](../../repository-audit/EVENT_LIFECYCLE.md).
 - Wedding completion now remains a private draft. Explicit publication requires
-  a completed setup and active trial/unlocked guest access; owners can unpublish
+  a completed setup and active Free/unlocked guest access; owners can unpublish
   without deleting event data.
 - Wedding catalog prices are snapshotted per event for the active price-lock
   interval, including add-ons that can be selected after initial setup.
@@ -125,8 +131,11 @@ be a deceptive preview that collects media and then withholds every reasonable
 export path. Free usage can still have transparent limits for media count,
 video, upload window, storage duration, abuse prevention and support level.
 
-The final free limits require cost modelling and product validation before they
-become implementation requirements.
+The implemented self-service limits are 50 combined photos/videos and 14 days
+of uploads, starting with the first upload rather than event creation. Moments
+uses 45 upload days and Celebration uses 90. These contribution windows are
+shown before selection. Package activation is monotonic: after any premium
+activation the event can renew or upgrade, but cannot return to Free.
 
 ### Direct premium weddings
 
@@ -367,7 +376,7 @@ remove couple access.
 
 ### Phase 2 — Self-service packaging
 
-- Adapt the current preview/trial/catalog/order infrastructure to the approved
+- Adapt the current preview/Free/catalog/order infrastructure to the approved
   free and one-time premium packages.
 - Keep self-service wedding creation available.
 - Enforce limits and exports server-side and atomically.

@@ -21,6 +21,7 @@ export type CommerceProduct = {
   currency: string;
   media_limit: number | null;
   event_duration_days: number | null;
+  upload_window_days?: number | null;
   guest_access_enabled: 0 | 1;
   original_downloads_enabled: 0 | 1;
   active: 0 | 1;
@@ -101,7 +102,7 @@ export function complimentaryEventActivationAvailable(input: {
 }) {
   return input.owner
     && !input.launchReady
-    && (input.accessState === "trial" || input.accessState === "expired");
+    && (input.accessState === "preview" || input.accessState === "free" || input.accessState === "expired");
 }
 
 export function commerceProductName(product: CommerceProduct, locale: Locale) {
@@ -131,6 +132,11 @@ export function formatCommerceMoney(amountMinor: number, currency: string, local
   }).format(amountMinor / 100);
 }
 
+export function commerceUploadWindowDays(product: Pick<CommerceProduct, "product_key" | "upload_window_days">) {
+  if (product.upload_window_days) return product.upload_window_days;
+  return product.product_key === "event_free" ? 14 : product.product_key === "event_plus" ? 90 : 45;
+}
+
 export async function eventProducts(db: D1Database) {
   const rows = await db.prepare(
     "SELECT * FROM commerce_products WHERE scope='event' AND active=1 ORDER BY sort_order,amount_minor",
@@ -152,6 +158,7 @@ export async function saveDraftEventOrder(
   const entitlementSnapshot = JSON.stringify({
     mediaLimit: input.product.media_limit,
     eventDurationDays: input.product.event_duration_days,
+    uploadWindowDays: commerceUploadWindowDays(input.product),
     guestAccessEnabled: Boolean(input.product.guest_access_enabled),
     guestUploadsEnabled: Boolean(input.product.guest_access_enabled),
     originalDownloadsEnabled: Boolean(input.product.original_downloads_enabled),
@@ -176,6 +183,7 @@ export async function saveDraftEventOrder(
 type EventEntitlementSnapshot = {
   mediaLimit: number | null;
   eventDurationDays: number | null;
+  uploadWindowDays?: number | null;
   guestAccessEnabled: boolean;
   guestUploadsEnabled?: boolean;
   originalDownloadsEnabled: boolean;
@@ -197,6 +205,10 @@ function validEntitlement(value: unknown): value is EventEntitlementSnapshot {
       (Number.isInteger(item.eventDurationDays) &&
         Number(item.eventDurationDays) >= 1 &&
         Number(item.eventDurationDays) <= 3_650)) &&
+    (item.uploadWindowDays === undefined || item.uploadWindowDays === null ||
+      (Number.isInteger(item.uploadWindowDays) &&
+        Number(item.uploadWindowDays) >= 1 &&
+        Number(item.uploadWindowDays) <= 365)) &&
     typeof item.guestAccessEnabled === "boolean" &&
     (item.guestUploadsEnabled === undefined ||
       typeof item.guestUploadsEnabled === "boolean") &&
@@ -294,13 +306,23 @@ export async function activateComplimentaryEventOrder(
   await db.batch([
     db.prepare(
       `INSERT INTO event_access (
-         event_id,access_state,enforcement_state,media_limit,
+         event_id,access_state,enforcement_state,plan_key,media_limit,
+         upload_window_days,upload_window_started_at,upload_window_ends_at,premium_activated_at,
          guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
-         trial_started_at,trial_ends_at,unlocked_at,expires_at,created_at,updated_at
-       ) VALUES (?,'unlocked','enforced',?,?,?,?,NULL,NULL,?,?,?,?)
+         unlocked_at,expires_at,created_at,updated_at
+       ) VALUES (?,'unlocked','enforced',?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
        ON CONFLICT(event_id) DO UPDATE SET
          access_state='unlocked',enforcement_state='enforced',
+         plan_key=excluded.plan_key,
          media_limit=excluded.media_limit,
+         upload_window_days=MAX(COALESCE(event_access.upload_window_days,0),excluded.upload_window_days),
+         upload_window_started_at=event_access.upload_window_started_at,
+         upload_window_ends_at=CASE
+           WHEN event_access.upload_window_started_at IS NULL THEN NULL
+           ELSE MAX(COALESCE(event_access.upload_window_ends_at,0),
+             event_access.upload_window_started_at + excluded.upload_window_days * 86400000)
+         END,
+         premium_activated_at=COALESCE(event_access.premium_activated_at,excluded.premium_activated_at),
          guest_access_enabled=excluded.guest_access_enabled,
          guest_uploads_enabled=excluded.guest_uploads_enabled,
          original_downloads_enabled=excluded.original_downloads_enabled,
@@ -308,7 +330,10 @@ export async function activateComplimentaryEventOrder(
          expires_at=excluded.expires_at,updated_at=excluded.updated_at`,
     ).bind(
       input.eventId,
+      order.product_key,
       mediaLimit,
+      entitlement.uploadWindowDays ?? (order.product_key === "event_plus" ? 90 : 45),
+      now,
       guestAccess,
       guestUploads,
       originals,
@@ -349,7 +374,7 @@ export async function fulfillEventOrder(
 ): Promise<FulfillEventOrderResult> {
   const order = await db.prepare(
     `SELECT o.id,o.event_id,o.status,o.billing_provider,o.provider_payment_id,
-            i.quantity,i.entitlement_snapshot
+            i.product_key,i.quantity,i.entitlement_snapshot
      FROM commerce_orders o
      JOIN commerce_order_items i ON i.order_id=o.id
      WHERE o.id=?`,
@@ -359,6 +384,7 @@ export async function fulfillEventOrder(
     status: CommerceOrder["status"];
     billing_provider: CommerceOrder["billing_provider"];
     provider_payment_id: string | null;
+    product_key: string;
     quantity: number;
     entitlement_snapshot: string;
   }>();
@@ -418,13 +444,23 @@ export async function fulfillEventOrder(
     ),
     db.prepare(
       `INSERT INTO event_access (
-         event_id,access_state,enforcement_state,media_limit,
+         event_id,access_state,enforcement_state,plan_key,media_limit,
+         upload_window_days,upload_window_started_at,upload_window_ends_at,premium_activated_at,
          guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,
-         trial_started_at,trial_ends_at,unlocked_at,expires_at,created_at,updated_at
-       ) VALUES (?,'unlocked','enforced',?,?,?,?,NULL,NULL,?,?,?,?)
+         unlocked_at,expires_at,created_at,updated_at
+       ) VALUES (?,'unlocked','enforced',?,?,?,NULL,NULL,?,?,?,?,?,?,?,?)
        ON CONFLICT(event_id) DO UPDATE SET
          access_state='unlocked',enforcement_state='enforced',
+         plan_key=excluded.plan_key,
          media_limit=excluded.media_limit,
+         upload_window_days=MAX(COALESCE(event_access.upload_window_days,0),excluded.upload_window_days),
+         upload_window_started_at=event_access.upload_window_started_at,
+         upload_window_ends_at=CASE
+           WHEN event_access.upload_window_started_at IS NULL THEN NULL
+           ELSE MAX(COALESCE(event_access.upload_window_ends_at,0),
+             event_access.upload_window_started_at + excluded.upload_window_days * 86400000)
+         END,
+         premium_activated_at=COALESCE(event_access.premium_activated_at,excluded.premium_activated_at),
          guest_access_enabled=excluded.guest_access_enabled,
          guest_uploads_enabled=excluded.guest_uploads_enabled,
          original_downloads_enabled=excluded.original_downloads_enabled,
@@ -432,7 +468,10 @@ export async function fulfillEventOrder(
          updated_at=excluded.updated_at`,
     ).bind(
       order.event_id,
+      order.product_key,
       mediaLimit,
+      entitlement.uploadWindowDays ?? (order.product_key === "event_plus" ? 90 : 45),
+      now,
       guestAccess,
       guestUploads,
       originals,

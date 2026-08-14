@@ -14,7 +14,13 @@ import {
   type CommerceProduct,
 } from "../commerce";
 import type { Bindings } from "../domain";
-import { EVENT_TRIAL_MEDIA_LIMIT, eventMediaUsage, getEventAccess, startEventTrial } from "../event-access";
+import {
+  EVENT_FREE_MEDIA_LIMIT,
+  EVENT_FREE_PRODUCT_KEY,
+  activateEventFreePlan,
+  eventMediaUsage,
+  getEventAccess,
+} from "../event-access";
 import { normalizeLocale, type Locale } from "../i18n";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
@@ -50,9 +56,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "One-time event unlock", subscription: "Subscription", files: "photos & videos",
     days: "days of access", originals: "Original-quality downloads", guestUploads: "Guest uploads",
     select: "Select package", selected: "Selected", save: "Save package for launch",
-    current: "Current access", preview: "Private preview", trial: "Memboux Free", unlocked: "Unlocked", expired: "Free access expired",
-    trialIncludes: "Memboux Free lets you use the real guest experience without a card.",
-    trialFiles: "50 lifetime upload slots (deletions do not return slots)", trialDays: "37 days after activation", noOriginals: "No original downloads",
+    current: "Current access", preview: "Private preview", trial: "Memboux Free", unlocked: "Unlocked", expired: "Package expired",
+    trialIncludes: "Memboux Free includes the complete guest experience without a card.",
+    trialFiles: "50 total upload slots (deletions do not return slots)", trialDays: "14 upload days from the first upload", noOriginals: "Original downloads included",
     unlockTitle: "What payment will unlock", unlockText: "More contributions, longer access and every original file ready to keep.",
     noCart: "No cart: this package belongs only to this event.", disabled: "Payments are not active yet",
     noCard: "No card details are requested", legalText: "The future Stripe Checkout will open only after company, tax, invoicing, refund and sales terms are ready.",
@@ -67,9 +73,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Εφάπαξ ξεκλείδωμα event", subscription: "Συνδρομή", files: "φωτογραφίες & βίντεο",
     days: "ημέρες πρόσβασης", originals: "Λήψεις αρχείων σε αρχική ποιότητα", guestUploads: "Uploads καλεσμένων",
     select: "Επιλογή πακέτου", selected: "Επιλεγμένο", save: "Αποθήκευση πακέτου για το launch",
-    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Memboux Free", unlocked: "Ξεκλειδωμένο", expired: "Η δωρεάν πρόσβαση έληξε",
-    trialIncludes: "Το Memboux Free σου επιτρέπει να χρησιμοποιήσεις την πραγματική εμπειρία καλεσμένων χωρίς κάρτα.",
-    trialFiles: "50 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "37 ημέρες από την ενεργοποίηση", noOriginals: "Χωρίς λήψεις πρωτοτύπων",
+    current: "Τρέχουσα πρόσβαση", preview: "Ιδιωτικό preview", trial: "Memboux Free", unlocked: "Ξεκλειδωμένο", expired: "Το πακέτο έληξε",
+    trialIncludes: "Το Memboux Free περιλαμβάνει ολόκληρη την εμπειρία καλεσμένων χωρίς κάρτα.",
+    trialFiles: "50 συνολικές θέσεις upload (οι διαγραφές δεν επιστρέφουν θέσεις)", trialDays: "14 ημέρες uploads από το πρώτο upload", noOriginals: "Περιλαμβάνονται λήψεις πρωτοτύπων",
     unlockTitle: "Τι θα ξεκλειδώνει η πληρωμή", unlockText: "Περισσότερες συνεισφορές, μεγαλύτερη πρόσβαση και όλα τα πρωτότυπα έτοιμα να τα κρατήσεις.",
     noCart: "Χωρίς καλάθι: το πακέτο ανήκει μόνο σε αυτό το event.", disabled: "Οι πληρωμές δεν είναι ακόμη ενεργές",
     noCard: "Δεν ζητούνται στοιχεία κάρτας", legalText: "Το μελλοντικό Stripe Checkout θα ανοίξει μόνο αφού είναι έτοιμα εταιρεία, φορολογία, τιμολόγηση, επιστροφές και όροι πώλησης.",
@@ -84,9 +90,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Déblocage unique", subscription: "Abonnement", files: "photos et vidéos", days: "jours d’accès",
     originals: "Téléchargements en qualité originale", guestUploads: "Ajouts des invités", select: "Choisir",
     selected: "Sélectionné", save: "Enregistrer pour le lancement", current: "Accès actuel", preview: "Aperçu privé",
-    trial: "Essai de 7 jours", unlocked: "Débloqué", expired: "Essai expiré",
-    trialIncludes: "L’essai montre toute l’expérience invité avec des limites qui préservent la valeur payante.",
-    trialFiles: "50 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "37 jours après activation", noOriginals: "Pas de téléchargement des originaux",
+    trial: "Memboux Free", unlocked: "Débloqué", expired: "Forfait expiré",
+    trialIncludes: "Memboux Free inclut l’expérience complète sans carte.",
+    trialFiles: "50 emplacements d’ajout au total (les suppressions ne les rendent pas)", trialDays: "14 jours de dépôt dès le premier ajout", noOriginals: "Téléchargement des originaux inclus",
     unlockTitle: "Ce que le paiement débloquera", unlockText: "Plus de contributions, un accès prolongé et tous les originaux à conserver.",
     noCart: "Pas de panier : ce forfait appartient uniquement à cet événement.", disabled: "Paiements pas encore actifs",
     noCard: "Aucune carte demandée", legalText: "Stripe Checkout ne sera activé qu’après les étapes légales, fiscales, de facturation et de remboursement.",
@@ -101,9 +107,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Einmalige Event-Freischaltung", subscription: "Abonnement", files: "Fotos & Videos", days: "Tage Zugriff",
     originals: "Downloads in Originalqualität", guestUploads: "Uploads von Gästen", select: "Paket wählen",
     selected: "Ausgewählt", save: "Paket für den Start speichern", current: "Aktueller Zugriff", preview: "Private Vorschau",
-    trial: "7-Tage-Test", unlocked: "Freigeschaltet", expired: "Test abgelaufen",
-    trialIncludes: "Der Test zeigt das vollständige Gästeerlebnis mit Grenzen, die den Bezahlwert schützen.",
-    trialFiles: "50 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "37 Tage ab Aktivierung", noOriginals: "Keine Original-Downloads",
+    trial: "Memboux Free", unlocked: "Freigeschaltet", expired: "Paket abgelaufen",
+    trialIncludes: "Memboux Free umfasst das vollständige Gästeerlebnis ohne Karte.",
+    trialFiles: "50 Upload-Plätze insgesamt (Löschen gibt keinen Platz zurück)", trialDays: "14 Upload-Tage ab dem ersten Upload", noOriginals: "Original-Downloads enthalten",
     unlockTitle: "Was die Zahlung freischaltet", unlockText: "Mehr Beiträge, längerer Zugriff und alle Originale zum Aufbewahren.",
     noCart: "Kein Warenkorb: Dieses Paket gehört nur zu diesem Event.", disabled: "Zahlungen sind noch nicht aktiv",
     noCard: "Keine Kartendaten erforderlich", legalText: "Stripe Checkout startet erst nach Unternehmens-, Steuer-, Rechnungs-, Rückerstattungs- und Verkaufsbedingungen.",
@@ -118,9 +124,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Desbloqueo único", subscription: "Suscripción", files: "fotos y vídeos", days: "días de acceso",
     originals: "Descargas en calidad original", guestUploads: "Subidas de invitados", select: "Elegir paquete",
     selected: "Seleccionado", save: "Guardar para el lanzamiento", current: "Acceso actual", preview: "Vista previa privada",
-    trial: "Prueba de 7 días", unlocked: "Desbloqueado", expired: "Prueba vencida",
-    trialIncludes: "La prueba muestra toda la experiencia con límites que protegen el valor de pago.",
-    trialFiles: "50 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "37 días desde la activación", noOriginals: "Sin descargas originales",
+    trial: "Memboux Free", unlocked: "Desbloqueado", expired: "Paquete vencido",
+    trialIncludes: "Memboux Free incluye la experiencia completa sin tarjeta.",
+    trialFiles: "50 espacios de subida totales (eliminarlos no devuelve espacios)", trialDays: "14 días de subida desde la primera", noOriginals: "Descargas originales incluidas",
     unlockTitle: "Qué desbloqueará el pago", unlockText: "Más aportaciones, acceso prolongado y todos los originales para conservar.",
     noCart: "Sin carrito: este paquete pertenece solo a este evento.", disabled: "Los pagos aún no están activos",
     noCard: "No se solicitan datos de tarjeta", legalText: "Stripe Checkout se abrirá solo tras completar empresa, impuestos, facturación, reembolsos y términos.",
@@ -135,9 +141,9 @@ export const commerceCheckoutCopy: Record<Locale, {
     oneTime: "Sblocco evento una tantum", subscription: "Abbonamento", files: "foto e video", days: "giorni di accesso",
     originals: "Download in qualità originale", guestUploads: "Caricamenti degli invitati", select: "Scegli pacchetto",
     selected: "Selezionato", save: "Salva per il lancio", current: "Accesso attuale", preview: "Anteprima privata",
-    trial: "Prova di 7 giorni", unlocked: "Sbloccato", expired: "Prova scaduta",
-    trialIncludes: "La prova mostra l’esperienza completa con limiti che proteggono il valore a pagamento.",
-    trialFiles: "50 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "37 giorni dall’attivazione", noOriginals: "Nessun download originale",
+    trial: "Memboux Free", unlocked: "Sbloccato", expired: "Pacchetto scaduto",
+    trialIncludes: "Memboux Free include l’esperienza completa senza carta.",
+    trialFiles: "50 spazi di upload totali (eliminare non restituisce spazi)", trialDays: "14 giorni di upload dal primo caricamento", noOriginals: "Download originali inclusi",
     unlockTitle: "Cosa sbloccherà il pagamento", unlockText: "Più contributi, accesso più lungo e tutti gli originali da conservare.",
     noCart: "Nessun carrello: questo pacchetto appartiene solo a questo evento.", disabled: "I pagamenti non sono ancora attivi",
     noCard: "Nessun dato carta richiesto", legalText: "Stripe Checkout partirà solo dopo azienda, fisco, fatturazione, rimborsi e condizioni di vendita.",
@@ -162,17 +168,22 @@ async function ownedEvent(c: Context<{ Bindings: Bindings }>) {
 
 function accessLabel(locale: Locale, state: string) {
   const c = commerceCheckoutCopy[locale];
-  return state === "preview" ? c.preview : state === "trial" ? c.trial
+  return state === "preview" ? c.preview : state === "free" ? c.trial
     : state === "expired" ? c.expired : c.unlocked;
 }
 
 export function commercePlanSelectionAssets(locale: Locale) {
   const copy = commerceCheckoutCopy[locale];
   const style = `<style>
-    [data-product-card][data-selected="true"]{border-color:#7c3aed!important;background:#f6f2ff!important;box-shadow:0 18px 50px rgba(124,58,237,.13)}
+    [data-product-card][data-selected="true"]{border-color:#6d28d9!important;background:#6d28d9!important;color:#fff!important;box-shadow:0 18px 50px rgba(109,40,217,.24)}
     [data-product-card][data-selected="false"]{border-color:#e5dff0!important;background:#fff!important;box-shadow:none}
+    [data-product-card][data-selected="true"] h2,
+    [data-product-card][data-selected="true"] p,
+    [data-product-card][data-selected="true"] li,
+    [data-product-card][data-selected="true"] strong,
+    [data-product-card][data-selected="true"] span{color:#fff!important}
     [data-product-card][data-selected="true"] [data-product-check],
-    [data-product-card][data-selected="true"] [data-product-badge]{border-color:#7c3aed!important;background:#7c3aed!important;color:#fff!important}
+    [data-product-card][data-selected="true"] [data-product-badge]{border-color:#fff!important;background:#fff!important;color:#6d28d9!important}
     [data-product-card][data-selected="false"] [data-product-check]{border-color:#cfc4dd!important;background:transparent!important;color:inherit!important}
     [data-product-card][data-selected="false"] [data-product-badge]{background:#f2ecfb!important;color:#6d28d9!important}
   </style>`;
@@ -200,10 +211,14 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
     getCommerceLaunchSettings(c.env.DB),
   ]);
   const cards = products.map((product) => {
-    const selected = draft?.product_key === product.product_key;
-    return `<label data-product-card data-selected="${selected}" aria-selected="${selected}" class="relative flex cursor-pointer flex-col rounded-[1.7rem] border-2 ${selected ? "border-[#7c3aed] bg-[#f6f2ff] shadow-[0_18px_50px_rgba(124,58,237,.13)]" : "border-[#e5dff0] bg-white"} p-6 transition hover:-translate-y-0.5 hover:border-[#a78bfa]"><input type="radio" name="productKey" value="${esc(product.product_key)}" class="sr-only" ${selected ? "checked" : ""} required><div class="flex items-start justify-between gap-4"><div><span class="text-[11px] font-bold uppercase tracking-[.15em] text-[#7c3aed]">${product.billing_model === "one_time" ? t.oneTime : t.subscription}</span><h2 class="mt-2 text-2xl text-[#2b174d]">${esc(commerceProductName(product, locale))}</h2></div><span data-product-check class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white" : "border-[#cfc4dd]"} text-xs">✓</span></div><p class="mt-3 flex-1 text-sm leading-6 text-[#6f657c]">${esc(commerceProductDescription(product, locale))}</p><ul class="mt-5 space-y-2.5 text-sm text-[#443653]"><li>✓ <strong>${product.media_limit?.toLocaleString(locale) ?? "—"}</strong> ${t.files}</li><li>✓ <strong>${product.event_duration_days ?? "—"}</strong> ${t.days}</li><li>✓ ${t.guestUploads}</li><li>✓ ${t.originals}</li></ul><div class="mt-6 flex items-end justify-between gap-3"><div><span class="block text-[10px] uppercase tracking-wide text-[#8a8093]">${t.indicative}</span><strong class="text-3xl text-[#2b174d]">${esc(formatCommerceMoney(product.amount_minor, product.currency, locale))}</strong></div><span data-product-badge class="rounded-xl ${selected ? "bg-[#7c3aed] text-white" : "bg-[#f2ecfb] text-[#6d28d9]"} px-3 py-2 text-xs font-bold">${selected ? t.selected : t.select}</span></div></label>`;
+    const selected = (access.plan_key ?? draft?.product_key ?? EVENT_FREE_PRODUCT_KEY) === product.product_key;
+    const planKind = product.amount_minor === 0 ? "Free" : product.billing_model === "one_time" ? t.oneTime : t.subscription;
+    const duration = product.event_duration_days
+      ? `<li>✓ <strong>${product.event_duration_days}</strong> ${t.days}</li>`
+      : "";
+    return `<label data-product-card data-selected="${selected}" aria-selected="${selected}" class="relative flex cursor-pointer flex-col rounded-[1.7rem] border-2 border-[#e5dff0] bg-white p-6 transition hover:-translate-y-0.5 hover:border-[#a78bfa]"><input type="radio" name="productKey" value="${esc(product.product_key)}" class="sr-only" ${selected ? "checked" : ""} required><div class="flex items-start justify-between gap-4"><div><span class="text-[11px] font-bold uppercase tracking-[.15em] text-[#7c3aed]">${planKind}</span><h2 class="mt-2 text-2xl text-[#2b174d]">${esc(commerceProductName(product, locale))}</h2></div><span data-product-check class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-[#cfc4dd] text-xs">✓</span></div><p class="mt-3 flex-1 text-sm leading-6 text-[#6f657c]">${esc(commerceProductDescription(product, locale))}</p><ul class="mt-5 space-y-2.5 text-sm text-[#443653]"><li>✓ <strong>${product.media_limit?.toLocaleString(locale) ?? "—"}</strong> ${t.files}</li>${duration}<li>✓ ${t.guestUploads}</li><li>✓ ${t.originals}</li></ul><div class="mt-6 flex items-end justify-between gap-3"><div><span class="block text-[10px] uppercase tracking-wide text-[#8a8093]">${t.indicative}</span><strong class="text-3xl text-[#2b174d]">${esc(formatCommerceMoney(product.amount_minor, product.currency, locale))}</strong></div><span data-product-badge class="rounded-xl bg-[#f2ecfb] px-3 py-2 text-xs font-bold text-[#6d28d9]">${selected ? t.selected : t.select}</span></div></label>`;
   }).join("");
-  const selectedProduct = products.find((product) => product.product_key === draft?.product_key);
+  const selectedProduct = products.find((product) => product.product_key === (access.plan_key ?? draft?.product_key));
   const launchReady = commerceLaunchReady(launchSettings);
   const beta = complimentaryCopy[locale];
   const complimentaryAvailable = complimentaryEventActivationAvailable({
@@ -220,19 +235,15 @@ commerceRoutes.get("/dashboard/:code/checkout", async (c) => {
   const activatedNotice = c.req.query("activated") === "1"
     ? `<p role="status" class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold leading-6 text-emerald-900">${esc(beta.activated)}</p>`
     : "";
-  const checkoutAction = access.access_state === "preview"
-    ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/start-trial`
-    : complimentaryAvailable
-      ? `/api/account/events/${encodeURIComponent(event.code)}/checkout/activate-beta`
-      : `/api/account/events/${encodeURIComponent(event.code)}/checkout/draft`;
+  const checkoutAction = `/api/account/events/${encodeURIComponent(event.code)}/checkout/select`;
   const checkoutButton = access.access_state === "preview"
-    ? (locale === "el" ? "Επιλογή πακέτου & έναρξη Memboux Free" : "Choose package & start Memboux Free")
+    ? (locale === "el" ? "Συνέχεια με το επιλεγμένο πακέτο" : "Continue with selected package")
     : complimentaryAvailable ? beta.activate : t.save;
   const checkoutStateCard = complimentaryAvailable
     ? `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100">${esc(beta.available)}</span><h2 class="mt-4 text-2xl">${esc(beta.activate)}</h2><p class="mt-3 text-sm leading-6 text-white/70">${esc(beta.detail)}</p></section>`
     : `<section class="rounded-[1.7rem] bg-[#2b174d] p-6 text-white shadow-xl"><span class="inline-flex rounded-full bg-amber-300/20 px-3 py-1 text-xs font-bold text-amber-100">${t.disabled}</span><h2 class="mt-4 text-2xl">${t.noCard}</h2><p class="mt-3 text-sm leading-6 text-white/70">${t.legalText}</p></section>`;
   const planSelection = commercePlanSelectionAssets(locale);
-  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}${activatedNotice}<section class="mt-8 grid gap-3 rounded-[1.7rem] border border-[#e4daf4] bg-[#faf8ff] p-5 sm:grid-cols-2"><div><span class="text-xs font-bold uppercase tracking-wide text-[#7c3aed]">${t.current}</span><strong class="mt-2 block text-2xl">${esc(accessLabel(locale, access.access_state))}</strong><p class="mt-2 text-sm text-[#6f657c]">${Number(usage?.total ?? 0)} / ${access.media_limit.toLocaleString(locale)} ${t.files}</p></div><div class="border-t border-[#e4daf4] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p class="text-sm leading-6 text-[#6f657c]">${t.trialIncludes}</p><ul class="mt-2 text-sm"><li>• ${t.trialFiles}</li><li>• ${t.trialDays}</li><li>• ${t.noOriginals}</li></ul></div></section><div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="${checkoutAction}" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-2">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${esc(checkoutButton)}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}${checkoutStateCard}<section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
+  const body = `${eventHeader(locale, user, "")}<main data-commerce-launch-ready="${launchReady ? "true" : "false"}" class="mx-auto max-w-7xl p-4 pb-16 sm:p-6 md:p-10"><a href="/dashboard/${encodeURIComponent(event.code)}?lang=${locale}#event-access" class="text-sm font-semibold text-[#7c3aed]">← ${t.back}</a><div class="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]"><section><p class="text-xs font-bold uppercase tracking-[.2em] text-[#f43f8f]">${t.eyebrow}</p><h1 class="mt-3 max-w-4xl text-4xl leading-tight tracking-[-.04em] text-[#2b174d] sm:text-6xl">${t.title}</h1><p class="mt-5 max-w-3xl text-lg leading-8 text-[#6f657c]">${t.lead}</p>${savedNotice}${activatedNotice}<section class="mt-8 grid gap-3 rounded-[1.7rem] border border-[#e4daf4] bg-[#faf8ff] p-5 sm:grid-cols-2"><div><span class="text-xs font-bold uppercase tracking-wide text-[#7c3aed]">${t.current}</span><strong class="mt-2 block text-2xl">${esc(accessLabel(locale, access.access_state))}</strong><p class="mt-2 text-sm text-[#6f657c]">${Number(usage?.total ?? 0)} / ${access.media_limit.toLocaleString(locale)} ${t.files}</p></div><div class="border-t border-[#e4daf4] pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p class="text-sm leading-6 text-[#6f657c]">${t.trialIncludes}</p><ul class="mt-2 text-sm"><li>• ${t.trialFiles}</li><li>• ${t.trialDays}</li><li>• ${t.noOriginals}</li></ul></div></section><div class="mt-6 rounded-[1.7rem] bg-gradient-to-r from-[#2b174d] to-[#6d28d9] p-6 text-white"><p class="text-xs font-bold uppercase tracking-[.16em] text-[#f9a8d4]">${t.unlockTitle}</p><p class="mt-2 max-w-3xl text-lg leading-7 text-white/80">${t.unlockText}</p><p class="mt-4 text-sm font-semibold text-white">${t.noCart}</p></div><form action="${checkoutAction}" method="post" class="mt-6"><input type="hidden" name="locale" value="${locale}"><div class="grid gap-4 lg:grid-cols-3">${cards}</div><button class="mt-5 w-full rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#f43f8f] px-6 py-4 font-bold text-white shadow-lg sm:w-auto">${esc(checkoutButton)}</button></form></section><aside class="space-y-4 xl:sticky xl:top-6 xl:h-fit">${draftSummary}${checkoutStateCard}<section class="rounded-[1.7rem] border border-[#e5dff0] bg-white p-5"><h3 class="font-semibold text-[#2b174d]">${t.directTitle}</h3><ul class="mt-3 space-y-2 text-sm leading-6 text-[#6f657c]">${t.directPoints.map((point) => `<li>✓ ${esc(point)}</li>`).join("")}</ul></section></aside></div></main>${logoutScript(locale)}`;
   return c.html(page(t.title, `${body}${planSelection.style}${planSelection.script}`, { locale }));
 });
 
@@ -250,34 +261,107 @@ commerceRoutes.post("/api/account/events/:code/checkout/draft", async (c) => {
   return c.redirect(`/dashboard/${event.code}?lang=${locale}&packageSaved=1#package-access-title`, 303);
 });
 
-commerceRoutes.post("/api/account/events/:code/checkout/start-trial", async (c) => {
+commerceRoutes.post("/api/account/events/:code/checkout/select", async (c) => {
   const context = await ownedEvent(c);
   if ("response" in context) return context.response;
   const { user, event, role } = context;
-  if (role !== "owner") return c.text("Only an event owner can start the trial.", 403);
+  if (role !== "owner") return c.text("Only an event owner can select a package.", 403);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? context.locale));
   const product = await c.env.DB.prepare(
     "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
   ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
   if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
-  const access = await getEventAccess(c.env.DB, event.id);
-  if (access.access_state !== "preview")
-    return c.redirect(`/dashboard/${event.code}?lang=${locale}#package-access-title`, 303);
+
+  if (product.product_key === EVENT_FREE_PRODUCT_KEY) {
+    const access = await getEventAccess(c.env.DB, event.id);
+    if (access.premium_activated_at != null || access.access_state === "unlocked") {
+      console.warn(JSON.stringify({
+        event: "event_free_downgrade_blocked",
+        eventId: event.id,
+        userId: user.id,
+        currentPlanKey: access.plan_key,
+      }));
+      return c.text(locale === "el"
+        ? "Ένα event που ενεργοποίησε premium πακέτο δεν μπορεί να επιστρέψει στο Free. Μπορείς να ανανεώσεις ή να αναβαθμίσεις το πακέτο του."
+        : "An event that activated a premium package cannot return to Free. Renew or upgrade its package instead.", 409);
+    }
+    const usage = await eventMediaUsage(c.env.DB, event.id);
+    if (usage.total > EVENT_FREE_MEDIA_LIMIT) {
+      return c.text(locale === "el"
+        ? `Το Free υποστηρίζει έως ${EVENT_FREE_MEDIA_LIMIT} συνολικά αρχεία.`
+        : `Free supports up to ${EVENT_FREE_MEDIA_LIMIT} total media files.`, 409);
+    }
+    const activated = await activateEventFreePlan(c.env.DB, event.id);
+    if (activated.access_state !== "free" || activated.plan_key !== EVENT_FREE_PRODUCT_KEY)
+      return c.text("The event package changed while Free was being activated. Please refresh and try again.", 409);
+    console.log(JSON.stringify({
+      event: "event_free_plan_activated",
+      eventId: event.id,
+      userId: user.id,
+      productKey: product.product_key,
+    }));
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}&freeActivated=1#package-access-title`, 303);
+  }
+
+  const orderId = await saveDraftEventOrder(c.env.DB, {
+    userId: user.id,
+    eventId: event.id,
+    product,
+    locale,
+  });
+  if (!commerceLaunchReady(await getCommerceLaunchSettings(c.env.DB))) {
+    const activation = await activateComplimentaryEventOrder(c.env.DB, {
+      orderId,
+      userId: user.id,
+      eventId: event.id,
+    });
+    if (!activation.activated)
+      return c.text("The beta package could not be activated.", 409);
+    console.log(JSON.stringify({
+      event: "complimentary_event_package_activated",
+      eventId: event.id,
+      userId: user.id,
+      productKey: product.product_key,
+      mediaLimit: activation.mediaLimit,
+      expiresAt: activation.expiresAt,
+    }));
+    return c.redirect(`/dashboard/${event.code}?lang=${locale}&activated=1#package-access-title`, 303);
+  }
+
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}&packageSaved=1#package-access-title`, 303);
+});
+
+commerceRoutes.post("/api/account/events/:code/checkout/start-trial", async (c) => {
+  const context = await ownedEvent(c);
+  if ("response" in context) return context.response;
+  const { user, event, role } = context;
+  if (role !== "owner") return c.text("Only an event owner can select Free.", 403);
+  const body = await c.req.parseBody();
+  const locale = normalizeLocale(String(body.locale ?? context.locale));
+  const product = await c.env.DB.prepare(
+    "SELECT * FROM commerce_products WHERE product_key=? AND scope='event' AND active=1",
+  ).bind(String(body.productKey ?? "")).first<CommerceProduct>();
+  if (!product) return c.text(commerceCheckoutCopy[locale].invalid, 400);
   const usage = await eventMediaUsage(c.env.DB, event.id);
-  if (usage.total > EVENT_TRIAL_MEDIA_LIMIT)
+  const access = await getEventAccess(c.env.DB, event.id);
+  if (access.premium_activated_at != null || access.access_state === "unlocked")
+    return c.text("A premium event cannot return to Free.", 409);
+  if (usage.total > EVENT_FREE_MEDIA_LIMIT)
     return c.text(locale === "el"
-      ? `Το trial υποστηρίζει έως ${EVENT_TRIAL_MEDIA_LIMIT} συνολικά αρχεία.`
-      : `The trial supports up to ${EVENT_TRIAL_MEDIA_LIMIT} lifetime media uploads.`, 409);
+      ? `Το Free υποστηρίζει έως ${EVENT_FREE_MEDIA_LIMIT} συνολικά αρχεία.`
+      : `Free supports up to ${EVENT_FREE_MEDIA_LIMIT} total media files.`, 409);
   await saveDraftEventOrder(c.env.DB, { userId: user.id, eventId: event.id, product, locale });
-  await startEventTrial(c.env.DB, event.id);
+  const activated = await activateEventFreePlan(c.env.DB, event.id);
+  if (activated.access_state !== "free" || activated.plan_key !== EVENT_FREE_PRODUCT_KEY)
+    return c.text("The event package changed while Free was being activated. Please refresh and try again.", 409);
   console.log(JSON.stringify({
-    event: "event_trial_started",
+    event: "event_free_plan_activated",
     eventId: event.id,
     userId: user.id,
-    productKey: product.product_key,
+    productKey: EVENT_FREE_PRODUCT_KEY,
   }));
-  return c.redirect(`/dashboard/${event.code}?lang=${locale}&trialStarted=1#package-access-title`, 303);
+  return c.redirect(`/dashboard/${event.code}?lang=${locale}&freeActivated=1#package-access-title`, 303);
 });
 
 commerceRoutes.post("/api/account/events/:code/checkout/activate-beta", async (c) => {

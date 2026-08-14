@@ -125,7 +125,7 @@ async function eventDashboard(
     mediaUsageTotal: mediaUsage.total,
     weddingState,
     commerceProducts,
-    selectedProductKey: draftOrder?.product_key ?? null,
+    selectedProductKey: eventAccess.plan_key ?? draftOrder?.product_key ?? null,
     commerceLaunchReady: commerceSettings ? commerceLaunchReady(commerceSettings) : false,
   }));
 }

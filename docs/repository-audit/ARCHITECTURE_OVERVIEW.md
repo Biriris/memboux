@@ -52,7 +52,7 @@ The code has recognizable layers, but their boundaries are not consistently enfo
 
 - **Route/controllers:** `src/routes/*` parse input, authorize, call D1/R2/external APIs, and render or redirect.
 - **Views:** `src/views/*` return HTML strings and embedded client-side scripts.
-- **Domain/application services:** focused modules such as [`event-access.ts`](../../src/event-access.ts), [`commerce.ts`](../../src/commerce.ts), [`trial-lifecycle.ts`](../../src/trial-lifecycle.ts), [`support-service.ts`](../../src/support-service.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
+- **Domain/application services:** focused modules such as [`event-access.ts`](../../src/event-access.ts), [`commerce.ts`](../../src/commerce.ts), [`support-service.ts`](../../src/support-service.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
 - **Repositories:** [`repositories.ts`](../../src/repositories.ts) contains event/media retention helpers, while [`support-repository.ts`](../../src/support-repository.ts) is a class-based support data-access boundary. Most other modules and routes issue D1 SQL directly.
 - **Infrastructure adapters:** [`auth.ts`](../../src/auth.ts) for Better Auth/Resend, [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), [`places.ts`](../../src/places.ts), R2 calls in media/support modules, and Workers AI in [`support-ai.ts`](../../src/support-ai.ts).
 
@@ -78,7 +78,7 @@ The configured cron expressions in [`wrangler.jsonc`](../../wrangler.jsonc) map 
 
 | Schedule | Jobs |
 | --- | --- |
-| `17 3 * * *` | [`purgeExpiredTrash`](../../src/repositories.ts), [`reconcileAutomaticCloudBackups`](../../src/cloud-backups.ts), [`reconcileResumableUploads`](../../src/routes/resumable-uploads.ts), and [`reconcileEventTrials`](../../src/trial-lifecycle.ts). |
+| `17 3 * * *` | [`purgeExpiredTrash`](../../src/repositories.ts), [`reconcileAutomaticCloudBackups`](../../src/cloud-backups.ts), and [`reconcileResumableUploads`](../../src/routes/resumable-uploads.ts). |
 | `*/15 * * * *` | [`reconcileSupportSlaReminders`](../../src/support-sla-reminders.ts). |
 
 Jobs run concurrently via `Promise.allSettled`; failures are structured-console logged. There is no Queue binding, dead-letter mechanism, or repository-defined alert transport. Workflow steps provide their own Cloudflare durability for cloud backups.
