@@ -1,6 +1,6 @@
 import type { Locale } from "../i18n";
 import { esc } from "../utils";
-import { brickwallScript, mediaUploaderOverlay } from "./media";
+import { brickwallScript, mediaPreviewFallbackScript, mediaUploaderOverlay } from "./media";
 import { additiveFileSelectionScript, multiUploadScript, trialUploadGuardScript, uploadQueueScript } from "./upload";
 import { privacySupportWidgets } from "./privacy-support";
 
@@ -47,6 +47,7 @@ export function page(title: string, body: string, options: PageOptions = {}) {
     ? multiUploadScript(locale) + additiveFileSelectionScript(locale) + trialUploadGuardScript(locale) + uploadQueueScript(locale)
     : "";
   const brickwallBehavior = body.includes("memboux-media-card") ? brickwallScript() : "";
+  const mediaFallbackBehavior = body.includes("memboux-media-preview") ? mediaPreviewFallbackScript(locale) : "";
   const uploaderBehavior = body.includes("lightbox-item") ? mediaUploaderOverlay(locale) : "";
   const swipeDismissBehavior = body.includes('id="media-lightbox"') ? lightboxSwipeDismissBehavior : "";
   const privacySupport = options.suppressWidgets || body.includes("admin-ui") || body.includes('id="slideshow"') ? "" : privacySupportWidgets(locale);
@@ -70,7 +71,7 @@ export function page(title: string, body: string, options: PageOptions = {}) {
       .replace(/<a href="\/(?:el|en|fr|de|es|it)\/account" class="text-sm text-\[#7c3aed\]">← [^<]+<\/a>/, "")
       .replace(/(<main\b[^>]*>)/, `$1${settingsBackLink(locale)}`)
     : baseRenderedBody;
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><meta name="theme-color" content="#fbfafc"><meta name="application-name" content="Memboux"><meta name="apple-mobile-web-app-title" content="Memboux"><meta name="keywords" content="${keywords}"><meta name="description" content="${esc(description)}"><meta name="robots" content="${robots}">${canonical}${alternates}${social}${structuredData}<link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">${options.additionalHead ?? ""}<title>${esc(title)}</title><link rel="stylesheet" href="/app-midnight.css?v=20260812-footer-spacing"></head><body data-design-system="memboux-v2" class="memboux-ui min-h-screen bg-[#fbfafc] text-[#302b38]">${renderedBody}${creationBehavior}${invitationBehavior}${uploadBehavior}${brickwallBehavior}${uploaderBehavior}${swipeDismissBehavior}${privacySupport}${outsideDismissBehavior}</body></html>`;
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><meta name="theme-color" content="#fbfafc"><meta name="application-name" content="Memboux"><meta name="apple-mobile-web-app-title" content="Memboux"><meta name="keywords" content="${keywords}"><meta name="description" content="${esc(description)}"><meta name="robots" content="${robots}">${canonical}${alternates}${social}${structuredData}<link rel="icon" type="image/png" href="/brand/memboux-icon.png"><link rel="apple-touch-icon" href="/brand/memboux-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">${options.additionalHead ?? ""}<title>${esc(title)}</title><link rel="stylesheet" href="/app-midnight.css?v=20260812-footer-spacing"></head><body data-design-system="memboux-v2" class="memboux-ui min-h-screen bg-[#fbfafc] text-[#302b38]">${renderedBody}${creationBehavior}${invitationBehavior}${uploadBehavior}${brickwallBehavior}${mediaFallbackBehavior}${uploaderBehavior}${swipeDismissBehavior}${privacySupport}${outsideDismissBehavior}</body></html>`;
 }
 
 export function brandMark(href: string, compact = false, light = false) {

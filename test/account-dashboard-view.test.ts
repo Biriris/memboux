@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   eventAlbumPreviewHref,
+  dashboardMediaSummary,
+  dashboardVideoCoverMarkup,
   partitionDashboardEvents,
   professionalAssignmentHref,
   renderCreateEventTile,
@@ -52,6 +54,21 @@ describe("account dashboard covers", () => {
       cover_object_key: "covers/event/selected.jpg",
       cover_updated_at: 1_720_000_000_000,
     })).toBe("/event-cover/ABC%20123?v=1720000000000");
+  });
+});
+
+describe("account dashboard media summary", () => {
+  it("shows image and video totals in both primary dashboard languages", () => {
+    expect(dashboardMediaSummary("en", 12, 3)).toBe("12 images · 3 videos");
+    expect(dashboardMediaSummary("el", 12, 3)).toBe("12 εικόνες · 3 βίντεο");
+    expect(dashboardMediaSummary("el", 0, 1)).toBe("0 εικόνες · 1 βίντεο");
+  });
+
+  it("uses a playable first frame and generated poster for video-only events", () => {
+    const html = dashboardVideoCoverMarkup("video/id");
+    expect(html).toContain('src="/media/video%2Fid#t=0.1"');
+    expect(html).toContain('poster="/media/video%2Fid?variant=thumb"');
+    expect(html).toContain("object-cover");
   });
 });
 

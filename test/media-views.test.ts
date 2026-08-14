@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MediaRow } from "../src/domain";
-import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaUploaderOverlay } from "../src/views/media";
+import { brickwallScript, bulkSelectionScript, cards, galleryFilterControls, galleryFilterScript, galleryProgressiveControls, galleryProgressiveScript, lightboxMarkup, mediaLikesScript, mediaPreviewFallbackScript, mediaUploaderOverlay } from "../src/views/media";
 
 const media = (overrides: Partial<MediaRow> = {}): MediaRow => ({
   id: "11111111-1111-4111-8111-111111111111",
@@ -27,6 +27,7 @@ describe("media views", () => {
     const item = media();
     const html = cards([item], { lightbox: true, selectable: true, deferredSelection: true });
     expect(html).toContain(`/media/${item.id}?variant=thumb`);
+    expect(html).toContain(`data-media-fallback="/media/${item.id}"`);
     expect(html).toContain(`/media/${item.id}?variant=preview`);
     expect(html).toContain(`data-full="/media/${item.id}"`);
     expect(html).toContain(`data-original="/media/${item.id}?download=1"`);
@@ -38,6 +39,16 @@ describe("media views", () => {
     expect(html).toContain('style="aspect-ratio:4/5"');
     expect(html).toContain("absolute inset-0 block h-full w-full object-cover");
     expect(html).not.toContain("aspect-square");
+  });
+
+  it("retries a broken thumbnail with the protected media route before showing a clean placeholder", () => {
+    const script = mediaPreviewFallbackScript("en");
+    expect(script).toContain("dataset.mediaFallback");
+    expect(script).toContain("fallbackTried");
+    expect(script).toContain("Preview unavailable");
+    expect(script).toContain("dataset.mediaUnavailable");
+    const source = script.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    expect(() => new Function(source)).not.toThrow();
   });
 
   it("renders image and video cards with media-type metadata", () => {

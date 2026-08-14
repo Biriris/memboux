@@ -26,17 +26,32 @@ export async function getOrCreateMediaVariant(
 ) {
   const variantKey = mediaVariantKey(objectKey, variant);
   const cached = await env.MEDIA.get(variantKey);
-  if (cached) return { object: cached, generated: false };
+  if (cached?.size) return { object: cached, generated: false };
+  if (cached) await env.MEDIA.delete(variantKey);
 
   const original = await env.MEDIA.get(objectKey);
   if (!original) return null;
   if (original.size > 20_000_000) return { object: original, generated: false };
 
   const spec = specs[variant];
-  const transformation = await env.IMAGES.input(original.body)
-    .transform({ width: spec.width, fit: "scale-down" })
-    .output({ format: "image/webp", quality: spec.quality, anim: true });
-  const bytes = await new Response(transformation.image()).arrayBuffer();
+  const transform = async (source: R2ObjectBody) => {
+    const transformation = await env.IMAGES.input(source.body)
+      .transform({ width: spec.width, fit: "scale-down" })
+      .output({ format: "image/webp", quality: spec.quality, anim: true });
+    return new Response(transformation.image()).arrayBuffer();
+  };
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await transform(original);
+  } catch (firstError) {
+    const retrySource = await env.MEDIA.get(objectKey);
+    if (!retrySource) return null;
+    try {
+      bytes = await transform(retrySource);
+    } catch {
+      throw firstError;
+    }
+  }
   await env.MEDIA.put(variantKey, bytes, {
     httpMetadata: { contentType: "image/webp", cacheControl: "private, max-age=31536000, immutable" },
   });

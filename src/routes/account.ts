@@ -98,6 +98,17 @@ export function selectedEventCoverUrl(event: {
     : null;
 }
 
+export function dashboardMediaSummary(locale: Locale, imageCount: number, videoCount: number) {
+  const images = `${Math.max(0, Number(imageCount) || 0)} ${locale === "el" ? "εικόνες" : "images"}`;
+  const videos = `${Math.max(0, Number(videoCount) || 0)} ${locale === "el" ? "βίντεο" : "videos"}`;
+  return `${images} · ${videos}`;
+}
+
+export function dashboardVideoCoverMarkup(mediaId: string) {
+  const encodedId = encodeURIComponent(mediaId);
+  return `<video src="/media/${encodedId}#t=0.1" poster="/media/${encodedId}?variant=thumb" muted playsinline preload="metadata" aria-hidden="true" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"></video><span class="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[9px] font-bold tracking-wider text-white">VIDEO</span>`;
+}
+
 export type AccountEventFilter = "all" | "owner" | "shared" | "professional" | "upcoming" | "past";
 
 type CalendarEvent = Pick<EventRow, "event_start_date" | "event_end_date">;
@@ -325,7 +336,8 @@ accountRoutes.get("/api/account/events/search", async (c) => {
   const query = (c.req.query("q") ?? "").trim().slice(0, 100);
   const pattern = `%${query}%`;
   const events = await c.env.DB.prepare(`SELECT e.*,em.role,
-      SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count
+      SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count,
+      SUM(CASE WHEN md.media_type='video' THEN 1 ELSE 0 END) video_count
     FROM event_members em
     JOIN events e ON e.id=em.event_id
     LEFT JOIN media md ON md.event_id=e.id AND md.deleted_at IS NULL AND md.reported_at IS NULL
@@ -335,7 +347,7 @@ accountRoutes.get("/api/account/events/search", async (c) => {
     ORDER BY CASE WHEN ?='' THEN e.updated_at ELSE 0 END DESC,e.eventName COLLATE NOCASE ASC
     LIMIT 20`)
     .bind(user.id, query, pattern, pattern, pattern, query)
-    .all<EventRow & { role: string; image_count: number }>();
+    .all<EventRow & { role: string; image_count: number; video_count: number }>();
   c.header("Cache-Control", "private, no-store");
   return c.json({
     events: events.results.map((event) => ({
@@ -344,6 +356,7 @@ accountRoutes.get("/api/account/events/search", async (c) => {
       role: event.role,
       dates: formatEventDates(event, locale),
       imageCount: Number(event.image_count ?? 0),
+      videoCount: Number(event.video_count ?? 0),
     })),
   });
 });
@@ -646,6 +659,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
   type DashboardEvent = EventRow & {
     role: string;
     image_count: number;
+    video_count: number;
+    fallback_video_id: string | null;
     cover_object_key: string | null;
     cover_updated_at: number | null;
     assignment_status?: "invited" | "accepted";
@@ -654,6 +669,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     c.env.DB.prepare(
       `SELECT e.*,em.role,
         SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count,
+        SUM(CASE WHEN md.media_type='video' THEN 1 ELSE 0 END) video_count,
+        (SELECT vm.id FROM media vm WHERE vm.event_id=e.id AND vm.media_type='video' AND vm.deleted_at IS NULL AND vm.reported_at IS NULL ORDER BY vm.uploaded_at,vm.id LIMIT 1) fallback_video_id,
         COALESCE(ec.object_key,(SELECT fm.object_key FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_object_key,
         COALESCE(ec.updated_at,(SELECT fm.uploaded_at FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_updated_at
       FROM event_members em JOIN events e ON e.id=em.event_id
@@ -667,6 +684,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
       ? c.env.DB.prepare(
           `SELECT e.*,'professional' role,a.status assignment_status,
             SUM(CASE WHEN md.media_type='image' THEN 1 ELSE 0 END) image_count,
+            SUM(CASE WHEN md.media_type='video' THEN 1 ELSE 0 END) video_count,
+            (SELECT vm.id FROM media vm WHERE vm.event_id=e.id AND vm.media_type='video' AND vm.deleted_at IS NULL AND vm.reported_at IS NULL ORDER BY vm.uploaded_at,vm.id LIMIT 1) fallback_video_id,
             COALESCE(ec.object_key,(SELECT fm.object_key FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_object_key,
             COALESCE(ec.updated_at,(SELECT fm.uploaded_at FROM media fm WHERE fm.event_id=e.id AND fm.media_type='image' AND fm.deleted_at IS NULL AND fm.reported_at IS NULL ORDER BY fm.uploaded_at,fm.id LIMIT 1)) cover_updated_at
           FROM event_professional_assignments a
@@ -684,6 +703,12 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     const professional = event.role === "professional";
     const assignmentStatus = event.assignment_status ?? "accepted";
     const cover = professional && assignmentStatus !== "accepted" ? null : selectedEventCoverUrl(event);
+    const videoCoverId = !cover && !professional ? event.fallback_video_id : null;
+    const coverVisual = cover
+      ? `<img src="${cover}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]">`
+      : videoCoverId
+        ? dashboardVideoCoverMarkup(videoCoverId)
+        : `<span class="absolute inset-0 flex items-center justify-center text-2xl text-white/55">✦</span>`;
     const href = professional
       ? professionalAssignmentHref(event.code, assignmentStatus, locale)
       : `/dashboard/${event.code}?lang=${locale}`;
@@ -701,8 +726,8 @@ accountRoutes.get("/:locale{el|en|fr|de|es|it}/account", async (c) => {
     const year = date ? new Intl.DateTimeFormat(locale, { year: "numeric", timeZone: "UTC" }).format(date) : "";
     const openLabel = `${locale === "el" ? "Άνοιγμα event" : "Open event"}: ${event.eventName}`;
     return `<article data-dashboard-event class="group relative grid grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-visible rounded-2xl border border-[#e9e3f2] bg-white p-3 shadow-sm transition hover:border-[#d8cbea] hover:shadow-md sm:grid-cols-[7rem_minmax(0,1fr)_5rem_auto] sm:items-center sm:gap-5 sm:p-4">
-      <a href="${href}" aria-label="${esc(openLabel)}" class="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-[#5b4a78] via-[#8b5cf6] to-[#a7c5ba] sm:aspect-[4/3]">${cover ? `<img src="${cover}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl text-white/55">✦</span>`}<span class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></span></a>
-      <a href="${href}" class="flex min-w-0 flex-col justify-center"><span class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8b5cf6] sm:hidden">${esc(formatEventDates(event, locale))}</span><h2 class="mt-1 truncate text-xl font-semibold leading-tight text-[#2b174d] sm:text-2xl">${esc(event.eventName)}</h2><div class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756b82]"><span>${esc(roleLabel)}</span><span>${event.image_count} ${locale === "el" ? "εικόνες" : "images"}</span>${location}</div></a>
+      <a href="${href}" aria-label="${esc(openLabel)}" class="relative aspect-square overflow-hidden rounded-xl bg-gradient-to-br from-[#5b4a78] via-[#8b5cf6] to-[#a7c5ba] sm:aspect-[4/3]">${coverVisual}<span class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></span></a>
+      <a href="${href}" class="flex min-w-0 flex-col justify-center"><span class="text-[10px] font-bold uppercase tracking-[.16em] text-[#8b5cf6] sm:hidden">${esc(formatEventDates(event, locale))}</span><h2 class="mt-1 truncate text-xl font-semibold leading-tight text-[#2b174d] sm:text-2xl">${esc(event.eventName)}</h2><div class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#756b82]"><span>${esc(roleLabel)}</span><span>${esc(dashboardMediaSummary(locale, event.image_count, event.video_count))}</span>${location}</div></a>
       <a href="${href}" aria-label="${esc(formatEventDates(event, locale))}" class="hidden rounded-xl border border-[#ece6f3] bg-[#faf8ff] px-2 py-2 text-center sm:block"><strong class="block text-2xl leading-none text-[#2b174d]">${day}</strong><span class="mt-1 block text-[10px] font-bold uppercase tracking-[.12em] text-[#7c3aed]">${esc(month)}</span><span class="mt-0.5 block text-[10px] text-[#8a8093]">${year}</span></a>
       <div class="col-span-2 flex items-center justify-end gap-2 border-t border-[#f1edf5] pt-3 sm:col-span-1 sm:border-0 sm:pt-0"><a href="${previewHref}" target="_blank" rel="noopener" aria-label="Preview album" title="Preview album" class="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7e0f0] text-[#6d28d9] transition hover:bg-[#f8f5ff]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></a>${ownerActions}<a href="${href}" aria-label="${esc(openLabel)}" class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2b174d] text-white transition hover:bg-[#6d28d9]"><svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 18 6-6-6-6"/></svg></a></div>
     </article>`;
