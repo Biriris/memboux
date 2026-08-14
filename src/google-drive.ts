@@ -1,11 +1,12 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { authorizeCloudBackup } from "./cloud-backup-access";
+import { buildCloudEventArchive, CLOUD_BACKUP_MANIFEST_FILENAME, listCloudBackupAssets } from "./cloud-backup-manifest";
 import type {
   Bindings,
   CloudConnectionRow,
   EventBackupItemRow,
   EventBackupRow,
-  MediaRow,
+  EventRow,
 } from "./domain";
 
 export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -131,6 +132,8 @@ export async function prepareGoogleDriveBackup(
   db: D1Database,
   eventId: string,
   userId: string,
+  mediaBucket?: R2Bucket,
+  forceManifest = false,
 ): Promise<GoogleDriveBackupQueueResult> {
   const authorization = await authorizeCloudBackup(db, eventId, userId, "google_drive");
   if (!authorization.allowed) return { status: authorization.reason, backupId: null };
@@ -140,17 +143,14 @@ export async function prepareGoogleDriveBackup(
   ).bind(eventId, userId).first<{ id: string }>();
   if (active) return { status: "active", backupId: active.id };
 
-  const media = await db.prepare(
-    `SELECT m.* FROM media m
-     WHERE m.event_id=? AND m.deleted_at IS NULL AND m.reported_at IS NULL
-       AND NOT EXISTS (
-         SELECT 1 FROM event_backup_items i JOIN event_backups b ON b.id=i.backup_id
-         WHERE i.media_id=m.id AND i.status='completed' AND b.event_id=m.event_id
-           AND b.user_id=? AND b.provider='google_drive'
-       )
-     ORDER BY COALESCE(m.captured_at,m.uploaded_at),m.uploaded_at,m.id`,
-  ).bind(eventId, userId).all<MediaRow>();
-  if (!media.results.length) return { status: "up_to_date", backupId: null };
+  const assets = await listCloudBackupAssets(db, mediaBucket, eventId);
+  const backedUp = await db.prepare(`SELECT DISTINCT i.media_id FROM event_backup_items i
+    JOIN event_backups b ON b.id=i.backup_id
+    WHERE b.event_id=? AND b.user_id=? AND b.provider='google_drive' AND i.status='completed'`)
+    .bind(eventId, userId).all<{ media_id: string }>();
+  const completedKeys = new Set(backedUp.results.map((row) => row.media_id));
+  const pendingAssets = assets.filter((asset) => !completedKeys.has(asset.itemKey));
+  if (!pendingAssets.length && !forceManifest) return { status: "up_to_date", backupId: null };
 
   const previous = await db.prepare(
     `SELECT COUNT(DISTINCT i.media_id) total FROM event_backup_items i
@@ -160,15 +160,15 @@ export async function prepareGoogleDriveBackup(
   const sequenceStart = Number(previous?.total ?? 0);
   const backupId = crypto.randomUUID();
   const now = Date.now();
-  const totalBytes = media.results.reduce((sum, item) => sum + Number(item.size_bytes), 0);
+  const totalBytes = pendingAssets.reduce((sum, item) => sum + Number(item.sizeBytes), 0);
 
   try {
     await db.prepare(
       `INSERT INTO event_backups (id,event_id,user_id,provider,status,total_items,total_bytes,created_at,updated_at)
        VALUES (?,?,?,?,?,?,?,?,?)`,
-    ).bind(backupId, eventId, userId, "google_drive", "queued", media.results.length, totalBytes, now, now).run();
-    for (let offset = 0; offset < media.results.length; offset += 50) {
-      const chunk = media.results.slice(offset, offset + 50);
+    ).bind(backupId, eventId, userId, "google_drive", "queued", pendingAssets.length, totalBytes, now, now).run();
+    for (let offset = 0; offset < pendingAssets.length; offset += 50) {
+      const chunk = pendingAssets.slice(offset, offset + 50);
       await db.batch(chunk.map((item, index) => {
         const sequence = sequenceStart + offset + index + 1;
         return db.prepare(
@@ -176,12 +176,12 @@ export async function prepareGoogleDriveBackup(
            VALUES (?,?,?,?,?,?,?,?,?)`,
         ).bind(
           backupId,
-          item.id,
+          item.itemKey,
           sequence,
-          item.object_key,
-          item.content_type,
-          item.size_bytes,
-          driveExportFilename(sequence, item.content_type, item.object_key),
+          item.objectKey,
+          item.contentType,
+          item.sizeBytes,
+          item.kind === "gallery_media" ? driveExportFilename(sequence, item.contentType, item.objectKey) : item.filename,
           "pending",
           now,
         );
@@ -202,8 +202,9 @@ export async function queueGoogleDriveBackupForEvent(
   env: Bindings,
   eventId: string,
   userId: string,
+  forceManifest = false,
 ) {
-  const prepared = await prepareGoogleDriveBackup(env.DB, eventId, userId);
+  const prepared = await prepareGoogleDriveBackup(env.DB, eventId, userId, env.MEDIA, forceManifest);
   if (prepared.status !== "queued") return prepared;
   try {
     const instance = await env.DRIVE_BACKUP_WORKFLOW.create({
@@ -289,6 +290,14 @@ async function refreshGoogleDriveAccessToken(env: Bindings, connection: CloudCon
   }));
   if (!result.access_token) throw new Error("Google did not return an access token");
   return result.access_token;
+}
+
+export async function googleDriveAccessTokenForUser(env: Bindings, userId: string) {
+  const connection = await env.DB.prepare(
+    "SELECT * FROM cloud_connections WHERE user_id=? AND provider='google_drive'",
+  ).bind(userId).first<CloudConnectionRow>();
+  if (!connection) throw new Error("Google Drive is not connected");
+  return refreshGoogleDriveAccessToken(env, connection);
 }
 
 async function driveJson<T>(url: string, accessToken: string, init?: RequestInit) {
@@ -449,6 +458,54 @@ async function uploadDriveObject(
   return result;
 }
 
+async function uploadDriveManifest(env: Bindings, backupId: string) {
+  const backup = await env.DB.prepare("SELECT * FROM event_backups WHERE id=?")
+    .bind(backupId).first<EventBackupRow>();
+  if (!backup?.provider_folder_id) throw new Error("Backup destination is not ready");
+  const event = await env.DB.prepare("SELECT * FROM events WHERE id=?")
+    .bind(backup.event_id).first<EventRow>();
+  if (!event) throw new Error("Event no longer exists");
+  const connection = await env.DB.prepare(
+    "SELECT * FROM cloud_connections WHERE user_id=? AND provider='google_drive'",
+  ).bind(backup.user_id).first<CloudConnectionRow>();
+  if (!connection) throw new Error("Google Drive is no longer connected");
+  const accessToken = await refreshGoogleDriveAccessToken(env, connection);
+  const manifest = await buildCloudEventArchive(env.DB, env.MEDIA, event, "google_drive", backup.user_id);
+  const bytes = encoder.encode(JSON.stringify(manifest, null, 2));
+  const existing = await findDriveFile(accessToken, [
+    `'${driveQuery(backup.provider_folder_id)}' in parents`,
+    "appProperties has { key='membouxManifest' and value='v1' }",
+  ].join(" and "));
+  const endpoint = existing?.id
+    ? `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existing.id)}?uploadType=resumable&fields=id,name,size`
+    : "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size";
+  const initiation = await fetch(endpoint, {
+    method: existing?.id ? "PATCH" : "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": "application/vnd.memboux.event+json",
+      "X-Upload-Content-Length": String(bytes.byteLength),
+    },
+    body: JSON.stringify({
+      name: CLOUD_BACKUP_MANIFEST_FILENAME,
+      ...(!existing ? { parents: [backup.provider_folder_id] } : {}),
+      appProperties: { membouxManifest: "v1", membouxEventId: backup.event_id },
+    }),
+  });
+  if (!initiation.ok) throw new Error(`Could not start Drive manifest upload (${initiation.status})`);
+  const sessionUrl = initiation.headers.get("Location");
+  if (!sessionUrl) throw new Error("Google Drive did not return a manifest upload session");
+  const upload = await fetch(sessionUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "application/vnd.memboux.event+json", "Content-Length": String(bytes.byteLength) },
+    body: bytes,
+  });
+  const result = await upload.json().catch(() => ({})) as DriveFile & { error?: { message?: string } };
+  if (!upload.ok || !result.id) throw new Error(`Drive manifest upload failed (${upload.status}): ${result.error?.message ?? "unknown error"}`);
+  return result.id;
+}
+
 async function updateBackupAggregate(db: D1Database, backupId: string) {
   const now = Date.now();
   return db.prepare(
@@ -562,18 +619,33 @@ export class GoogleDriveBackupWorkflow extends WorkflowEntrypoint<Bindings, { ba
       }
     }
 
+    let manifestFailed = false;
+    try {
+      await step.do(
+        "upload complete event manifest",
+        { retries: { limit: 5, delay: "10 seconds", backoff: "exponential" }, timeout: "10 minutes" },
+        () => uploadDriveManifest(this.env, snapshot.backupId),
+      );
+    } catch (error) {
+      manifestFailed = true;
+      await step.do("record manifest failure", async () => {
+        await this.env.DB.prepare("UPDATE event_backups SET error_message=?,updated_at=? WHERE id=?")
+          .bind(safeError(error), Date.now(), snapshot.backupId).run();
+      });
+    }
+
     return step.do("finalize backup", async () => {
       await updateBackupAggregate(this.env.DB, snapshot.backupId);
       const result = await this.env.DB.prepare(
         "SELECT total_items,completed_items,failed_items FROM event_backups WHERE id=?",
       ).bind(snapshot.backupId).first<{ total_items: number; completed_items: number; failed_items: number }>();
-      const completed = Boolean(result && result.completed_items === result.total_items && result.failed_items === 0);
+      const completed = Boolean(!manifestFailed && result && result.completed_items === result.total_items && result.failed_items === 0);
       const now = Date.now();
       await this.env.DB.prepare(
         "UPDATE event_backups SET status=?,error_message=?,completed_at=?,updated_at=? WHERE id=?",
       ).bind(
         completed ? "completed" : "failed",
-        completed ? null : `${result?.failed_items ?? 0} file(s) could not be backed up`,
+        completed ? null : manifestFailed ? "The event manifest could not be backed up" : `${result?.failed_items ?? 0} file(s) could not be backed up`,
         now,
         now,
         snapshot.backupId,

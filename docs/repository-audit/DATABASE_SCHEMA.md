@@ -95,6 +95,8 @@ Two triggers in migration `0055` reject paid/payment transitions unless all laun
 | `cloud_oauth_states` | Hashed OAuth state, user, provider, locale, expiry. | `0019`, rebuilt by `0022` and [`0060`](../../migrations/0060_expand_event_types_and_locales.sql) |
 | `event_backups` | Backup owner/event/provider, Workflow instance, progress counters, status/error/timestamps. | `0019`, rebuilt by `0022` |
 | `event_backup_items` | Composite backup/media snapshot with sequence, R2 key, status, provider file ID, progress/error. | `0019`, rebuilt by `0022` |
+| `cloud_event_restore_jobs` | Provider-backed Event Archive restore state, manifest, album-ID map, Workflow identity and progress counters. | [`0076`](../../migrations/0076_cloud_event_restore_jobs.sql) |
+| `cloud_event_restore_items` | Normalized provider file references and per-file restore state, target ID, metadata and errors; keeps large restore manifests out of Workflow step payloads. | `0076` |
 
 Refresh tokens are AES-GCM encrypted in [`google-drive.ts`](../../src/google-drive.ts) and [`dropbox.ts`](../../src/dropbox.ts), with user/provider-specific additional authenticated data and a key derived from `BETTER_AUTH_SECRET`.
 

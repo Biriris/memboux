@@ -54,6 +54,11 @@
       "name": "memboux-dropbox-backups",
       "binding": "DROPBOX_BACKUP_WORKFLOW",
       "class_name": "DropboxBackupWorkflow"
+    },
+    {
+      "name": "memboux-cloud-event-restores",
+      "binding": "CLOUD_RESTORE_WORKFLOW",
+      "class_name": "CloudEventRestoreWorkflow"
     }
   ],
   "observability": {

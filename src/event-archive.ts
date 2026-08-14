@@ -2,7 +2,7 @@ import type { EventRow } from "./domain";
 
 export const EVENT_ARCHIVE_FORMAT = "memboux-event-archive";
 export const EVENT_ARCHIVE_VERSION = 1;
-export const EVENT_ARCHIVE_MAX_BYTES = 2 * 1024 * 1024;
+export const EVENT_ARCHIVE_MAX_BYTES = 8 * 1024 * 1024;
 
 export type EventArchive = {
   format: typeof EVENT_ARCHIVE_FORMAT;
@@ -22,6 +22,23 @@ export type EventArchive = {
     weddingTables: Record<string, unknown>[];
     weddingSeatAssignments: Record<string, unknown>[];
     weddingMenuCourses: Record<string, unknown>[];
+    weddingPortraitAssignments?: Record<string, unknown>[];
+  };
+  cloudBackup?: {
+    version: number;
+    provider: "google_drive" | "dropbox";
+    sourceEventId: string;
+    generatedAt: string;
+    files: Array<{
+      itemKey: string;
+      kind: "gallery_media" | "wedding_media" | "event_cover" | "wedding_menu";
+      sourceId: string;
+      filename: string;
+      contentType: string;
+      sizeBytes: number;
+      providerFileId: string;
+      metadata: Record<string, unknown>;
+    }>;
   };
   excluded: string[];
 };
@@ -30,7 +47,7 @@ const one = (db: D1Database, sql: string, eventId: string) => db.prepare(sql).bi
 const many = async (db: D1Database, sql: string, eventId: string) => (await db.prepare(sql).bind(eventId).all<Record<string, unknown>>()).results;
 
 export async function buildEventArchive(db: D1Database, event: EventRow): Promise<EventArchive> {
-  const [verticalProfile, weddingProfile, weddingFeatures, experienceSettings, albums, branding, qrDesigns, weddingGuestGroups, weddingGuests, weddingTables, weddingSeatAssignments, weddingMenuCourses] = await Promise.all([
+  const [verticalProfile, weddingProfile, weddingFeatures, experienceSettings, albums, branding, qrDesigns, weddingGuestGroups, weddingGuests, weddingTables, weddingSeatAssignments, weddingMenuCourses, weddingPortraitAssignments] = await Promise.all([
     one(db, "SELECT * FROM event_vertical_profiles WHERE event_id=?", event.id),
     one(db, "SELECT * FROM event_wedding_profiles WHERE event_id=?", event.id),
     many(db, "SELECT * FROM event_wedding_features WHERE event_id=? ORDER BY feature_key", event.id),
@@ -43,6 +60,7 @@ export async function buildEventArchive(db: D1Database, event: EventRow): Promis
     many(db, "SELECT id,name,shape,capacity,sort_order,position_x,position_y,created_at,updated_at FROM event_wedding_tables WHERE event_id=? ORDER BY sort_order,name", event.id),
     many(db, "SELECT s.guest_id,s.table_id,s.seat_number,s.assigned_at FROM event_wedding_seat_assignments s JOIN event_wedding_guests g ON g.id=s.guest_id WHERE g.event_id=?", event.id),
     many(db, "SELECT id,course_type,title,description,sort_order,created_at,updated_at FROM event_wedding_menu_courses WHERE event_id=? ORDER BY sort_order,id", event.id),
+    many(db, "SELECT media_id,slot,position,updated_at FROM event_wedding_portrait_assignments WHERE event_id=? ORDER BY slot", event.id),
   ]);
   const stripEventId = (row: Record<string, unknown> | null) => {
     if (!row) return null;
@@ -79,6 +97,7 @@ export async function buildEventArchive(db: D1Database, event: EventRow): Promis
       weddingTables,
       weddingSeatAssignments,
       weddingMenuCourses,
+      weddingPortraitAssignments,
     },
     excluded: [
       "media binaries and derivatives (use Google Drive backup or original ZIP export)",
@@ -98,6 +117,16 @@ export function parseEventArchive(value: unknown): EventArchive | null {
   for (const key of ["weddingFeatures", "albums", "qrDesigns", "weddingGuestGroups", "weddingGuests", "weddingTables", "weddingSeatAssignments", "weddingMenuCourses"] as const) {
     if (!Array.isArray(archive.data[key])) return null;
   }
+  if (archive.data.weddingPortraitAssignments && !Array.isArray(archive.data.weddingPortraitAssignments)) return null;
+  if (archive.cloudBackup) {
+    if (archive.cloudBackup.version !== 1 || !["google_drive", "dropbox"].includes(archive.cloudBackup.provider)) return null;
+    if (!Array.isArray(archive.cloudBackup.files) || archive.cloudBackup.files.length > 20_000) return null;
+    for (const file of archive.cloudBackup.files) {
+      if (!file || typeof file.providerFileId !== "string" || !file.providerFileId || typeof file.contentType !== "string") return null;
+      if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) return null;
+      if (!["gallery_media", "wedding_media", "event_cover", "wedding_menu"].includes(file.kind)) return null;
+    }
+  }
   return archive as EventArchive;
 }
 
@@ -114,7 +143,14 @@ function insertRecord(db: D1Database, table: keyof typeof allowedColumns, eventI
     .bind(eventId, ...columns.map((column) => source[column] ?? null));
 }
 
-export function restoreEventArchiveStatements(db: D1Database, archive: EventArchive, eventId: string, userId: string, now: number) {
+export function restoreEventArchiveStatements(
+  db: D1Database,
+  archive: EventArchive,
+  eventId: string,
+  userId: string,
+  now: number,
+  providedAlbumIds?: Map<string, string>,
+) {
   const statements: D1PreparedStatement[] = [];
   if (archive.data.verticalProfile) statements.push(insertRecord(db, "event_vertical_profiles", eventId, { ...archive.data.verticalProfile, publish_status: "draft", updated_at: now }));
   if (archive.data.weddingProfile) statements.push(insertRecord(db, "event_wedding_profiles", eventId, { ...archive.data.weddingProfile, publish_status: "draft", updated_at: now }));
@@ -122,10 +158,11 @@ export function restoreEventArchiveStatements(db: D1Database, archive: EventArch
     statements.push(db.prepare("INSERT INTO event_wedding_features (event_id,feature_key,enabled,price_minor,catalog_version,updated_at) VALUES (?,?,?,?,?,?)")
       .bind(eventId, feature.feature_key, feature.enabled, feature.price_minor, feature.catalog_version, now));
   }
-  const albumIds = new Map<string, string>();
+  const albumIds = providedAlbumIds ?? new Map<string, string>();
   for (const album of archive.data.albums.slice(0, 5)) {
-    const id = crypto.randomUUID();
-    albumIds.set(String(album.id ?? ""), id);
+    const sourceId = String(album.id ?? "");
+    const id = albumIds.get(sourceId) ?? crypto.randomUUID();
+    albumIds.set(sourceId, id);
     statements.push(db.prepare("INSERT INTO event_albums (id,event_id,slug,name,description,privacy,allow_uploads,allow_downloads,sort_order,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
       .bind(id, eventId, String(album.slug ?? "album").slice(0, 80), String(album.name ?? "Album").slice(0, 80), String(album.description ?? "").slice(0, 240), album.privacy, album.allow_uploads, album.allow_downloads, album.sort_order, userId, now, now));
   }

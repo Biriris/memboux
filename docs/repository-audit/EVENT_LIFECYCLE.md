@@ -99,10 +99,13 @@ settings, custom albums, branding, QR designs, wedding guest planning, seating
 and structured menu courses. See [`src/event-archive.ts`](../../src/event-archive.ts)
 and [`src/routes/events.ts`](../../src/routes/events.ts).
 
-The archive intentionally excludes paid entitlements/orders, memberships,
-invitations, PIN/token hashes, audit activity and media binaries. Originals
-remain a separate recovery concern handled by provider backup or ZIP export;
-the archive UI and its `excluded` manifest field state this limitation.
+The locally downloaded configuration archive intentionally excludes media
+binaries. A cloud backup writes an enriched `memboux-event.json` beside all
+provider files; importing that provider-backed manifest queues a Workflow that
+restores the listed files into the newly created private preview. Both archive
+forms exclude paid entitlements/orders, memberships, invitations, PIN/token
+hashes and audit activity. See [`src/cloud-backup-manifest.ts`](../../src/cloud-backup-manifest.ts)
+and [`src/cloud-restore.ts`](../../src/cloud-restore.ts).
 
 Owners trash an event via `POST /api/account/events/:code/trash`; the event gets `deleted_at` and `purge_at`, and active-event quota is released. Restore clears those timestamps and re-reserves quota. Trash UI/actions are in [`src/routes/account-trash.ts`](../../src/routes/account-trash.ts).
 

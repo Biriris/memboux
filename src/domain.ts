@@ -35,6 +35,7 @@ export type Bindings = AuthEnv & {
   ASSETS: Fetcher;
   DRIVE_BACKUP_WORKFLOW: Workflow;
   DROPBOX_BACKUP_WORKFLOW: Workflow;
+  CLOUD_RESTORE_WORKFLOW: Workflow;
   DROPBOX_APP_KEY?: string;
   DROPBOX_APP_SECRET?: string;
   GOOGLE_MAPS_API_KEY?: string;

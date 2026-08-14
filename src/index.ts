@@ -37,6 +37,7 @@ import { handleSupportEmailMessage } from "./inbound-support-email";
 
 export { GoogleDriveBackupWorkflow } from "./google-drive";
 export { DropboxBackupWorkflow } from "./dropbox";
+export { CloudEventRestoreWorkflow } from "./cloud-restore";
 
 const app = new Hono<{ Bindings: Bindings; Variables: { admin: AdminIdentity } }>();
 

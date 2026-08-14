@@ -13,6 +13,7 @@ The following are declared in [`wrangler.jsonc`](../../wrangler.jsonc).
 | `AI` | Workers AI, optional in application typing | Support response generation in [`src/support-ai.ts`](../../src/support-ai.ts); code must handle absence. |
 | `DRIVE_BACKUP_WORKFLOW` | Workflow `memboux-google-drive-backups` | Creates `GoogleDriveBackupWorkflow` instances. |
 | `DROPBOX_BACKUP_WORKFLOW` | Workflow `memboux-dropbox-backups` | Creates `DropboxBackupWorkflow` instances. |
+| `CLOUD_RESTORE_WORKFLOW` | Workflow `memboux-cloud-event-restores` | Rehydrates provider-backed Event Archives into D1 and R2 through `CloudEventRestoreWorkflow`. |
 | `SUPPORT_EMAIL` | Plain variable, `support@memboux.com` | Support sender/address behavior. |
 
 The Worker is configured on custom domains `memboux.com` and `www.memboux.com`, uses compatibility date `2026-07-12`, enables `nodejs_compat`, enables logs/invocation logs, and disables traces.

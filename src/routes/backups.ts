@@ -380,7 +380,7 @@ backupRoutes.post("/api/account/events/:code/backups/google", async (c) => {
   if (!connection) return c.text("Connect Google Drive before creating a backup", 409);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const queued = await queueGoogleDriveBackupForEvent(c.env, event.id, user.id);
+  const queued = await queueGoogleDriveBackupForEvent(c.env, event.id, user.id, true);
   if (queued.status === "originals_locked") {
     return c.text("Original exports are not enabled for this event", 403);
   }
@@ -404,11 +404,13 @@ backupRoutes.post("/api/account/events/:code/backups/dropbox", async (c) => {
   if (!connection) return c.text("Connect Dropbox before creating a backup", 409);
   const body = await c.req.parseBody();
   const locale = normalizeLocale(String(body.locale ?? event.default_locale));
-  const queued = await queueDropboxBackupForEvent(c.env, event.id, user.id);
+  const queued = await queueDropboxBackupForEvent(c.env, event.id, user.id, true);
   if (queued.status === "originals_locked") {
     return c.text("Original exports are not enabled for this event", 403);
   }
-  return c.redirect(`/${locale}/backups`, 303);
+  return c.redirect(body.returnTo === "event"
+    ? `/dashboard/${encodeURIComponent(event.code)}?lang=${locale}&backup=queued#event-protection-title`
+    : `/${locale}/backups`, 303);
 });
 
 backupRoutes.get("/api/backups/:id", async (c) => {

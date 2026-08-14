@@ -379,7 +379,9 @@ GET   /api/backups/:id
 
 The event-scoped page and export require an authenticated event owner. Import
 requires an authenticated account, reserves event capacity and creates a new
-private preview; it does not restore commerce or account permissions.
+private preview. A provider-backed manifest additionally requires the matching
+connected cloud account and queues full media restoration; commerce and account
+permissions are never restored.
 
 ```text
 GET   /dashboard/:code/archive

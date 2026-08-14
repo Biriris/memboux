@@ -134,13 +134,24 @@ uploads to the main gallery, clears it as a slideshow filter, and immediately
 returns its package slot. Existing events above a newly introduced limit keep
 their albums but cannot create another until below their limit.
 
-Google Drive and Dropbox backup creation snapshots active ordinary `media` rows into `event_backup_items`. Workflow steps read each R2 `object_key`, upload it to the provider, and update item/backup progress. Wedding library, menus, covers, and support attachments are not included in that snapshot. See [`google-drive.ts`](../../src/google-drive.ts), [`dropbox.ts`](../../src/dropbox.ts), and [`cloud-backups.ts`](../../src/cloud-backups.ts).
+Google Drive and Dropbox backup creation snapshots active ordinary `media`, the
+wedding website media library, the selected event cover, and the wedding menu
+PDF into `event_backup_items`. After the file steps complete, each provider
+workflow writes or replaces `memboux-event.json` in the same event folder. This
+manifest contains the portable Event Archive plus provider file identifiers and
+the metadata needed to rebuild gallery, wedding-media, cover, menu, and album
+relationships. Support attachments remain outside event backups. See
+[`cloud-backup-manifest.ts`](../../src/cloud-backup-manifest.ts),
+[`google-drive.ts`](../../src/google-drive.ts), and
+[`dropbox.ts`](../../src/dropbox.ts).
 
-The portable Event Archive complements provider backup but does not contain R2
-objects or media rows that would point at missing objects. A complete
-user-controlled recovery set therefore requires the `.memboux.json`
-configuration archive plus Google Drive/Dropbox backup or an originals ZIP.
-See [`src/event-archive.ts`](../../src/event-archive.ts).
+Importing a provider-backed `memboux-event.json` creates a new private preview
+and queues `CloudEventRestoreWorkflow`. The Workflow streams every listed
+provider object back into R2 and rebuilds its D1 media record; paid entitlements,
+memberships, invitations, PIN/token hashes and audit activity remain excluded.
+The provider account containing the files must be connected at import time. See
+[`cloud-restore.ts`](../../src/cloud-restore.ts) and migration
+[`0076_cloud_event_restore_jobs.sql`](../../migrations/0076_cloud_event_restore_jobs.sql).
 
 Original export is denied when enforced event access disables originals. The exact retention of completed provider backups is provider-side and **Unknown**.
 

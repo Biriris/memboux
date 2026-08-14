@@ -61,7 +61,7 @@ async function eventDashboard(
   const likeActorKey = likeVisitor
     ? await mediaLikeActorKey(c.env.BETTER_AUTH_SECRET, likeVisitor)
     : "";
-  const [items, galleryCount, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums, googleDriveConnection] = await Promise.all([
+  const [items, galleryCount, membersResult, invitationsResult, removalResult, cover, eventAccess, mediaUsage, weddingState, commerceProducts, draftOrder, commerceSettings, albums, googleDriveConnection, dropboxConnection] = await Promise.all([
     getGalleryMediaWithLikes(c.env.DB, event.id, likeActorKey, { limit: EVENT_MEDIA_PAGE_SIZE }),
     countGalleryMedia(c.env.DB, event.id),
     canManageEvent
@@ -103,6 +103,9 @@ async function eventDashboard(
     canManageEvent ? listEventAlbums(c.env.DB, event.id) : Promise.resolve([]),
     canManageEvent
       ? c.env.DB.prepare("SELECT 1 connected FROM cloud_connections WHERE user_id=? AND provider='google_drive'").bind(user.id).first<{ connected: number }>()
+      : Promise.resolve(null),
+    canManageEvent
+      ? c.env.DB.prepare("SELECT 1 connected FROM cloud_connections WHERE user_id=? AND provider='dropbox'").bind(user.id).first<{ connected: number }>()
       : Promise.resolve(null),
   ]);
   const origin = new URL(c.req.url).origin;
@@ -149,6 +152,7 @@ async function eventDashboard(
     selectedProductKey: eventAccess.plan_key ?? draftOrder?.product_key ?? null,
     commerceLaunchReady: commerceSettings ? commerceLaunchReady(commerceSettings) : false,
     googleDriveConnected: Boolean(googleDriveConnection),
+    dropboxConnected: Boolean(dropboxConnection),
   }));
 }
 
@@ -193,7 +197,7 @@ eventRoutes.get("/:locale{el|en|fr|de|es|it}/event-archive", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect(`/${locale}/login`);
   const el = locale === "el";
-  return c.html(page("Event Archive", `${accountHeader(locale, user)}<main class="mx-auto max-w-3xl p-5 md:p-10"><a href="/${locale}/account" class="text-sm font-bold text-violet-700">← ${el ? "Τα events μου" : "My events"}</a><section class="mt-6 rounded-[2rem] border border-[#e5dff0] bg-white p-6 shadow-sm sm:p-9"><p class="text-xs font-bold uppercase tracking-[.18em] text-violet-700">Memboux Event Archive</p><h1 class="mt-3 text-4xl text-[#2b174d]">${el ? "Επαναφορά event" : "Restore an event"}</h1><p class="mt-3 text-sm leading-7 text-[#6f657c]">${el ? "Επίλεξε το .memboux.json που είχες κατεβάσει. Θα δημιουργηθεί νέο ιδιωτικό event με νέο κωδικό. Δεν επαναφέρονται πληρωμές, ρόλοι, PIN ή μυστικά." : "Choose a previously downloaded .memboux.json file. A new private event with a new code will be created. Payments, roles, PINs, and secrets are not restored."}</p><form action="/api/account/event-archives/import" method="post" enctype="multipart/form-data" class="mt-6 space-y-4"><input type="hidden" name="locale" value="${locale}"><input name="archive" type="file" required accept=".json,.memboux.json,application/json,application/vnd.memboux.event+json" class="w-full rounded-xl border border-[#ddd4eb] bg-white p-3"><button class="w-full rounded-xl bg-[#2b174d] px-5 py-3.5 font-bold text-white">${el ? "Δημιουργία από archive" : "Create from archive"}</button></form></section></main>${logoutScript(locale)}`, { locale }));
+  return c.html(page("Event Archive", `${accountHeader(locale, user)}<main class="mx-auto max-w-3xl p-5 md:p-10"><a href="/${locale}/account" class="text-sm font-bold text-violet-700">← ${el ? "Τα events μου" : "My events"}</a><section class="mt-6 rounded-[2rem] border border-[#e5dff0] bg-white p-6 shadow-sm sm:p-9"><p class="text-xs font-bold uppercase tracking-[.18em] text-violet-700">Memboux Event Archive</p><h1 class="mt-3 text-4xl text-[#2b174d]">${el ? "Επαναφορά event" : "Restore an event"}</h1><p class="mt-3 text-sm leading-7 text-[#6f657c]">${el ? "Επίλεξε το .memboux.json που είχες κατεβάσει ή το memboux-event.json από τον φάκελο Drive/Dropbox. Το cloud manifest επαναφέρει στο παρασκήνιο φωτογραφίες, video και δεδομένα ως νέο ιδιωτικό event. Σύνδεσε πρώτα τον ίδιο cloud λογαριασμό. Πληρωμές, ρόλοι, PIN και μυστικά δεν αντιγράφονται." : "Choose a downloaded .memboux.json or the memboux-event.json from your Drive/Dropbox folder. A cloud manifest restores photos, videos, and data in the background as a new private event. Connect the same cloud account first. Payments, roles, PINs, and secrets are not copied."}</p><form action="/api/account/event-archives/import" method="post" enctype="multipart/form-data" class="mt-6 space-y-4"><input type="hidden" name="locale" value="${locale}"><input name="archive" type="file" required accept=".json,.memboux.json,application/json,application/vnd.memboux.event+json" class="w-full rounded-xl border border-[#ddd4eb] bg-white p-3"><button class="w-full rounded-xl bg-[#2b174d] px-5 py-3.5 font-bold text-white">${el ? "Επαναφορά event" : "Restore event"}</button></form></section></main>${logoutScript(locale)}`, { locale }));
 });
 
 eventRoutes.post("/api/account/event-archives/import", async (c) => {
@@ -210,6 +214,13 @@ eventRoutes.post("/api/account/event-archives/import", async (c) => {
   if (archive.data.albums.length > 5) return c.text(locale === "el"
     ? "Το archive περιέχει περισσότερα από 5 custom albums και δεν αντιστοιχεί σε διαθέσιμο πακέτο."
     : "The archive contains more than 5 custom albums and does not fit an available package.", 409);
+  if (archive.cloudBackup) {
+    const connection = await c.env.DB.prepare("SELECT 1 FROM cloud_connections WHERE user_id=? AND provider=?")
+      .bind(user.id, archive.cloudBackup.provider).first();
+    if (!connection) return c.text(locale === "el"
+      ? `Σύνδεσε πρώτα το ${archive.cloudBackup.provider === "google_drive" ? "Google Drive" : "Dropbox"} που περιέχει το backup.`
+      : `Connect the ${archive.cloudBackup.provider === "google_drive" ? "Google Drive" : "Dropbox"} account containing this backup first.`, 409);
+  }
   if (!await reserveOwnedEvent(c.env.DB, user.id)) return c.text(locale === "el" ? "Έφτασες το όριο events του λογαριασμού." : "Your account event limit has been reached.", 409);
   const now = Date.now();
   const eventId = crypto.randomUUID();
@@ -227,17 +238,52 @@ eventRoutes.post("/api/account/event-archives/import", async (c) => {
     const start = validEventDate(archive.event.event_start_date) ?? new Date(now).toISOString().slice(0, 10);
     const end = validEventDate(archive.event.event_end_date) ?? start;
     const tokenHash = await sha256(crypto.randomUUID() + crypto.randomUUID());
+    const albumIds = new Map(archive.data.albums.map((album) => [String(album.id ?? ""), crypto.randomUUID()]));
+    const restoreId = archive.cloudBackup ? crypto.randomUUID() : null;
+    const cloudFileCount = archive.cloudBackup?.files.length ?? 0;
     const statements = [
       c.env.DB.prepare(`INSERT INTO events (id,code,couple,eventName,admin_token_hash,created_at,expires_at,status,notes,updated_at,default_locale,event_start_date,event_end_date,event_type,location,location_place_id,location_lat,location_lng,location_provider) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(eventId, code, name, name, tokenHash, now, now + 365 * 86400000, "active", String(archive.event.notes ?? "").slice(0, 2000), now, restoredLocale, start, end, restoredType, archive.event.location ?? null, archive.event.location_place_id ?? null, archive.event.location_lat ?? null, archive.event.location_lng ?? null, archive.event.location_provider ?? null),
       c.env.DB.prepare("INSERT INTO event_members (event_id,user_id,role,created_at) VALUES (?,?,?,?)").bind(eventId, user.id, "owner", now),
-      c.env.DB.prepare(`INSERT INTO event_access (event_id,access_state,enforcement_state,plan_key,media_limit,media_uploads_consumed,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,created_at,updated_at,album_limit,upload_window_days) VALUES (?,'preview','enforced',NULL,50,0,0,0,0,?,?,?,14)`).bind(eventId, now, now, Math.max(1, Math.min(5, archive.data.albums.length))),
-      ...restoreEventArchiveStatements(c.env.DB, archive, eventId, user.id, now),
+      c.env.DB.prepare(`INSERT INTO event_access (event_id,access_state,enforcement_state,plan_key,media_limit,media_uploads_consumed,guest_access_enabled,guest_uploads_enabled,original_downloads_enabled,created_at,updated_at,album_limit,upload_window_days) VALUES (?,'preview','enforced',NULL,?,0,0,0,0,?,?,?,14)`).bind(eventId, Math.max(50, cloudFileCount), now, now, Math.max(1, Math.min(5, archive.data.albums.length))),
+      ...restoreEventArchiveStatements(c.env.DB, archive, eventId, user.id, now, albumIds),
+      ...(archive.cloudBackup && restoreId ? [c.env.DB.prepare(`INSERT INTO cloud_event_restore_jobs
+        (id,user_id,event_id,provider,status,manifest_json,album_map_json,total_items,created_at,updated_at)
+        VALUES (?,?,?,?,'queued',?,?,?,?,?)`).bind(
+        restoreId, user.id, eventId, archive.cloudBackup.provider, JSON.stringify(archive),
+        JSON.stringify(Object.fromEntries(albumIds)), cloudFileCount, now, now,
+      )] : []),
     ];
     await c.env.DB.batch(statements);
+    if (restoreId) {
+      for (let offset = 0; offset < archive.cloudBackup!.files.length; offset += 100) {
+        const chunk = archive.cloudBackup!.files.slice(offset, offset + 100);
+        await c.env.DB.batch(chunk.map((cloudFile, index) => c.env.DB.prepare(`INSERT INTO cloud_event_restore_items
+          (restore_id,sequence_no,item_key,kind,source_id,filename,content_type,size_bytes,provider_file_id,metadata_json,updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(
+          restoreId, offset + index + 1, cloudFile.itemKey, cloudFile.kind, cloudFile.sourceId,
+          cloudFile.filename, cloudFile.contentType, cloudFile.sizeBytes, cloudFile.providerFileId,
+          JSON.stringify(cloudFile.metadata ?? {}), now,
+        )));
+      }
+      try {
+        const instance = await c.env.CLOUD_RESTORE_WORKFLOW.create({
+          id: restoreId,
+          params: { restoreId },
+          retention: { successRetention: "7 days", errorRetention: "14 days" },
+        });
+        await c.env.DB.prepare("UPDATE cloud_event_restore_jobs SET workflow_instance_id=?,updated_at=? WHERE id=?")
+          .bind(instance.id, Date.now(), restoreId).run();
+      } catch (error) {
+        await c.env.DB.prepare("UPDATE cloud_event_restore_jobs SET status='failed',error_message=?,completed_at=?,updated_at=? WHERE id=?")
+          .bind("The cloud restore could not be queued", Date.now(), Date.now(), restoreId).run();
+        console.error(JSON.stringify({ event: "cloud_event_restore_queue_failed", restoreId, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" }));
+      }
+    }
     console.log(JSON.stringify({ event: "event_archive_imported", eventId, userId: user.id, version: archive.version }));
-    return c.redirect(`/dashboard/${code}?lang=${locale}&archive=restored#overview`, 303);
+    return c.redirect(`/dashboard/${code}?lang=${locale}&archive=${restoreId ? "restoring" : "restored"}#overview`, 303);
   } catch (error) {
+    await c.env.DB.prepare("DELETE FROM events WHERE id=?").bind(eventId).run().catch(() => undefined);
     await releaseOwnedEvent(c.env.DB, user.id).catch(() => undefined);
     console.error(JSON.stringify({ event: "event_archive_import_failed", userId: user.id, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" }));
     return c.text(locale === "el" ? "Η επαναφορά απέτυχε. Το archive δεν άλλαξε." : "Restore failed. The archive was not changed.", 500);
