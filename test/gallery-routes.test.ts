@@ -723,6 +723,45 @@ describe("gallery, upload, and media routes", () => {
     expect(servedPoster.headers.get("content-type")).toBe("image/webp");
   });
 
+  it("rejects fast-path JPEG duplicates when only metadata changes", async () => {
+    const jpeg = (metadata: number[]) => new Uint8Array([
+      0xff, 0xd8,
+      0xff, 0xe1, 0x00, metadata.length + 2, ...metadata,
+      0xff, 0xdb, 0x00, 0x04, 0x11, 0x22,
+      0xff, 0xda, 0x00, 0x04, 0x33, 0x44,
+      0x12, 0x34, 0xff, 0x00, 0x56, 0xff, 0xd9,
+    ]);
+    const upload = async (bytes: Uint8Array, fingerprint: string, ip: string) => SELF.fetch(
+      `https://memboux.com/api/upload/${publicCode}/fast`,
+      {
+        method: "PUT",
+        headers: {
+          Origin: "https://memboux.com",
+          "CF-Connecting-IP": ip,
+          "Content-Type": "image/jpeg",
+          "Upload-Filename": encodeURIComponent("same-moment.jpg"),
+          "Upload-Size": String(bytes.byteLength),
+          "Upload-Last-Modified": String(now),
+          "Upload-Fingerprint": fingerprint,
+          "Upload-Content-SHA256": await sha256Bytes(bytes.buffer),
+          "Upload-Origin": "guest",
+          "Upload-Name": encodeURIComponent("Metadata Guest"),
+          "Upload-Consent": "accepted",
+          "Upload-Locale": "en",
+        },
+        body: bytes,
+      },
+    );
+
+    const first = await upload(jpeg([1, 2]), "2".repeat(64), "198.51.100.208");
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ uploaded: 1, duplicate: false });
+
+    const second = await upload(jpeg([9, 8, 7, 6]), "3".repeat(64), "198.51.100.209");
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ uploaded: 0, duplicate: true });
+  });
+
   it("resumes a multipart video and stores it only after every part completes", async () => {
     const fingerprint = "a".repeat(64);
     const metadata = {

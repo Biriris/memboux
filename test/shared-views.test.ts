@@ -119,6 +119,22 @@ describe("shared views", () => {
     expect(html).toContain("target instanceof HTMLDialogElement&&target.open");
   });
 
+  it("restores the exact prior page and progressive gallery state on back navigation", () => {
+    const html = page("Gallery", '<main><select data-gallery-sort="guest-gallery"></select><button data-gallery-more="guest-gallery" data-gallery-offset="48"></button></main>');
+
+    expect(html).toContain("membouxNavigationV1");
+    expect(html).toContain("history.scrollRestoration='manual'");
+    expect(html).toContain("addEventListener('pagehide',save)");
+    expect(html).toContain("saved.galleries");
+    expect(html).toContain("__membouxLoadMore");
+    expect(html).toContain("scrollTo(Number(saved.x)||0,Number(saved.y)||0)");
+    const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+      .map((match) => match[1])
+      .find((source) => source.includes("membouxNavigationV1"));
+    expect(script).toBeTruthy();
+    expect(() => new Function(script!)).not.toThrow();
+  });
+
   it("installs brickwall layout behavior only on media pages", () => {
     const gallery = page("Gallery", '<div><article class="memboux-media-card"></article></div>');
     const plain = page("Plain", "<main>No media</main>");

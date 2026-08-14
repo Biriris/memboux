@@ -15,14 +15,14 @@ import { normalizeLocale } from "../i18n";
 import { queueAutomaticCloudBackupsForEvent } from "../cloud-backups";
 import { notifyEventMembersAboutUpload } from "../notifications";
 import { GUEST_UPLOAD_POLICY_VERSION } from "../privacy";
-import { isCanonicalDuplicateConstraint, multipartMediaContentHash } from "../media-fingerprint";
+import { isCanonicalDuplicateConstraint, mediaCanonicalHash, multipartMediaContentHash } from "../media-fingerprint";
 import { mediaObjectKeys, mediaVariantKey, type MediaVariant } from "../media-variants";
 import { releaseStorage, reserveStorageForEvent } from "../quotas";
 import { consumeRateLimit, tooManyRequests } from "../rate-limit";
 import { getEvent } from "../repositories";
 import { currentUser } from "../session";
 import { safeFileExtension, validateUploadFiles } from "../upload-policy";
-import { constantTimeEqual, sha256 } from "../utils";
+import { constantTimeEqual, sha256, sha256Bytes } from "../utils";
 
 export const resumableUploadRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -331,6 +331,29 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   });
   if (completedDuplicate)
     return c.json({ ok: true, duplicate: true, uploaded: 0, mediaId: completedDuplicate.id });
+
+  const isCanonicalImage = contentType === "image/jpeg"
+    || contentType === "image/jpg"
+    || contentType === "image/png"
+    || contentType === "image/webp";
+  let uploadBody: ReadableStream | ArrayBuffer = c.req.raw.body;
+  let canonicalHash = contentHash;
+  if (isCanonicalImage) {
+    const bytes = await c.req.arrayBuffer();
+    if (bytes.byteLength !== size) return jsonError("The uploaded file size did not match the selection.", 422);
+    const verifiedContentHash = await sha256Bytes(bytes);
+    if (!constantTimeEqual(verifiedContentHash, contentHash))
+      return jsonError("The uploaded file fingerprint did not match the selection.", 422);
+    canonicalHash = await mediaCanonicalHash(bytes, contentType, verifiedContentHash);
+    uploadBody = bytes;
+    if (canonicalHash !== contentHash) {
+      const canonicalDuplicate = await c.env.DB.prepare(
+        "SELECT id FROM media WHERE event_id=? AND deleted_at IS NULL AND reported_at IS NULL AND canonical_hash=? LIMIT 1",
+      ).bind(context.event.id, canonicalHash).first<{ id: string }>();
+      if (canonicalDuplicate)
+        return c.json({ ok: true, duplicate: true, uploaded: 0, mediaId: canonicalDuplicate.id });
+    }
+  }
   const duplicateChecksAt = Date.now();
 
   const reservation = await reserveStorageForEvent(c.env.DB, context.event.id, size);
@@ -345,7 +368,7 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
   let r2CompletedAt = duplicateChecksAt;
   let persistedAt = duplicateChecksAt;
   try {
-    const object = await c.env.MEDIA.put(objectKey, c.req.raw.body, {
+    const object = await c.env.MEDIA.put(objectKey, uploadBody, {
       sha256: contentHash,
       httpMetadata: { contentType, cacheControl: "private, no-store" },
       customMetadata: { eventId: context.event.id, mediaId },
@@ -374,7 +397,7 @@ resumableUploadRoutes.put("/api/upload/:code/fast", async (c) => {
         now,
         capturedAt,
         contentHash,
-        contentHash,
+        canonicalHash,
         size,
         context.consentAt,
         context.policyVersion,

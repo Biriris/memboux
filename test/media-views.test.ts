@@ -174,6 +174,7 @@ describe("media views", () => {
   it("supports remote gallery pages and dynamically appended lightbox items", () => {
     const controls = galleryProgressiveControls(75, "remote-gallery", "en", 24, "/api/gallery/ABC123/media-page?lang=en");
     const script = galleryProgressiveScript("remote-gallery", 24, 24);
+    expect(script).toContain("__membouxLoadMore");
     const lightbox = lightboxMarkup("en", true);
 
     expect(controls).toContain('data-gallery-endpoint="/api/gallery/ABC123/media-page?lang=en"');
