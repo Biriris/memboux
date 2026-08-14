@@ -1,5 +1,11 @@
 ﻿@import "tailwindcss" source("./");
 
+.native-save-image {
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+}
+
 :root {
   /* The current design system is light-only. Prevent mobile browsers from
      auto-darkening controls and mixing their dark palette with our tokens. */
