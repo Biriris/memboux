@@ -122,6 +122,9 @@ describe("event workspace", () => {
     expect(html).not.toContain('data-event-pin-toggle');
     expect(html).toContain('data-surface-pin-control="guest_gallery"');
     expect(html).toContain('data-surface-pin-control="official_album"');
+    expect(html).toContain("endpoint=form.getAttribute('action')");
+    expect(html).toContain("fetch(endpoint,{method:'POST'");
+    expect(html).not.toContain("fetch(form.action,{method:'POST',credentials:'include',headers:{Accept:'application/json'},body:data}");
     expect(html).toContain('data-location-picker');
     expect(html).toContain('name="locationPlaceId"');
     expect(html).toContain('name="locationLat"');
